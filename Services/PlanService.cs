@@ -246,7 +246,7 @@ public class PlanService
     {
         try
         {
-            EPPlus.LicenseContext.SetLicense(LicenseContext.NonCommercial);
+            ExcelPackage.LicenseContext = LicenseContext.NonCommercial;
 
             var query = _context.PurchasePlans.AsQueryable();
 
