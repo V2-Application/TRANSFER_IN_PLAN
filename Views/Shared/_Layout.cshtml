@@ -39,6 +39,7 @@
                         <li><a class="nav-link" asp-controller="DispQty" asp-action="Index">Display Qty</a></li>
                         <li><a class="nav-link" asp-controller="StoreStock" asp-action="Index">Store Stock</a></li>
                         <li><a class="nav-link" asp-controller="DcStock" asp-action="Index">DC Stock</a></li>
+                        <li><a class="nav-link" asp-controller="DelPending" asp-action="Index">Delivery Pending</a></li>
                     </ul>
                 </li>
 
@@ -47,8 +48,12 @@
                         <i class="bi bi-lightning"></i> Plan Management
                     </a>
                     <ul class="collapse list-unstyled ms-3" id="planMenu">
+                        <li class="nav-header">Transfer In Plan</li>
                         <li><a class="nav-link" asp-controller="Plan" asp-action="Execute">Execute Plan</a></li>
                         <li><a class="nav-link" asp-controller="Plan" asp-action="Output">View Output</a></li>
+                        <li class="nav-header mt-2">Purchase Plan</li>
+                        <li><a class="nav-link" asp-controller="PurchasePlan" asp-action="Execute">Execute Purchase Plan</a></li>
+                        <li><a class="nav-link" asp-controller="PurchasePlan" asp-action="Output">Purchase Plan Output</a></li>
                     </ul>
                 </li>
             </ul>

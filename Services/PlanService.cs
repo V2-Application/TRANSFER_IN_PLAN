@@ -212,4 +212,129 @@ public class PlanService
             throw;
         }
     }
+
+    public async Task<(int RowsInserted, DateTime ExecutionTime)> ExecutePurchasePlanAsync(
+        int startWeekId, int endWeekId, string? rdcCode = null, string? majCat = null)
+    {
+        try
+        {
+            var startTime = DateTime.UtcNow;
+
+            var sql = "EXEC SP_GENERATE_PURCHASE_PLAN " +
+                $"@StartWeekID={startWeekId}, " +
+                $"@EndWeekID={endWeekId}, " +
+                $"@RdcCode={(string.IsNullOrEmpty(rdcCode) ? "NULL" : $"'{rdcCode}'")}, " +
+                $"@MajCat={(string.IsNullOrEmpty(majCat) ? "NULL" : $"'{majCat}'")}";
+
+            var rowsInserted = await _context.Database.ExecuteSqlRawAsync(sql);
+
+            var executionTime = DateTime.UtcNow;
+
+            _logger.LogInformation($"SP_GENERATE_PURCHASE_PLAN executed successfully. Rows inserted: {rowsInserted}");
+
+            return (rowsInserted, executionTime);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError($"Error executing SP_GENERATE_PURCHASE_PLAN: {ex.Message}");
+            throw;
+        }
+    }
+
+    public async Task<byte[]> ExportPurchasePlanToExcel(int? startWeekId = null, int? endWeekId = null,
+        string? rdcCode = null, string? majCat = null)
+    {
+        try
+        {
+            EPPlus.LicenseContext.SetLicense(LicenseContext.NonCommercial);
+
+            var query = _context.PurchasePlans.AsQueryable();
+
+            if (startWeekId.HasValue)
+                query = query.Where(p => p.WeekId >= startWeekId);
+
+            if (endWeekId.HasValue)
+                query = query.Where(p => p.WeekId <= endWeekId);
+
+            if (!string.IsNullOrEmpty(rdcCode))
+                query = query.Where(p => p.RdcCd == rdcCode);
+
+            if (!string.IsNullOrEmpty(majCat))
+                query = query.Where(p => p.MajCat == majCat);
+
+            var plans = await query.OrderBy(p => p.RdcCd).ThenBy(p => p.MajCat).ToListAsync();
+
+            using (var package = new ExcelPackage())
+            {
+                var worksheet = package.Workbook.Worksheets.Add("Purchase Plan");
+
+                // Headers
+                worksheet.Cells[1, 1].Value = "RDC Code";
+                worksheet.Cells[1, 2].Value = "RDC Name";
+                worksheet.Cells[1, 3].Value = "Major Category";
+                worksheet.Cells[1, 4].Value = "Week";
+                worksheet.Cells[1, 5].Value = "Week Start";
+                worksheet.Cells[1, 6].Value = "Week End";
+                worksheet.Cells[1, 7].Value = "DC Stock Qty";
+                worksheet.Cells[1, 8].Value = "GRT Stock Qty";
+                worksheet.Cells[1, 9].Value = "BGT Purchase Q";
+                worksheet.Cells[1, 10].Value = "POS PO Raised";
+                worksheet.Cells[1, 11].Value = "NEG PO Raised";
+                worksheet.Cells[1, 12].Value = "DC Stock Excess";
+                worksheet.Cells[1, 13].Value = "DC Stock Short";
+                worksheet.Cells[1, 14].Value = "Store Stock Excess";
+                worksheet.Cells[1, 15].Value = "Store Stock Short";
+                worksheet.Cells[1, 16].Value = "CO Stock Excess";
+                worksheet.Cells[1, 17].Value = "CO Stock Short";
+                worksheet.Cells[1, 18].Value = "Created Date";
+                worksheet.Cells[1, 19].Value = "Created By";
+
+                // Format header
+                var headerRange = worksheet.Cells[1, 1, 1, 19];
+                headerRange.Style.Font.Bold = true;
+                headerRange.Style.Fill.PatternType = OfficeOpenXml.Style.ExcelFillStyle.Solid;
+                headerRange.Style.Fill.BackgroundColor.SetColor(System.Drawing.Color.LightGreen);
+
+                // Data rows
+                int row = 2;
+                foreach (var plan in plans)
+                {
+                    worksheet.Cells[row, 1].Value = plan.RdcCd;
+                    worksheet.Cells[row, 2].Value = plan.RdcNm;
+                    worksheet.Cells[row, 3].Value = plan.MajCat;
+                    worksheet.Cells[row, 4].Value = $"FY{plan.FyYear} W{plan.FyWeek}";
+                    worksheet.Cells[row, 5].Value = plan.WkStDt?.ToString("yyyy-MM-dd");
+                    worksheet.Cells[row, 6].Value = plan.WkEndDt?.ToString("yyyy-MM-dd");
+                    worksheet.Cells[row, 7].Value = plan.DcStkQ;
+                    worksheet.Cells[row, 8].Value = plan.GrtStkQ;
+                    worksheet.Cells[row, 9].Value = plan.BgtPurQInit;
+                    worksheet.Cells[row, 10].Value = plan.PosPORaised;
+                    worksheet.Cells[row, 11].Value = plan.NegPORaised;
+                    worksheet.Cells[row, 12].Value = plan.DcStkExcessQ;
+                    worksheet.Cells[row, 13].Value = plan.DcStkShortQ;
+                    worksheet.Cells[row, 14].Value = plan.StStkExcessQ;
+                    worksheet.Cells[row, 15].Value = plan.StStkShortQ;
+                    worksheet.Cells[row, 16].Value = plan.CoStkExcessQ;
+                    worksheet.Cells[row, 17].Value = plan.CoStkShortQ;
+                    worksheet.Cells[row, 18].Value = plan.CreatedDt?.ToString("yyyy-MM-dd HH:mm:ss");
+                    worksheet.Cells[row, 19].Value = plan.CreatedBy;
+
+                    row++;
+                }
+
+                // Auto-fit columns
+                for (int col = 1; col <= 19; col++)
+                {
+                    worksheet.Column(col).AutoFit();
+                }
+
+                return package.GetAsByteArray();
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError($"Error exporting to Excel: {ex.Message}");
+            throw;
+        }
+    }
 }

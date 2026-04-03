@@ -1,0 +1,36 @@
+@{
+    ViewData["Title"] = "Delete Delivery Pending Record";
+}
+
+@model DelPending
+
+<div class="row">
+    <div class="col-md-6">
+        <div class="card border-danger">
+            <div class="card-header bg-danger text-white">
+                <h5 class="card-title mb-0">Confirm Delete</h5>
+            </div>
+            <div class="card-body">
+                <p class="text-danger">
+                    <strong>Warning:</strong> Are you sure you want to delete this record?
+                </p>
+
+                <div class="alert alert-light">
+                    <p><strong>RDC Code:</strong> @Model.RdcCd</p>
+                    <p><strong>Major Category:</strong> @Model.MajCat</p>
+                    <p><strong>Delivery Pending Qty:</strong> @Model.DelPendQ?.ToString("F2")</p>
+                    <p><strong>Date:</strong> @Model.Date?.ToString("yyyy-MM-dd")</p>
+                </div>
+
+                <form asp-action="DeleteConfirmed" asp-route-id="@Model.Id" method="post">
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-danger">
+                            <i class="bi bi-trash"></i> Delete Permanently
+                        </button>
+                        <a asp-action="Index" class="btn btn-secondary">Cancel</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>

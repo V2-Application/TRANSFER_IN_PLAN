@@ -1,0 +1,143 @@
+@{
+    ViewData["Title"] = "Purchase Plan Output";
+}
+
+@model IEnumerable<PurchasePlan>
+
+<div class="mb-4">
+    <h3>Purchase Plan Output</h3>
+</div>
+
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="card-title mb-0">Filters</h5>
+    </div>
+    <div class="card-body">
+        <form method="get" id="filterForm" class="row g-3">
+            <div class="col-md-2">
+                <label for="startWeekId" class="form-label">Start Week</label>
+                <select name="startWeekId" id="startWeekId" class="form-select">
+                    <option value="">-- All --</option>
+                    @foreach (var week in ViewBag.WeekCalendars)
+                    {
+                        <option value="@week.WeekId">@week.YearWeek</option>
+                    }
+                </select>
+            </div>
+
+            <div class="col-md-2">
+                <label for="endWeekId" class="form-label">End Week</label>
+                <select name="endWeekId" id="endWeekId" class="form-select">
+                    <option value="">-- All --</option>
+                    @foreach (var week in ViewBag.WeekCalendars)
+                    {
+                        <option value="@week.WeekId">@week.YearWeek</option>
+                    }
+                </select>
+            </div>
+
+            <div class="col-md-3">
+                <label for="rdcCode" class="form-label">RDC Code</label>
+                <select name="rdcCode" id="rdcCode" class="form-select">
+                    <option value="">-- All RDCs --</option>
+                    @foreach (var rdc in ViewBag.RdcList)
+                    {
+                        <option value="@rdc">@rdc</option>
+                    }
+                </select>
+            </div>
+
+            <div class="col-md-3">
+                <label for="majCat" class="form-label">Major Category</label>
+                <select name="majCat" id="majCat" class="form-select">
+                    <option value="">-- All Categories --</option>
+                    @foreach (var cat in ViewBag.CategoryList)
+                    {
+                        <option value="@cat">@cat</option>
+                    }
+                </select>
+            </div>
+
+            <div class="col-md-2 d-flex align-items-end gap-2">
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-search"></i> Filter
+                </button>
+                <a href="@Url.Action("Output")" class="btn btn-secondary">Reset</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="card-title mb-0">Plan Details</h5>
+        <form asp-action="ExportExcel" method="post" class="d-inline">
+            <button type="submit" class="btn btn-success btn-sm">
+                <i class="bi bi-download"></i> Export to Excel
+            </button>
+        </form>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover table-sm" id="purchasePlanOutputTable">
+                <thead class="table-light">
+                    <tr>
+                        <th>RDC Code</th>
+                        <th>RDC Name</th>
+                        <th>Category</th>
+                        <th>Week</th>
+                        <th class="text-end">DC Stock Q</th>
+                        <th class="text-end">GRT Stock Q</th>
+                        <th class="text-end">BGT Pur Q</th>
+                        <th class="text-end">POS PO</th>
+                        <th class="text-end">NEG PO</th>
+                        <th class="text-end">DC Excess</th>
+                        <th class="text-end">DC Short</th>
+                        <th class="text-end">ST Excess</th>
+                        <th class="text-end">ST Short</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var item in Model)
+                    {
+                        <tr>
+                            <td>@item.RdcCd</td>
+                            <td>@item.RdcNm</td>
+                            <td>@item.MajCat</td>
+                            <td>FY@item.FyYear W@item.FyWeek</td>
+                            <td class="text-end">@item.DcStkQ?.ToString("F2")</td>
+                            <td class="text-end">@item.GrtStkQ?.ToString("F2")</td>
+                            <td class="text-end">@item.BgtPurQInit?.ToString("F2")</td>
+                            <td class="text-end"><span class="badge bg-success">@item.PosPORaised?.ToString("F2")</span></td>
+                            <td class="text-end"><span class="badge bg-warning">@item.NegPORaised?.ToString("F2")</span></td>
+                            <td class="text-end">@item.DcStkExcessQ?.ToString("F2")</td>
+                            <td class="text-end"><span class="badge bg-danger">@item.DcStkShortQ?.ToString("F2")</span></td>
+                            <td class="text-end">@item.StStkExcessQ?.ToString("F2")</td>
+                            <td class="text-end"><span class="badge bg-danger">@item.StStkShortQ?.ToString("F2")</span></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+            @if (!Model.Any())
+            {
+                <div class="alert alert-info">
+                    No data found. Please check your filters or execute the plan generation.
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        $(document).ready(function () {
+            if ($('#purchasePlanOutputTable tbody tr').length > 0) {
+                $('#purchasePlanOutputTable').DataTable({
+                    pageLength: 50,
+                    scrollX: true,
+                    order: [[0, 'asc'], [3, 'asc']]
+                });
+            }
+        });
+    </script>
+}

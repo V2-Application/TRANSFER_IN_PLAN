@@ -18,6 +18,8 @@ public class PlanningDbContext : DbContext
     public DbSet<StoreStock> StoreStocks { get; set; }
     public DbSet<DcStock> DcStocks { get; set; }
     public DbSet<TrfInPlan> TrfInPlans { get; set; }
+    public DbSet<PurchasePlan> PurchasePlans { get; set; }
+    public DbSet<DelPending> DelPendings { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -55,5 +57,11 @@ public class PlanningDbContext : DbContext
 
         modelBuilder.Entity<TrfInPlan>()
             .ToTable("TRF_IN_PLAN", schema: "dbo");
+
+        modelBuilder.Entity<PurchasePlan>()
+            .ToTable("PURCHASE_PLAN", schema: "dbo");
+
+        modelBuilder.Entity<DelPending>()
+            .ToTable("QTY_DEL_PENDING", schema: "dbo");
     }
 }
