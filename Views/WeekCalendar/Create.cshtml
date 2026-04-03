@@ -1,0 +1,73 @@
+@{
+    ViewData["Title"] = "Create Week Calendar";
+}
+
+@model WeekCalendar
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Add New Week Calendar</h5>
+            </div>
+            <div class="card-body">
+                <form asp-action="Create" method="post">
+                    <div class="mb-3">
+                        <label asp-for="WeekId" class="form-label">Week ID</label>
+                        <input asp-for="WeekId" class="form-control" />
+                        <span asp-validation-for="WeekId" class="text-danger"></span>
+                    </div>
+
+                    <div class="mb-3">
+                        <label asp-for="WeekSeq" class="form-label">Week Sequence</label>
+                        <input asp-for="WeekSeq" class="form-control" />
+                        <span asp-validation-for="WeekSeq" class="text-danger"></span>
+                    </div>
+
+                    <div class="mb-3">
+                        <label asp-for="FyWeek" class="form-label">FY Week</label>
+                        <input asp-for="FyWeek" class="form-control" />
+                        <span asp-validation-for="FyWeek" class="text-danger"></span>
+                    </div>
+
+                    <div class="mb-3">
+                        <label asp-for="FyYear" class="form-label">FY Year</label>
+                        <input asp-for="FyYear" class="form-control" />
+                        <span asp-validation-for="FyYear" class="text-danger"></span>
+                    </div>
+
+                    <div class="mb-3">
+                        <label asp-for="CalYear" class="form-label">Calendar Year</label>
+                        <input asp-for="CalYear" class="form-control" />
+                        <span asp-validation-for="CalYear" class="text-danger"></span>
+                    </div>
+
+                    <div class="mb-3">
+                        <label asp-for="YearWeek" class="form-label">Year Week</label>
+                        <input asp-for="YearWeek" class="form-control" />
+                        <span asp-validation-for="YearWeek" class="text-danger"></span>
+                    </div>
+
+                    <div class="mb-3">
+                        <label asp-for="WkStDt" class="form-label">Week Start Date</label>
+                        <input asp-for="WkStDt" type="date" class="form-control" />
+                        <span asp-validation-for="WkStDt" class="text-danger"></span>
+                    </div>
+
+                    <div class="mb-3">
+                        <label asp-for="WkEndDt" class="form-label">Week End Date</label>
+                        <input asp-for="WkEndDt" type="date" class="form-control" />
+                        <span asp-validation-for="WkEndDt" class="text-danger"></span>
+                    </div>
+
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-success">
+                            <i class="bi bi-check-circle"></i> Create
+                        </button>
+                        <a asp-action="Index" class="btn btn-secondary">Cancel</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>

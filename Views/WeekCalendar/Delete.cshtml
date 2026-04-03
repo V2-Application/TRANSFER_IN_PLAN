@@ -1,0 +1,36 @@
+@{
+    ViewData["Title"] = "Delete Week Calendar";
+}
+
+@model WeekCalendar
+
+<div class="row">
+    <div class="col-md-6">
+        <div class="card border-danger">
+            <div class="card-header bg-danger text-white">
+                <h5 class="card-title mb-0">Confirm Delete</h5>
+            </div>
+            <div class="card-body">
+                <p>Are you sure you want to delete this week calendar entry?</p>
+
+                <div class="mb-3">
+                    <strong>Week ID:</strong> @Model.WeekId
+                </div>
+                <div class="mb-3">
+                    <strong>FY Year - Week:</strong> @Model.FyYear - W@Model.FyWeek
+                </div>
+                <div class="mb-3">
+                    <strong>Period:</strong> @Model.WkStDt?.ToString("yyyy-MM-dd") to @Model.WkEndDt?.ToString("yyyy-MM-dd")
+                </div>
+
+                <form asp-action="DeleteConfirmed" method="post" class="d-inline">
+                    <input type="hidden" asp-for="WeekId" />
+                    <button type="submit" class="btn btn-danger">
+                        <i class="bi bi-trash"></i> Delete
+                    </button>
+                    <a asp-action="Index" class="btn btn-secondary">Cancel</a>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>

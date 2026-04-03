@@ -1,0 +1,58 @@
+@{
+    ViewData["Title"] = "Bin Capacity Management";
+}
+
+@model IEnumerable<BinCapacity>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h3>Bin Capacity</h3>
+    <a asp-action="Create" class="btn btn-primary">
+        <i class="bi bi-plus-circle"></i> Add Bin Capacity
+    </a>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover" id="binCapacityTable">
+                <thead class="table-light">
+                    <tr>
+                        <th>Major Category</th>
+                        <th class="text-end">Bin Cap DC Team</th>
+                        <th class="text-end">Bin Capacity</th>
+                        <th class="text-center">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var item in Model)
+                    {
+                        <tr>
+                            <td>@item.MajCat</td>
+                            <td class="text-end">@item.BinCapDcTeam?.ToString("F2")</td>
+                            <td class="text-end">@item.BinCap?.ToString("F2")</td>
+                            <td class="text-center">
+                                <a asp-action="Edit" asp-route-id="@item.Id" class="btn btn-sm btn-warning">
+                                    <i class="bi bi-pencil"></i>
+                                </a>
+                                <a asp-action="Delete" asp-route-id="@item.Id" class="btn btn-sm btn-danger">
+                                    <i class="bi bi-trash"></i>
+                                </a>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        $(document).ready(function () {
+            $('#binCapacityTable').DataTable({
+                pageLength: 25,
+                order: [[0, 'asc']]
+            });
+        });
+    </script>
+}

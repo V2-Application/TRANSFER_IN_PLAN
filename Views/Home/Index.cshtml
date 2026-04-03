@@ -1,0 +1,211 @@
+@{
+    ViewData["Title"] = "Dashboard";
+}
+
+@model DashboardViewModel
+
+<div class="dashboard-container">
+    <!-- Stats Cards -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="stat-card">
+                <div class="stat-icon stores">
+                    <i class="bi bi-shop"></i>
+                </div>
+                <div class="stat-content">
+                    <h6 class="stat-label">Total Stores</h6>
+                    <h2 class="stat-value">@Model.TotalStores</h2>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-3">
+            <div class="stat-card">
+                <div class="stat-icon categories">
+                    <i class="bi bi-collection"></i>
+                </div>
+                <div class="stat-content">
+                    <h6 class="stat-label">Categories</h6>
+                    <h2 class="stat-value">@Model.TotalCategories</h2>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-3">
+            <div class="stat-card">
+                <div class="stat-icon rows">
+                    <i class="bi bi-list-ul"></i>
+                </div>
+                <div class="stat-content">
+                    <h6 class="stat-label">Plan Rows</h6>
+                    <h2 class="stat-value">@Model.TotalPlanRows</h2>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-3">
+            <div class="stat-card">
+                <div class="stat-icon execution">
+                    <i class="bi bi-calendar-event"></i>
+                </div>
+                <div class="stat-content">
+                    <h6 class="stat-label">Last Execution</h6>
+                    <h6 class="stat-date">@(Model.LastExecutionDate?.ToString("yyyy-MM-dd HH:mm") ?? "Never")</h6>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Charts Row -->
+    <div class="row mb-4">
+        <div class="col-lg-6">
+            <div class="card chart-card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">Transfer In by Category</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="categoryChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-6">
+            <div class="card chart-card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">Weekly Transfer In Trend</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="weeklyChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Data Tables Row -->
+    <div class="row">
+        <div class="col-lg-6">
+            <div class="card table-card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">Top 10 Short Stores</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Store Code</th>
+                                    <th>Store Name</th>
+                                    <th>Category</th>
+                                    <th class="text-end">Qty</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var store in Model.TopShortStores.Take(10))
+                                {
+                                    <tr>
+                                        <td>@store.StCd</td>
+                                        <td>@store.StNm</td>
+                                        <td>@store.MajCat</td>
+                                        <td class="text-end">
+                                            <span class="badge bg-danger">@store.Quantity.ToString("F2")</span>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-6">
+            <div class="card table-card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">Top 10 Excess Stores</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Store Code</th>
+                                    <th>Store Name</th>
+                                    <th>Category</th>
+                                    <th class="text-end">Qty</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var store in Model.TopExcessStores.Take(10))
+                                {
+                                    <tr>
+                                        <td>@store.StCd</td>
+                                        <td>@store.StNm</td>
+                                        <td>@store.MajCat</td>
+                                        <td class="text-end">
+                                            <span class="badge bg-warning">@store.Quantity.ToString("F2")</span>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        // Category Chart
+        const categoryCtx = document.getElementById('categoryChart').getContext('2d');
+        new Chart(categoryCtx, {
+            type: 'bar',
+            data: {
+                labels: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.CategorySummary.Select(c => c.MajCat).ToList())),
+                datasets: [{
+                    label: 'Transfer In Quantity',
+                    data: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.CategorySummary.Select(c => c.TotalTrfInQty).ToList())),
+                    backgroundColor: '#1F4E79',
+                    borderColor: '#1F4E79',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: { display: false }
+                },
+                scales: {
+                    y: { beginAtZero: true }
+                }
+            }
+        });
+
+        // Weekly Chart
+        const weeklyCtx = document.getElementById('weeklyChart').getContext('2d');
+        new Chart(weeklyCtx, {
+            type: 'line',
+            data: {
+                labels: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.WeeklySummary.Select(w => "FY" + w.FyYear + " W" + w.FyWeek).ToList())),
+                datasets: [{
+                    label: 'Transfer In Quantity',
+                    data: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.WeeklySummary.Select(w => w.TotalTrfInQty).ToList())),
+                    borderColor: '#1F4E79',
+                    backgroundColor: 'rgba(31, 78, 121, 0.1)',
+                    tension: 0.4,
+                    fill: true
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: { display: true }
+                },
+                scales: {
+                    y: { beginAtZero: true }
+                }
+            }
+        });
+    </script>
+}

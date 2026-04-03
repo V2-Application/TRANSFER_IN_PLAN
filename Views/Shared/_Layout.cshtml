@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] - Transfer In Plan</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
+    <link href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+</head>
+<body>
+    <div class="d-flex">
+        <!-- Sidebar Navigation -->
+        <nav class="sidebar">
+            <div class="sidebar-header">
+                <h5 class="mb-0">
+                    <i class="bi bi-diagram-3"></i> Transfer In Plan
+                </h5>
+                <small class="text-muted">Management System</small>
+            </div>
+
+            <ul class="nav flex-column">
+                <li class="nav-item">
+                    <a class="nav-link" asp-controller="Home" asp-action="Index">
+                        <i class="bi bi-speedometer2"></i> Dashboard
+                    </a>
+                </li>
+
+                <li class="nav-item">
+                    <a class="nav-link dropdown-toggle" href="#refTablesMenu" data-bs-toggle="collapse">
+                        <i class="bi bi-table"></i> Reference Tables
+                    </a>
+                    <ul class="collapse list-unstyled ms-3" id="refTablesMenu">
+                        <li><a class="nav-link" asp-controller="WeekCalendar" asp-action="Index">Week Calendar</a></li>
+                        <li><a class="nav-link" asp-controller="StoreMaster" asp-action="Index">Store Master</a></li>
+                        <li><a class="nav-link" asp-controller="BinCapacity" asp-action="Index">Bin Capacity</a></li>
+                        <li><a class="nav-link" asp-controller="SaleQty" asp-action="Index">Sale Qty</a></li>
+                        <li><a class="nav-link" asp-controller="DispQty" asp-action="Index">Display Qty</a></li>
+                        <li><a class="nav-link" asp-controller="StoreStock" asp-action="Index">Store Stock</a></li>
+                        <li><a class="nav-link" asp-controller="DcStock" asp-action="Index">DC Stock</a></li>
+                    </ul>
+                </li>
+
+                <li class="nav-item">
+                    <a class="nav-link dropdown-toggle" href="#planMenu" data-bs-toggle="collapse">
+                        <i class="bi bi-lightning"></i> Plan Management
+                    </a>
+                    <ul class="collapse list-unstyled ms-3" id="planMenu">
+                        <li><a class="nav-link" asp-controller="Plan" asp-action="Execute">Execute Plan</a></li>
+                        <li><a class="nav-link" asp-controller="Plan" asp-action="Output">View Output</a></li>
+                    </ul>
+                </li>
+            </ul>
+        </nav>
+
+        <!-- Main Content -->
+        <div class="content-wrapper">
+            <!-- Top Header -->
+            <header class="top-header">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h1 class="page-title">@ViewData["Title"]</h1>
+                    <div class="user-info">
+                        <span class="text-muted">Welcome</span>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Main Content Area -->
+            <main class="main-content">
+                @if (!string.IsNullOrEmpty(ViewBag.SuccessMessage))
+                {
+                    <div class="alert alert-success alert-dismissible fade show" role="alert">
+                        @ViewBag.SuccessMessage
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                }
+
+                @if (!string.IsNullOrEmpty(ViewBag.ErrorMessage))
+                {
+                    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                        @ViewBag.ErrorMessage
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                }
+
+                @RenderBody()
+            </main>
+
+            <!-- Footer -->
+            <footer class="footer">
+                <p class="mb-0">Transfer In Plan Management System &copy; 2024. All rights reserved.</p>
+            </footer>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="~/js/site.js" asp-append-version="true"></script>
+    @await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>

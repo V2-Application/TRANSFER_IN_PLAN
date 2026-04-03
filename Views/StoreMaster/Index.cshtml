@@ -1,0 +1,68 @@
+@{
+    ViewData["Title"] = "Store Master Management";
+}
+
+@model IEnumerable<StoreMaster>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h3>Store Master</h3>
+    <a asp-action="Create" class="btn btn-primary">
+        <i class="bi bi-plus-circle"></i> Add Store
+    </a>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover" id="storeMasterTable">
+                <thead class="table-light">
+                    <tr>
+                        <th>Store Code</th>
+                        <th>Store Name</th>
+                        <th>RDC Code</th>
+                        <th>RDC Name</th>
+                        <th>Hub Code</th>
+                        <th>Status</th>
+                        <th>Area</th>
+                        <th>State</th>
+                        <th class="text-center">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var item in Model)
+                    {
+                        <tr>
+                            <td>@item.StCd</td>
+                            <td>@item.StNm</td>
+                            <td>@item.RdcCd</td>
+                            <td>@item.RdcNm</td>
+                            <td>@item.HubCd</td>
+                            <td><span class="badge bg-info">@item.Status</span></td>
+                            <td>@item.Area</td>
+                            <td>@item.State</td>
+                            <td class="text-center">
+                                <a asp-action="Edit" asp-route-id="@item.Id" class="btn btn-sm btn-warning">
+                                    <i class="bi bi-pencil"></i>
+                                </a>
+                                <a asp-action="Delete" asp-route-id="@item.Id" class="btn btn-sm btn-danger">
+                                    <i class="bi bi-trash"></i>
+                                </a>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        $(document).ready(function () {
+            $('#storeMasterTable').DataTable({
+                pageLength: 25,
+                order: [[0, 'asc']]
+            });
+        });
+    </script>
+}
