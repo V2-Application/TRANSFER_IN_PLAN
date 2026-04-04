@@ -1,213 +1,83 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Text;
 using TRANSFER_IN_PLAN.Data;
 using TRANSFER_IN_PLAN.Models;
 
-namespace TRANSFER_IN_PLAN.Controllers;
-
-public class HomeController : Controller
+namespace TRANSFER_IN_PLAN.Controllers
 {
-    private readonly PlanningDbContext _context;
-    private readonly ILogger<HomeController> _logger;
-
-    public HomeController(PlanningDbContext context, ILogger<HomeController> logger)
+    public class HomeController : Controller
     {
-        _context = context;
-        _logger = logger;
-    }
+        private readonly PlanningDbContext _context;
+        private readonly ILogger<HomeController> _logger;
+        public HomeController(PlanningDbContext context, ILogger<HomeController> logger) { _context = context; _logger = logger; }
 
-    public async Task<IActionResult> Index()
-    {
-        try
+        public async Task<IActionResult> Index()
         {
-            _logger.LogInformation("Loading full analytics dashboard");
             var vm = new DashboardViewModel();
-
-            // ── KPI Counters ──────────────────────────────────────
-            vm.TotalStores = await _context.StoreMasters.CountAsync();
-
-            vm.TotalCategories = await _context.StoreStocks
-                .Where(s => s.MajCat != null)
-                .Select(s => s.MajCat).Distinct().CountAsync();
-            if (vm.TotalCategories == 0)
-                vm.TotalCategories = await _context.TrfInPlans
-                    .Where(t => t.MajCat != null)
-                    .Select(t => t.MajCat).Distinct().CountAsync();
-
-            vm.TotalPlanRows = await _context.TrfInPlans.CountAsync();
-            vm.TotalPurchasePlanRows = await _context.PurchasePlans.CountAsync();
-
-            vm.LastExecutionDate = await _context.TrfInPlans
-                .Where(t => t.CreatedDt != null)
-                .OrderByDescending(t => t.CreatedDt)
-                .Select(t => t.CreatedDt).FirstOrDefaultAsync();
-
-            // ── Aggregate Totals ──────────────────────────────────
-            vm.TotalTrfInQty = await _context.TrfInPlans
-                .Where(t => t.TrfInStkQ != null)
-                .SumAsync(t => t.TrfInStkQ ?? 0);
-
-            vm.TotalPurchaseQty = await _context.PurchasePlans
-                .Where(p => p.BgtPurQInit != null)
-                .SumAsync(p => p.BgtPurQInit ?? 0);
-
-            vm.TotalDcStkShortQ = await _context.PurchasePlans
-                .Where(p => p.DcStkShortQ != null)
-                .SumAsync(p => p.DcStkShortQ ?? 0);
-
-            vm.TotalDcStkExcessQ = await _context.PurchasePlans
-                .Where(p => p.DcStkExcessQ != null)
-                .SumAsync(p => p.DcStkExcessQ ?? 0);
-
-            vm.TotalStStkShortQ = await _context.TrfInPlans
-                .Where(t => t.StClShortQ != null)
-                .SumAsync(t => t.StClShortQ ?? 0);
-
-            vm.TotalStStkExcessQ = await _context.TrfInPlans
-                .Where(t => t.StClExcessQ != null)
-                .SumAsync(t => t.StClExcessQ ?? 0);
-
-            // ── TrfInPlan: Category Summary ───────────────────────
-            vm.CategorySummary = await _context.TrfInPlans
-                .Where(t => t.MajCat != null)
-                .GroupBy(t => t.MajCat)
-                .Select(g => new CategorySummary
-                {
-                    MajCat       = g.Key,
-                    TotalTrfInQty = g.Sum(x => x.TrfInStkQ ?? 0),
-                    TotalShortQ   = g.Sum(x => x.StClShortQ ?? 0),
-                    TotalExcessQ  = g.Sum(x => x.StClExcessQ ?? 0),
-                    RowCount      = g.Count()
-                })
-                .OrderByDescending(x => x.TotalTrfInQty)
-                .Take(15).ToListAsync();
-
-            // ── TrfInPlan: Weekly Trend ───────────────────────────
-            vm.WeeklySummary = await _context.TrfInPlans
-                .Where(t => t.FyWeek != null)
-                .GroupBy(t => new { t.FyYear, t.FyWeek })
-                .Select(g => new WeeklySummary
-                {
-                    FyYear        = g.Key.FyYear ?? 0,
-                    FyWeek        = g.Key.FyWeek ?? 0,
-                    TotalTrfInQty = g.Sum(x => x.TrfInStkQ ?? 0),
-                    RowCount      = g.Count()
-                })
-                .OrderBy(x => x.FyYear).ThenBy(x => x.FyWeek)
-                .Take(48).ToListAsync();
-
-            // ── TrfInPlan: Top Short Stores ───────────────────────
-            vm.TopShortStores = await _context.TrfInPlans
-                .Where(t => t.StClShortQ > 0)
-                .GroupBy(t => new { t.StCd, t.StNm, t.MajCat })
-                .Select(g => new StoreMetric
-                {
-                    StCd     = g.Key.StCd,
-                    StNm     = g.Key.StNm,
-                    MajCat   = g.Key.MajCat,
-                    Quantity = g.Sum(x => x.StClShortQ ?? 0)
-                })
-                .OrderByDescending(x => x.Quantity)
-                .Take(10).ToListAsync();
-
-            // ── TrfInPlan: Top Excess Stores ──────────────────────
-            vm.TopExcessStores = await _context.TrfInPlans
-                .Where(t => t.StClExcessQ > 0)
-                .GroupBy(t => new { t.StCd, t.StNm, t.MajCat })
-                .Select(g => new StoreMetric
-                {
-                    StCd     = g.Key.StCd,
-                    StNm     = g.Key.StNm,
-                    MajCat   = g.Key.MajCat,
-                    Quantity = g.Sum(x => x.StClExcessQ ?? 0)
-                })
-                .OrderByDescending(x => x.Quantity)
-                .Take(10).ToListAsync();
-
-            // ── TrfInPlan: RDC Summary ────────────────────────────
-            vm.RdcSummary = await _context.TrfInPlans
-                .Where(t => t.RdcCd != null)
-                .GroupBy(t => new { t.RdcCd, t.RdcNm })
-                .Select(g => new RdcSummary
-                {
-                    RdcCd        = g.Key.RdcCd,
-                    RdcNm        = g.Key.RdcNm,
-                    TotalTrfInQty = g.Sum(x => x.TrfInStkQ ?? 0),
-                    StoreCount   = g.Select(x => x.StCd).Distinct().Count()
-                })
-                .OrderByDescending(x => x.TotalTrfInQty)
-                .Take(15).ToListAsync();
-
-            // ── PurchasePlan: Category Summary ────────────────────
-            vm.PpCategorySummary = await _context.PurchasePlans
-                .Where(p => p.MajCat != null)
-                .GroupBy(p => p.MajCat)
-                .Select(g => new PpCategorySummary
-                {
-                    MajCat        = g.Key,
-                    BgtPurQ       = g.Sum(x => x.BgtPurQInit ?? 0),
-                    DcStkShortQ   = g.Sum(x => x.DcStkShortQ ?? 0),
-                    DcStkExcessQ  = g.Sum(x => x.DcStkExcessQ ?? 0),
-                    StStkShortQ   = g.Sum(x => x.StStkShortQ ?? 0),
-                    StStkExcessQ  = g.Sum(x => x.StStkExcessQ ?? 0),
-                    RowCount      = g.Count()
-                })
-                .OrderByDescending(x => x.BgtPurQ)
-                .Take(15).ToListAsync();
-
-            // ── PurchasePlan: Weekly Trend ────────────────────────
-            vm.PpWeeklySummary = await _context.PurchasePlans
-                .Where(p => p.FyWeek != null)
-                .GroupBy(p => new { p.FyYear, p.FyWeek })
-                .Select(g => new PpWeeklySummary
-                {
-                    FyYear       = g.Key.FyYear ?? 0,
-                    FyWeek       = g.Key.FyWeek ?? 0,
-                    BgtPurQ      = g.Sum(x => x.BgtPurQInit ?? 0),
-                    DcStkShortQ  = g.Sum(x => x.DcStkShortQ ?? 0),
-                    DcStkExcessQ = g.Sum(x => x.DcStkExcessQ ?? 0)
-                })
-                .OrderBy(x => x.FyYear).ThenBy(x => x.FyWeek)
-                .Take(48).ToListAsync();
-
-            // ── PurchasePlan: Top DC Short Categories ─────────────
-            vm.TopDcShortCategories = await _context.PurchasePlans
-                .Where(p => p.DcStkShortQ > 0 && p.RdcCd != null)
-                .GroupBy(p => new { p.RdcCd, p.RdcNm, p.MajCat })
-                .Select(g => new DcStockMetric
-                {
-                    RdcCd    = g.Key.RdcCd,
-                    RdcNm    = g.Key.RdcNm,
-                    MajCat   = g.Key.MajCat,
-                    Quantity = g.Sum(x => x.DcStkShortQ ?? 0)
-                })
-                .OrderByDescending(x => x.Quantity)
-                .Take(10).ToListAsync();
-
-            // ── PurchasePlan: Top DC Excess Categories ────────────
-            vm.TopDcExcessCategories = await _context.PurchasePlans
-                .Where(p => p.DcStkExcessQ > 0 && p.RdcCd != null)
-                .GroupBy(p => new { p.RdcCd, p.RdcNm, p.MajCat })
-                .Select(g => new DcStockMetric
-                {
-                    RdcCd    = g.Key.RdcCd,
-                    RdcNm    = g.Key.RdcNm,
-                    MajCat   = g.Key.MajCat,
-                    Quantity = g.Sum(x => x.DcStkExcessQ ?? 0)
-                })
-                .OrderByDescending(x => x.Quantity)
-                .Take(10).ToListAsync();
-
-            _logger.LogInformation("Dashboard loaded: Stores={S} TrfInRows={T} PpRows={P}",
-                vm.TotalStores, vm.TotalPlanRows, vm.TotalPurchasePlanRows);
+            try
+            {
+                vm.TotalStores = await _context.TrfInPlan.Select(x => x.StCd).Distinct().CountAsync();
+                vm.TotalCategories = await _context.TrfInPlan.Select(x => x.MajCat).Distinct().CountAsync();
+                vm.TotalPlanRows = await _context.TrfInPlan.CountAsync();
+                vm.TotalPurchasePlanRows = await _context.PurchasePlan.CountAsync();
+                vm.TotalTrfInQty = await _context.TrfInPlan.SumAsync(x => (decimal)(x.TrfInStkQ ?? 0));
+                vm.TotalPurchaseQty = await _context.PurchasePlan.SumAsync(x => (decimal)(x.BgtPurQInit ?? 0));
+                vm.TotalDcStkShortQ = await _context.PurchasePlan.SumAsync(x => (decimal)(x.DcStkShortQ ?? 0));
+                vm.TotalDcStkExcessQ = await _context.PurchasePlan.SumAsync(x => (decimal)(x.DcStkExcessQ ?? 0));
+                vm.TotalStStkShortQ = await _context.PurchasePlan.SumAsync(x => (decimal)(x.StStkShortQ ?? 0));
+                vm.TotalStStkExcessQ = await _context.PurchasePlan.SumAsync(x => (decimal)(x.StStkExcessQ ?? 0));
+                vm.LastExecutionDate = await _context.TrfInPlan.MaxAsync(x => x.CreatedDt);
+                vm.CategorySummary = await _context.TrfInPlan.GroupBy(x => x.MajCat).Select(g => new CategorySummary { MajCat = g.Key, TotalTrfInQty = g.Sum(x => x.TrfInStkQ ?? 0), TotalShortQ = g.Sum(x => x.StClShortQ ?? 0), TotalExcessQ = g.Sum(x => x.StClExcessQ ?? 0), RowCount = g.Count() }).OrderByDescending(x => x.TotalTrfInQty).Take(15).ToListAsync();
+                vm.WeeklySummary = await _context.TrfInPlan.GroupBy(x => new { x.FyYear, x.FyWeek }).Select(g => new WeeklySummary { FyYear = g.Key.FyYear ?? 0, FyWeek = g.Key.FyWeek ?? 0, TotalTrfInQty = g.Sum(x => x.TrfInStkQ ?? 0), RowCount = g.Count() }).OrderBy(x => x.FyYear).ThenBy(x => x.FyWeek).ToListAsync();
+                vm.TopShortStores = await _context.TrfInPlan.Where(x => x.StClShortQ > 0).GroupBy(x => new { x.StCd, x.StNm, x.MajCat }).Select(g => new StoreMetric { StCd = g.Key.StCd, StNm = g.Key.StNm, MajCat = g.Key.MajCat, Quantity = g.Sum(x => x.StClShortQ ?? 0) }).OrderByDescending(x => x.Quantity).Take(10).ToListAsync();
+                vm.TopExcessStores = await _context.TrfInPlan.Where(x => x.StClExcessQ > 0).GroupBy(x => new { x.StCd, x.StNm, x.MajCat }).Select(g => new StoreMetric { StCd = g.Key.StCd, StNm = g.Key.StNm, MajCat = g.Key.MajCat, Quantity = g.Sum(x => x.StClExcessQ ?? 0) }).OrderByDescending(x => x.Quantity).Take(10).ToListAsync();
+                vm.RdcSummary = await _context.PurchasePlan.GroupBy(x => new { x.RdcCd, x.RdcNm }).Select(g => new RdcSummary { RdcCd = g.Key.RdcCd, RdcNm = g.Key.RdcNm, TotalPurchaseQty = g.Sum(x => x.BgtPurQInit ?? 0), TotalDcShortQ = g.Sum(x => x.DcStkShortQ ?? 0), TotalDcExcessQ = g.Sum(x => x.DcStkExcessQ ?? 0), RowCount = g.Count() }).OrderByDescending(x => x.TotalPurchaseQty).Take(10).ToListAsync();
+                vm.PpCategorySummary = await _context.PurchasePlan.GroupBy(x => x.MajCat).Select(g => new PpCategorySummary { MajCat = g.Key, TotalPurchaseQty = g.Sum(x => x.BgtPurQInit ?? 0), TotalDcShortQ = g.Sum(x => x.DcStkShortQ ?? 0), TotalDcExcessQ = g.Sum(x => x.DcStkExcessQ ?? 0), RowCount = g.Count() }).OrderByDescending(x => x.TotalPurchaseQty).Take(15).ToListAsync();
+                vm.PpWeeklySummary = await _context.PurchasePlan.GroupBy(x => new { x.FyYear, x.FyWeek }).Select(g => new PpWeeklySummary { FyYear = g.Key.FyYear ?? 0, FyWeek = g.Key.FyWeek ?? 0, TotalPurchaseQty = g.Sum(x => x.BgtPurQInit ?? 0), TotalDcShortQ = g.Sum(x => x.DcStkShortQ ?? 0), TotalDcExcessQ = g.Sum(x => x.DcStkExcessQ ?? 0) }).OrderBy(x => x.FyYear).ThenBy(x => x.FyWeek).ToListAsync();
+                vm.TopDcShortCategories = await _context.PurchasePlan.Where(x => x.DcStkShortQ > 0).GroupBy(x => x.MajCat).Select(g => new DcStockMetric { MajCat = g.Key, ShortQty = g.Sum(x => x.DcStkShortQ ?? 0), ExcessQty = 0 }).OrderByDescending(x => x.ShortQty).Take(10).ToListAsync();
+                vm.TopDcExcessCategories = await _context.PurchasePlan.Where(x => x.DcStkExcessQ > 0).GroupBy(x => x.MajCat).Select(g => new DcStockMetric { MajCat = g.Key, ExcessQty = g.Sum(x => x.DcStkExcessQ ?? 0), ShortQty = 0 }).OrderByDescending(x => x.ExcessQty).Take(10).ToListAsync();
+                _logger.LogInformation("Dashboard loaded: Stores={Stores} Categories={Cat} TrfInRows={TrfIn} PPRows={PP}", vm.TotalStores, vm.TotalCategories, vm.TotalPlanRows, vm.TotalPurchasePlanRows);
+            }
+            catch (Exception ex) { _logger.LogError(ex, "Error loading dashboard data"); ViewBag.ErrorMessage = "Unable to load dashboard data: " + ex.Message; }
             return View(vm);
         }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error loading analytics dashboard");
-            return View(new DashboardViewModel());
-        }
-    }
 
-    public IActionResult Privacy() => View();
+        [HttpGet]
+        public async Task<IActionResult> ExportTrfInCsv(int? fyYear, int? fyWeek, string? majCat, string? stCd)
+        {
+            var query = _context.TrfInPlan.AsQueryable();
+            if (fyYear.HasValue) query = query.Where(x => x.FyYear == fyYear);
+            if (fyWeek.HasValue) query = query.Where(x => x.FyWeek == fyWeek);
+            if (!string.IsNullOrEmpty(majCat)) query = query.Where(x => x.MajCat == majCat);
+            if (!string.IsNullOrEmpty(stCd)) query = query.Where(x => x.StCd == stCd);
+            var data = await query.OrderBy(x => x.StCd).ThenBy(x => x.MajCat).ToListAsync();
+            _logger.LogInformation("Dashboard TrfIn ExportCsv: {Count} rows", data.Count);
+            var sb = new StringBuilder();
+            sb.AppendLine("Id,StCd,StNm,RdcCd,RdcNm,HubCd,HubNm,Area,MajCat,Ssn,WeekId,WkStDt,WkEndDt,FyYear,FyWeek,SGrtStkQ,WGrtStkQ,BgtDispClQ,TrfInStkQ,StClShortQ,StClExcessQ,CreatedDt,CreatedBy");
+            foreach (var r in data)
+                sb.AppendLine(string.Join(",", r.Id, Q(r.StCd), Q(r.StNm), Q(r.RdcCd), Q(r.RdcNm), Q(r.HubCd), Q(r.HubNm), Q(r.Area), Q(r.MajCat), r.Ssn, r.WeekId, r.WkStDt?.ToString("yyyy-MM-dd"), r.WkEndDt?.ToString("yyyy-MM-dd"), r.FyYear, r.FyWeek, r.SGrtStkQ, r.WGrtStkQ, r.BgtDispClQ, r.TrfInStkQ, r.StClShortQ, r.StClExcessQ, r.CreatedDt?.ToString("yyyy-MM-dd HH:mm:ss"), Q(r.CreatedBy)));
+            return File(Encoding.UTF8.GetBytes(sb.ToString()), "text/csv", "TrfInPlan_Export.csv");
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> ExportPpCsv(int? fyYear, int? fyWeek, string? rdcCd, string? majCat)
+        {
+            var query = _context.PurchasePlan.AsQueryable();
+            if (fyYear.HasValue) query = query.Where(x => x.FyYear == fyYear);
+            if (fyWeek.HasValue) query = query.Where(x => x.FyWeek == fyWeek);
+            if (!string.IsNullOrEmpty(rdcCd)) query = query.Where(x => x.RdcCd == rdcCd);
+            if (!string.IsNullOrEmpty(majCat)) query = query.Where(x => x.MajCat == majCat);
+            var data = await query.OrderBy(x => x.RdcCd).ThenBy(x => x.MajCat).ToListAsync();
+            _logger.LogInformation("Dashboard PP ExportCsv: {Count} rows", data.Count);
+            var sb = new StringBuilder();
+            sb.AppendLine("Id,RdcCd,RdcNm,MajCat,Ssn,FyWeek,FyYear,WkStDt,WkEndDt,DcStkQ,GrtStkQ,BgtPurQInit,DcStkShortQ,DcStkExcessQ,StStkShortQ,StStkExcessQ,CreatedDt,CreatedBy");
+            foreach (var r in data)
+                sb.AppendLine(string.Join(",", r.Id, Q(r.RdcCd), Q(r.RdcNm), Q(r.MajCat), r.Ssn, r.FyWeek, r.FyYear, r.WkStDt?.ToString("yyyy-MM-dd"), r.WkEndDt?.ToString("yyyy-MM-dd"), r.DcStkQ, r.GrtStkQ, r.BgtPurQInit, r.DcStkShortQ, r.DcStkExcessQ, r.StStkShortQ, r.StStkExcessQ, r.CreatedDt?.ToString("yyyy-MM-dd HH:mm:ss"), Q(r.CreatedBy)));
+            return File(Encoding.UTF8.GetBytes(sb.ToString()), "text/csv", "PurchasePlan_Export.csv");
+        }
+
+        public IActionResult Privacy() => View();
+        private static string Q(string? s) { if (string.IsNullOrEmpty(s)) return ""; return "\"" + s.Replace("\"", "\"\""") + "\""; }
+    }
 }
