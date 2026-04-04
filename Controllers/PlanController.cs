@@ -106,4 +106,4 @@ public class PlanController : Controller
 
     private static string Q(string? s) { if (string.IsNullOrEmpty(s)) return ""; return "\"" + s.Replace("\"", "\"\"") + "\""; }
     }
-}
+
