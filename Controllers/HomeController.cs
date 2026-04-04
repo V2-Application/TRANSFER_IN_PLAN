@@ -27,7 +27,7 @@ public class HomeController : Controller
             // Total stores (all stores in master)
             vm.TotalStores = await _context.StoreMasters.CountAsync();
 
-            // Total distinct MajCat categories from StoreStock (reference data)
+            // Total distinct MajCat categories from StoreStock
             vm.TotalCategories = await _context.StoreStocks
                 .Where(s => s.MajCat != null)
                 .Select(s => s.MajCat)
@@ -35,7 +35,6 @@ public class HomeController : Controller
                 .CountAsync();
             if (vm.TotalCategories == 0)
             {
-                // Fallback: use BinCapacities or TrfInPlan
                 vm.TotalCategories = await _context.TrfInPlans
                     .Where(t => t.MajCat != null)
                     .Select(t => t.MajCat)
@@ -57,7 +56,7 @@ public class HomeController : Controller
             vm.CategorySummary = await _context.TrfInPlans
                 .Where(t => t.MajCat != null && t.TrfInStkQ != null)
                 .GroupBy(t => t.MajCat)
-                .Select(g => new DashboardViewModel.CategorySummary
+                .Select(g => new CategorySummary
                 {
                     MajCat = g.Key,
                     TotalTrfInQty = g.Sum(x => x.TrfInStkQ ?? 0),
@@ -71,7 +70,7 @@ public class HomeController : Controller
             vm.WeeklySummary = await _context.TrfInPlans
                 .Where(t => t.FyWeek != null && t.TrfInStkQ != null)
                 .GroupBy(t => new { t.FyYear, t.FyWeek })
-                .Select(g => new DashboardViewModel.WeeklySummary
+                .Select(g => new WeeklySummary
                 {
                     FyYear = g.Key.FyYear ?? 0,
                     FyWeek = g.Key.FyWeek ?? 0,
@@ -86,7 +85,7 @@ public class HomeController : Controller
             vm.TopShortStores = await _context.TrfInPlans
                 .Where(t => t.StClShortQ != null && t.StClShortQ > 0)
                 .GroupBy(t => new { t.StCd, t.StNm, t.MajCat })
-                .Select(g => new DashboardViewModel.StoreMetric
+                .Select(g => new StoreMetric
                 {
                     StCd = g.Key.StCd,
                     StNm = g.Key.StNm,
@@ -101,7 +100,7 @@ public class HomeController : Controller
             vm.TopExcessStores = await _context.TrfInPlans
                 .Where(t => t.StClExcessQ != null && t.StClExcessQ > 0)
                 .GroupBy(t => new { t.StCd, t.StNm, t.MajCat })
-                .Select(g => new DashboardViewModel.StoreMetric
+                .Select(g => new StoreMetric
                 {
                     StCd = g.Key.StCd,
                     StNm = g.Key.StNm,
