@@ -1,144 +1,133 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Text;
 using TRANSFER_IN_PLAN.Data;
 using TRANSFER_IN_PLAN.Models;
 
-namespace TRANSFER_IN_PLAN.Controllers;
-
-public class DcStockController : Controller
+namespace TRANSFER_IN_PLAN.Controllers
 {
-    private readonly PlanningDbContext _context;
-    private readonly ILogger<DcStockController> _logger;
-
-    public DcStockController(PlanningDbContext context, ILogger<DcStockController> logger)
+    public class DcStockController : Controller
     {
-        _context = context;
-        _logger = logger;
-    }
+        private readonly PlanningDbContext _context;
+        private readonly ILogger<DcStockController> _logger;
 
-    public async Task<IActionResult> Index()
-    {
-        try
+        public DcStockController(PlanningDbContext context, ILogger<DcStockController> logger)
         {
-            var dcStocks = await _context.DcStocks
-                .OrderBy(d => d.RdcCd)
-                .ThenBy(d => d.MajCat)
-                .ToListAsync();
-            _logger.LogInformation("DcStock Index loaded {Count} records.", dcStocks.Count);
-            return View(dcStocks);
+            _context = context;
+            _logger = logger;
         }
-        catch (Exception ex)
+
+        [HttpGet]
+        public async Task<IActionResult> Index(string? rdcCd, string? majCat)
         {
-            _logger.LogError(ex, "Error loading DcStock Index.");
-            ViewBag.ErrorMessage = "An error occurred while loading DC stock data.";
-            return View(new List<DcStock>());
+            var query = _context.DcStock.AsQueryable();
+            if (!string.IsNullOrEmpty(rdcCd)) query = query.Where(x => x.RdcCd == rdcCd);
+            if (!string.IsNullOrEmpty(majCat)) query = query.Where(x => x.MajCat == majCat);
+            ViewBag.RdcCodes = await _context.DcStock.Select(x => x.RdcCd).Distinct().OrderBy(x => x).ToListAsync();
+            ViewBag.Categories = await _context.DcStock.Select(x => x.MajCat).Distinct().OrderBy(x => x).ToListAsync();
+            ViewBag.RdcCd = rdcCd;
+            ViewBag.MajCat = majCat;
+            var data = await query.OrderBy(x => x.RdcCd).ThenBy(x => x.MajCat).ToListAsync();
+            return View(data);
         }
-    }
 
-    public IActionResult Create()
-    {
-        return View();
-    }
-
-    [HttpPost]
-    [ValidateAntiForgeryToken]
-    public async Task<IActionResult> Create([Bind("RdcCd,Rdc,MajCat,DcStkQ,GrtStkQ,WGrtStkQ,Date")] DcStock dcStock)
-    {
-        if (ModelState.IsValid)
+        [HttpGet]
+        public async Task<IActionResult> ExportCsv(string? rdcCd, string? majCat)
         {
+            var query = _context.DcStock.AsQueryable();
+            if (!string.IsNullOrEmpty(rdcCd)) query = query.Where(x => x.RdcCd == rdcCd);
+            if (!string.IsNullOrEmpty(majCat)) query = query.Where(x => x.MajCat == majCat);
+            var data = await query.OrderBy(x => x.RdcCd).ThenBy(x => x.MajCat).ToListAsync();
+            _logger.LogInformation("DcStock ExportCsv: {Count} rows exported", data.Count);
+
+            var sb = new StringBuilder();
+            sb.AppendLine("Id,RdcCd,Rdc,MajCat,DcStkQ,GrtStkQ,WGrtStkQ,Date");
+            foreach (var r in data)
+            {
+                sb.AppendLine(string.Join(",",
+                    r.Id, Q(r.RdcCd), Q(r.Rdc), Q(r.MajCat),
+                    r.DcStkQ, r.GrtStkQ, r.WGrtStkQ,
+                    r.Date?.ToString("yyyy-MM-dd")));
+            }
+
+            var bytes = Encoding.UTF8.GetBytes(sb.ToString());
+            return File(bytes, "text/csv", "DcStock.csv");
+        }
+
+        [HttpGet]
+        public IActionResult Create()
+        {
+            return View();
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> Create(DcStock model)
+        {
+            if (!ModelState.IsValid) return View(model);
+            _context.DcStock.Add(model);
+            await _context.SaveChangesAsync();
+            _logger.LogInformation("DcStock created: RdcCd={RdcCd} MajCat={MajCat}", model.RdcCd, model.MajCat);
+            TempData["SuccessMessage"] = "DC Stock record created.";
+            return RedirectToAction(nameof(Index));
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> Edit(int id)
+        {
+            var model = await _context.DcStock.FindAsync(id);
+            if (model == null) return NotFound();
+            return View(model);
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> Edit(int id, DcStock model)
+        {
+            if (id != model.Id) return NotFound();
+            if (!ModelState.IsValid) return View(model);
             try
             {
-                _context.Add(dcStock);
+                _context.Update(model);
                 await _context.SaveChangesAsync();
-                _logger.LogInformation("DcStock created for RDC: {RdcCd}, Category: {MajCat}.", dcStock.RdcCd, dcStock.MajCat);
-                TempData["SuccessMessage"] = "DC stock record created successfully.";
-                return RedirectToAction(nameof(Index));
+                _logger.LogInformation("DcStock updated: Id={Id}", id);
+                TempData["SuccessMessage"] = "DC Stock record updated.";
             }
-            catch (Exception ex)
+            catch (DbUpdateConcurrencyException)
             {
-                _logger.LogError(ex, "Error creating DcStock for RDC: {RdcCd}.", dcStock.RdcCd);
-                ModelState.AddModelError("", "An error occurred while saving. Please try again.");
+                if (!await _context.DcStock.AnyAsync(x => x.Id == id)) return NotFound();
+                throw;
             }
+            return RedirectToAction(nameof(Index));
         }
-        return View(dcStock);
-    }
 
-    public async Task<IActionResult> Edit(int? id)
-    {
-        if (id == null) return NotFound();
-        var dcStock = await _context.DcStocks.FindAsync(id);
-        if (dcStock == null) return NotFound();
-        return View(dcStock);
-    }
-
-    [HttpPost]
-    [ValidateAntiForgeryToken]
-    public async Task<IActionResult> Edit(int id, [Bind("Id,RdcCd,Rdc,MajCat,DcStkQ,GrtStkQ,WGrtStkQ,Date")] DcStock dcStock)
-    {
-        if (id != dcStock.Id) return NotFound();
-
-        if (ModelState.IsValid)
+        [HttpGet]
+        public async Task<IActionResult> Delete(int id)
         {
-            try
+            var model = await _context.DcStock.FindAsync(id);
+            if (model == null) return NotFound();
+            return View(model);
+        }
+
+        [HttpPost, ActionName("Delete")]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> DeleteConfirmed(int id)
+        {
+            var model = await _context.DcStock.FindAsync(id);
+            if (model != null)
             {
-                _context.Update(dcStock);
+                _context.DcStock.Remove(model);
                 await _context.SaveChangesAsync();
-                _logger.LogInformation("DcStock updated for Id: {Id}, RDC: {RdcCd}.", dcStock.Id, dcStock.RdcCd);
-                TempData["SuccessMessage"] = "DC stock record updated successfully.";
-                return RedirectToAction(nameof(Index));
+                _logger.LogInformation("DcStock deleted: Id={Id}", id);
+                TempData["SuccessMessage"] = "DC Stock record deleted.";
             }
-            catch (DbUpdateConcurrencyException ex)
-            {
-                if (!DcStockExists(dcStock.Id))
-                {
-                    _logger.LogWarning("DcStock Id: {Id} not found during update.", dcStock.Id);
-                    return NotFound();
-                }
-                _logger.LogError(ex, "Concurrency error updating DcStock Id: {Id}.", dcStock.Id);
-                ModelState.AddModelError("", "The record was modified by another user. Please reload and try again.");
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error updating DcStock Id: {Id}.", dcStock.Id);
-                ModelState.AddModelError("", "An error occurred while saving. Please try again.");
-            }
+            return RedirectToAction(nameof(Index));
         }
-        return View(dcStock);
-    }
 
-    public async Task<IActionResult> Delete(int? id)
-    {
-        if (id == null) return NotFound();
-        var dcStock = await _context.DcStocks.FindAsync(id);
-        if (dcStock == null) return NotFound();
-        return View(dcStock);
-    }
-
-    [HttpPost, ActionName("Delete")]
-    [ValidateAntiForgeryToken]
-    public async Task<IActionResult> DeleteConfirmed(int id)
-    {
-        try
+        private static string Q(string? s)
         {
-            var dcStock = await _context.DcStocks.FindAsync(id);
-            if (dcStock != null)
-            {
-                _context.DcStocks.Remove(dcStock);
-                await _context.SaveChangesAsync();
-                _logger.LogInformation("DcStock deleted Id: {Id}, RDC: {RdcCd}.", id, dcStock.RdcCd);
-                TempData["SuccessMessage"] = "DC stock record deleted successfully.";
-            }
+            if (string.IsNullOrEmpty(s)) return "";
+            return "\"" + s.Replace("\"", "\"\""") + "\"";
         }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error deleting DcStock Id: {Id}.", id);
-            TempData["ErrorMessage"] = "An error occurred while deleting the record. It may be in use.";
-        }
-        return RedirectToAction(nameof(Index));
-    }
-
-    private bool DcStockExists(int id)
-    {
-        return _context.DcStocks.Any(e => e.Id == id);
     }
 }
