@@ -127,7 +127,7 @@ namespace TRANSFER_IN_PLAN.Controllers
         private static string Q(string? s)
         {
             if (string.IsNullOrEmpty(s)) return "";
-            return "\"" + s.Replace("\"", "\"\""") + "\"";
+            return "\"" + s.Replace("\"", "\"\"") + "\"";
         }
     }
 }
