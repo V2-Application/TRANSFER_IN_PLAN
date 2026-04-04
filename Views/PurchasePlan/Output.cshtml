@@ -2,142 +2,101 @@
     ViewData["Title"] = "Purchase Plan Output";
 }
 
-@model IEnumerable<PurchasePlan>
+@model IEnumerable<TRANSFER_IN_PLAN.Models.PurchasePlan>
 
-<div class="mb-4">
-    <h3>Purchase Plan Output</h3>
+<div class="mb-4 d-flex justify-content-between align-items-center flex-wrap gap-2">
+    <h3 class="mb-0"><i class="bi bi-bag-check me-2"></i>Purchase Plan Output</h3>
+    <a href="@Url.Action("ExportCsv", "PurchasePlan", new { fyYear = ViewBag.FyYear, fyWeek = ViewBag.FyWeek, rdcCd = ViewBag.RdcCd, majCat = ViewBag.MajCat })" class="btn btn-success btn-sm">
+        <i class="bi bi-filetype-csv me-1"></i> Export CSV
+    </a>
 </div>
 
 <div class="card mb-4">
-    <div class="card-header">
-        <h5 class="card-title mb-0">Filters</h5>
-    </div>
+    <div class="card-header"><h5 class="card-title mb-0"><i class="bi bi-funnel me-2"></i>Filters</h5></div>
     <div class="card-body">
         <form method="get" id="filterForm" class="row g-3">
-            <div class="col-md-2">
-                <label for="startWeekId" class="form-label">Start Week</label>
-                <select name="startWeekId" id="startWeekId" class="form-select">
+            <div class="col-md-2"><label class="form-label">FY Year</label><input type="number" name="fyYear" class="form-control form-control-sm" value="@ViewBag.FyYear" placeholder="e.g. 2026" /></div>
+            <div class="col-md-2"><label class="form-label">FY Week</label><input type="number" name="fyWeek" class="form-control form-control-sm" value="@ViewBag.FyWeek" placeholder="e.g. 40" /></div>
+            <div class="col-md-2"><label class="form-label">RDC Code</label>
+                <select name="rdcCd" class="form-select form-select-sm">
                     <option value="">-- All --</option>
-                    @foreach (var week in ViewBag.WeekCalendars)
-                    {
-                        <option value="@week.WeekId">@week.YearWeek</option>
-                    }
+                    @foreach (var r in (ViewBag.RdcCodes as IEnumerable<string> ?? new List<string>())) { <option value="@r" selected="@(r == ViewBag.RdcCd?.ToString() ? "selected" : null)">@r</option> }
                 </select>
             </div>
-
-            <div class="col-md-2">
-                <label for="endWeekId" class="form-label">End Week</label>
-                <select name="endWeekId" id="endWeekId" class="form-select">
+            <div class="col-md-3"><label class="form-label">Category</label>
+                <select name="majCat" class="form-select form-select-sm">
                     <option value="">-- All --</option>
-                    @foreach (var week in ViewBag.WeekCalendars)
-                    {
-                        <option value="@week.WeekId">@week.YearWeek</option>
-                    }
+                    @foreach (var c in (ViewBag.Categories as IEnumerable<string> ?? new List<string>())) { <option value="@c" selected="@(c == ViewBag.MajCat?.ToString() ? "selected" : null)">@c</option> }
                 </select>
             </div>
-
-            <div class="col-md-3">
-                <label for="rdcCode" class="form-label">RDC Code</label>
-                <select name="rdcCode" id="rdcCode" class="form-select">
-                    <option value="">-- All RDCs --</option>
-                    @foreach (var rdc in ViewBag.RdcList)
-                    {
-                        <option value="@rdc">@rdc</option>
-                    }
+            <div class="col-md-3"><label class="form-label">Page Size</label>
+                <select name="pageSize" class="form-select form-select-sm">
+                    @foreach (var ps in new[] { 50, 100, 250, 500 }) { <option value="@ps" selected="@((ViewBag.PageSize?.ToString() == ps.ToString()) ? "selected" : null)">@ps rows</option> }
                 </select>
             </div>
-
-            <div class="col-md-3">
-                <label for="majCat" class="form-label">Major Category</label>
-                <select name="majCat" id="majCat" class="form-select">
-                    <option value="">-- All Categories --</option>
-                    @foreach (var cat in ViewBag.CategoryList)
-                    {
-                        <option value="@cat">@cat</option>
-                    }
-                </select>
-            </div>
-
-            <div class="col-md-2 d-flex align-items-end gap-2">
-                <button type="submit" class="btn btn-primary">
-                    <i class="bi bi-search"></i> Filter
-                </button>
-                <a href="@Url.Action("Output")" class="btn btn-secondary">Reset</a>
+            <div class="col-12 d-flex gap-2 align-items-end flex-wrap">
+                <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-search me-1"></i> Filter</button>
+                <a href="@Url.Action("Output")" class="btn btn-outline-secondary btn-sm"><i class="bi bi-x-circle me-1"></i> Clear</a>
+                <a href="@Url.Action("ExportCsv", "PurchasePlan", new { fyYear = ViewBag.FyYear, fyWeek = ViewBag.FyWeek, rdcCd = ViewBag.RdcCd, majCat = ViewBag.MajCat })" class="btn btn-success btn-sm ms-auto">
+                    <i class="bi bi-filetype-csv me-1"></i> Export to CSV
+                </a>
             </div>
         </form>
     </div>
 </div>
 
+@if (ViewBag.TotalCount != null)
+{
+    <div class="alert alert-info py-2"><i class="bi bi-info-circle me-1"></i>Showing <strong>@Model.Count()</strong> of <strong>@ViewBag.TotalCount</strong> records (Page @ViewBag.Page, @ViewBag.PageSize per page)</div>
+}
+
 <div class="card">
-    <div class="card-header d-flex justify-content-between align-items-center">
-        <h5 class="card-title mb-0">Plan Details</h5>
-        <form asp-action="ExportExcel" method="post" class="d-inline">
-            <button type="submit" class="btn btn-success btn-sm">
-                <i class="bi bi-download"></i> Export to Excel
-            </button>
-        </form>
-    </div>
-    <div class="card-body">
+    <div class="card-body p-0">
         <div class="table-responsive">
-            <table class="table table-hover table-sm" id="purchasePlanOutputTable">
-                <thead class="table-light">
+            <table class="table table-sm table-hover table-bordered mb-0" id="ppOutputTable">
+                <thead class="table-dark">
                     <tr>
-                        <th>RDC Code</th>
-                        <th>RDC Name</th>
-                        <th>Category</th>
-                        <th>Week</th>
-                        <th class="text-end">DC Stock Q</th>
-                        <th class="text-end">GRT Stock Q</th>
-                        <th class="text-end">BGT Pur Q</th>
-                        <th class="text-end">POS PO</th>
-                        <th class="text-end">NEG PO</th>
-                        <th class="text-end">DC Excess</th>
-                        <th class="text-end">DC Short</th>
-                        <th class="text-end">ST Excess</th>
-                        <th class="text-end">ST Short</th>
+                        <th>RDC Code</th><th class="d-none d-md-table-cell">RDC Name</th><th>Category</th>
+                        <th class="d-none d-sm-table-cell">FY Year</th><th>FY Week</th>
+                        <th class="d-none d-md-table-cell">DC Stock Q</th><th class="d-none d-md-table-cell">GRT Stock Q</th>
+                        <th>BGT Pur Q</th><th class="d-none d-lg-table-cell">POS PO</th><th class="d-none d-lg-table-cell">NEG PO</th>
+                        <th>DC Excess</th><th>DC Short</th><th class="d-none d-md-table-cell">ST Excess</th><th class="d-none d-md-table-cell">ST Short</th>
                     </tr>
                 </thead>
                 <tbody>
                     @foreach (var item in Model)
                     {
                         <tr>
-                            <td>@item.RdcCd</td>
-                            <td>@item.RdcNm</td>
-                            <td>@item.MajCat</td>
-                            <td>FY@item.FyYear W@item.FyWeek</td>
-                            <td class="text-end">@item.DcStkQ?.ToString("F2")</td>
-                            <td class="text-end">@item.GrtStkQ?.ToString("F2")</td>
-                            <td class="text-end">@item.BgtPurQInit?.ToString("F2")</td>
-                            <td class="text-end"><span class="badge bg-success">@item.PosPORaised?.ToString("F2")</span></td>
-                            <td class="text-end"><span class="badge bg-warning">@item.NegPORaised?.ToString("F2")</span></td>
-                            <td class="text-end">@item.DcStkExcessQ?.ToString("F2")</td>
-                            <td class="text-end"><span class="badge bg-danger">@item.DcStkShortQ?.ToString("F2")</span></td>
-                            <td class="text-end">@item.StStkExcessQ?.ToString("F2")</td>
-                            <td class="text-end"><span class="badge bg-danger">@item.StStkShortQ?.ToString("F2")</span></td>
+                            <td>@item.RdcCd</td><td class="d-none d-md-table-cell">@item.RdcNm</td><td>@item.MajCat</td>
+                            <td class="d-none d-sm-table-cell">@item.FyYear</td><td>@item.FyWeek</td>
+                            <td class="text-end d-none d-md-table-cell">@item.DcStkQ?.ToString("N2")</td><td class="text-end d-none d-md-table-cell">@item.GrtStkQ?.ToString("N2")</td>
+                            <td class="text-end fw-bold">@item.BgtPurQInit?.ToString("N2")</td>
+                            <td class="text-end d-none d-lg-table-cell">@item.PosPORaised?.ToString("N2")</td><td class="text-end d-none d-lg-table-cell">@item.NegPORaised?.ToString("N2")</td>
+                            <td class="text-end">@if (item.DcStkExcessQ > 0) { <span class="badge bg-warning text-dark">@item.DcStkExcessQ?.ToString("N2")</span> } else { @item.DcStkExcessQ?.ToString("N2") }</td>
+                            <td class="text-end">@if (item.DcStkShortQ > 0) { <span class="badge bg-danger">@item.DcStkShortQ?.ToString("N2")</span> } else { @item.DcStkShortQ?.ToString("N2") }</td>
+                            <td class="text-end d-none d-md-table-cell">@if (item.StStkExcessQ > 0) { <span class="badge bg-warning text-dark">@item.StStkExcessQ?.ToString("N2")</span> } else { @item.StStkExcessQ?.ToString("N2") }</td>
+                            <td class="text-end d-none d-md-table-cell">@if (item.StStkShortQ > 0) { <span class="badge bg-danger">@item.StStkShortQ?.ToString("N2")</span> } else { @item.StStkShortQ?.ToString("N2") }</td>
                         </tr>
                     }
                 </tbody>
             </table>
-            @if (!Model.Any())
-            {
-                <div class="alert alert-info">
-                    No data found. Please check your filters or execute the plan generation.
-                </div>
-            }
         </div>
     </div>
 </div>
 
+@if (ViewBag.TotalCount != null && ViewBag.PageSize != null && ViewBag.Page != null)
+{
+    var totalPages = (int)Math.Ceiling((double)(int)ViewBag.TotalCount / (int)ViewBag.PageSize);
+    <nav class="mt-3"><ul class="pagination pagination-sm justify-content-center flex-wrap">
+        @for (int p = Math.Max(1, (int)ViewBag.Page - 3); p <= Math.Min(totalPages, (int)ViewBag.Page + 3); p++)
+        {
+            <li class="page-item @(p == (int)ViewBag.Page ? "active" : "")"><a class="page-link" href="@Url.Action("Output", new { fyYear = ViewBag.FyYear, fyWeek = ViewBag.FyWeek, rdcCd = ViewBag.RdcCd, majCat = ViewBag.MajCat, page = p, pageSize = ViewBag.PageSize })">@p</a></li>
+        }
+    </ul></nav>
+}
+
 @section Scripts {
     <script>
-        $(document).ready(function () {
-            if ($('#purchasePlanOutputTable tbody tr').length > 0) {
-                $('#purchasePlanOutputTable').DataTable({
-                    pageLength: 50,
-                    scrollX: true,
-                    order: [[0, 'asc'], [3, 'asc']]
-                });
-            }
-        });
+        $(function () { if (!$.fn.DataTable.isDataTable('#ppOutputTable')) { $('#ppOutputTable').DataTable({ paging: false, ordering: true, searching: true, responsive: true, dom: 'lrtip' }); } });
     </script>
 }
