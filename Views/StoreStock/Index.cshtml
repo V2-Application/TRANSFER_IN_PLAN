@@ -1,27 +1,44 @@
-@{
-    ViewData["Title"] = "Store Stock Management";
-}
-
+@{ ViewData["Title"] = "Store Stock Management"; }
 @model IEnumerable<StoreStock>
 
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <h3>Store Stock</h3>
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h3><i class="bi bi-archive me-2"></i>Store Stock</h3>
     <a asp-action="Create" class="btn btn-primary">
-        <i class="bi bi-plus-circle"></i> Add Store Stock
+        <i class="bi bi-plus-circle me-1"></i>Add Store Stock
     </a>
 </div>
 
-<div class="card">
-    <div class="card-body">
+@if (TempData["SuccessMessage"] != null)
+{
+    <div class="alert alert-success alert-dismissible fade show"><i class="bi bi-check-circle-fill me-2"></i>@TempData["SuccessMessage"]<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
+}
+@if (TempData["ErrorMessage"] != null)
+{
+    <div class="alert alert-danger alert-dismissible fade show"><i class="bi bi-exclamation-circle-fill me-2"></i>@TempData["ErrorMessage"]<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
+}
+@if (!string.IsNullOrEmpty(ViewBag.ErrorMessage as string))
+{
+    <div class="alert alert-danger alert-dismissible fade show"><i class="bi bi-exclamation-circle-fill me-2"></i>@ViewBag.ErrorMessage<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
+}
+
+<div class="card shadow-sm">
+    <div class="card-body p-0">
         <div class="table-responsive">
-            <table class="table table-hover" id="storeStockTable">
-                <thead class="table-light">
+            <table class="table table-hover table-bordered mb-0" id="storeStockTable">
+                <thead class="table-dark">
                     <tr>
                         <th>Store Code</th>
                         <th>Major Category</th>
                         <th class="text-end">Stock Qty</th>
                         <th>Date</th>
                         <th class="text-center">Actions</th>
+                    </tr>
+                    <tr class="filter-row">
+                        <th><input type="text" class="form-control form-control-sm" placeholder="Filter..."></th>
+                        <th><input type="text" class="form-control form-control-sm" placeholder="Filter..."></th>
+                        <th><input type="text" class="form-control form-control-sm" placeholder="Filter..."></th>
+                        <th><input type="text" class="form-control form-control-sm" placeholder="Filter..."></th>
+                        <th></th>
                     </tr>
                 </thead>
                 <tbody>
@@ -33,12 +50,8 @@
                             <td class="text-end">@item.StkQty?.ToString("F2")</td>
                             <td>@item.Date?.ToString("yyyy-MM-dd")</td>
                             <td class="text-center">
-                                <a asp-action="Edit" asp-route-id="@item.Id" class="btn btn-sm btn-warning">
-                                    <i class="bi bi-pencil"></i>
-                                </a>
-                                <a asp-action="Delete" asp-route-id="@item.Id" class="btn btn-sm btn-danger">
-                                    <i class="bi bi-trash"></i>
-                                </a>
+                                <a asp-action="Edit" asp-route-id="@item.Id" class="btn btn-sm btn-warning" title="Edit"><i class="bi bi-pencil"></i></a>
+                                <a asp-action="Delete" asp-route-id="@item.Id" class="btn btn-sm btn-danger" title="Delete"><i class="bi bi-trash"></i></a>
                             </td>
                         </tr>
                     }
@@ -49,12 +62,42 @@
 </div>
 
 @section Scripts {
-    <script>
-        $(document).ready(function () {
-            $('#storeStockTable').DataTable({
-                pageLength: 25,
-                order: [[0, 'asc']]
+<style>
+    .filter-row th { background: #f8f9fa; padding: 4px 6px; }
+    #storeStockTable_wrapper .dt-layout-row:first-child { padding: 12px 12px 4px; }
+    #storeStockTable_wrapper .dt-layout-row:last-child  { padding: 4px 12px 12px; }
+</style>
+<script>
+$(document).ready(function () {
+    if ($.fn.DataTable.isDataTable('#storeStockTable')) {
+        $('#storeStockTable').DataTable().destroy();
+    }
+    var table = $('#storeStockTable').DataTable({
+        pageLength: 25,
+        lengthMenu: [[10, 25, 50, 100, -1], [10, 25, 50, 100, 'All']],
+        order: [[0, 'asc'], [1, 'asc']],
+        autoWidth: false,
+        language: {
+            search: '<i class="bi bi-search"></i>',
+            searchPlaceholder: 'Global search...',
+            lengthMenu: 'Show _MENU_ rows',
+            info: 'Showing _START_–_END_ of _TOTAL_ records',
+            infoEmpty: 'No records',
+            zeroRecords: 'No matching records found',
+            paginate: { first: '«', last: '»', next: '›', previous: '‹' }
+        },
+        columnDefs: [{ orderable: false, targets: -1 }]
+    });
+
+    table.columns().every(function (i) {
+        var col = this;
+        var input = $($('.filter-row th')[i]).find('input');
+        if (input.length) {
+            input.on('keyup change clear', function () {
+                if (col.search() !== this.value) col.search(this.value).draw();
             });
-        });
-    </script>
+        }
+    });
+});
+</script>
 }
