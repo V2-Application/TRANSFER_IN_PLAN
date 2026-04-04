@@ -15,11 +15,11 @@ namespace TRANSFER_IN_PLAN.Controllers
         [HttpGet]
         public async Task<IActionResult> Index(string? rdcCd, string? majCat)
         {
-            var query = _context.DelPending.AsQueryable();
+            var query = _context.DelPendings.AsQueryable();
             if (!string.IsNullOrEmpty(rdcCd)) query = query.Where(x => x.RdcCd == rdcCd);
             if (!string.IsNullOrEmpty(majCat)) query = query.Where(x => x.MajCat == majCat);
-            ViewBag.RdcCodes = await _context.DelPending.Select(x => x.RdcCd).Distinct().OrderBy(x => x).ToListAsync();
-            ViewBag.Categories = await _context.DelPending.Select(x => x.MajCat).Distinct().OrderBy(x => x).ToListAsync();
+            ViewBag.RdcCodes = await _context.DelPendings.Select(x => x.RdcCd).Distinct().OrderBy(x => x).ToListAsync();
+            ViewBag.Categories = await _context.DelPendings.Select(x => x.MajCat).Distinct().OrderBy(x => x).ToListAsync();
             ViewBag.RdcCd = rdcCd; ViewBag.MajCat = majCat;
             return View(await query.OrderBy(x => x.RdcCd).ThenBy(x => x.MajCat).ToListAsync());
         }
@@ -27,7 +27,7 @@ namespace TRANSFER_IN_PLAN.Controllers
         [HttpGet]
         public async Task<IActionResult> ExportCsv(string? rdcCd, string? majCat)
         {
-            var query = _context.DelPending.AsQueryable();
+            var query = _context.DelPendings.AsQueryable();
             if (!string.IsNullOrEmpty(rdcCd)) query = query.Where(x => x.RdcCd == rdcCd);
             if (!string.IsNullOrEmpty(majCat)) query = query.Where(x => x.MajCat == majCat);
             var data = await query.OrderBy(x => x.RdcCd).ThenBy(x => x.MajCat).ToListAsync();
@@ -41,13 +41,13 @@ namespace TRANSFER_IN_PLAN.Controllers
 
         [HttpGet] public IActionResult Create() => View();
         [HttpPost][ValidateAntiForgeryToken]
-        public async Task<IActionResult> Create(DelPending model) { if (!ModelState.IsValid) return View(model); _context.DelPending.Add(model); await _context.SaveChangesAsync(); TempData["SuccessMessage"] = "Created."; return RedirectToAction(nameof(Index)); }
-        [HttpGet] public async Task<IActionResult> Edit(int id) { var m = await _context.DelPending.FindAsync(id); return m == null ? NotFound() : View(m); }
+        public async Task<IActionResult> Create(DelPending model) { if (!ModelState.IsValid) return View(model); _context.DelPendings.Add(model); await _context.SaveChangesAsync(); TempData["SuccessMessage"] = "Created."; return RedirectToAction(nameof(Index)); }
+        [HttpGet] public async Task<IActionResult> Edit(int id) { var m = await _context.DelPendings.FindAsync(id); return m == null ? NotFound() : View(m); }
         [HttpPost][ValidateAntiForgeryToken]
-        public async Task<IActionResult> Edit(int id, DelPending model) { if (id != model.Id) return NotFound(); if (!ModelState.IsValid) return View(model); try { _context.Update(model); await _context.SaveChangesAsync(); TempData["SuccessMessage"] = "Updated."; } catch (DbUpdateConcurrencyException) { if (!await _context.DelPending.AnyAsync(x => x.Id == id)) return NotFound(); throw; } return RedirectToAction(nameof(Index)); }
-        [HttpGet] public async Task<IActionResult> Delete(int id) { var m = await _context.DelPending.FindAsync(id); return m == null ? NotFound() : View(m); }
+        public async Task<IActionResult> Edit(int id, DelPending model) { if (id != model.Id) return NotFound(); if (!ModelState.IsValid) return View(model); try { _context.Update(model); await _context.SaveChangesAsync(); TempData["SuccessMessage"] = "Updated."; } catch (DbUpdateConcurrencyException) { if (!await _context.DelPendings.AnyAsync(x => x.Id == id)) return NotFound(); throw; } return RedirectToAction(nameof(Index)); }
+        [HttpGet] public async Task<IActionResult> Delete(int id) { var m = await _context.DelPendings.FindAsync(id); return m == null ? NotFound() : View(m); }
         [HttpPost, ActionName("Delete")][ValidateAntiForgeryToken]
-        public async Task<IActionResult> DeleteConfirmed(int id) { var m = await _context.DelPending.FindAsync(id); if (m != null) { _context.DelPending.Remove(m); await _context.SaveChangesAsync(); TempData["SuccessMessage"] = "Deleted."; } return RedirectToAction(nameof(Index)); }
+        public async Task<IActionResult> DeleteConfirmed(int id) { var m = await _context.DelPendings.FindAsync(id); if (m != null) { _context.DelPendings.Remove(m); await _context.SaveChangesAsync(); TempData["SuccessMessage"] = "Deleted."; } return RedirectToAction(nameof(Index)); }
         private static string Q(string? s) { if (string.IsNullOrEmpty(s)) return ""; return "\"" + s.Replace("\"", "\"\"") + "\""; }
     }
 }
