@@ -17,26 +17,26 @@ namespace TRANSFER_IN_PLAN.Controllers
             var vm = new DashboardViewModel();
             try
             {
-                vm.TotalStores = await _context.TrfInPlan.Select(x => x.StCd).Distinct().CountAsync();
-                vm.TotalCategories = await _context.TrfInPlan.Select(x => x.MajCat).Distinct().CountAsync();
-                vm.TotalPlanRows = await _context.TrfInPlan.CountAsync();
-                vm.TotalPurchasePlanRows = await _context.PurchasePlan.CountAsync();
-                vm.TotalTrfInQty = await _context.TrfInPlan.SumAsync(x => (decimal)(x.TrfInStkQ ?? 0));
-                vm.TotalPurchaseQty = await _context.PurchasePlan.SumAsync(x => (decimal)(x.BgtPurQInit ?? 0));
-                vm.TotalDcStkShortQ = await _context.PurchasePlan.SumAsync(x => (decimal)(x.DcStkShortQ ?? 0));
-                vm.TotalDcStkExcessQ = await _context.PurchasePlan.SumAsync(x => (decimal)(x.DcStkExcessQ ?? 0));
-                vm.TotalStStkShortQ = await _context.PurchasePlan.SumAsync(x => (decimal)(x.StStkShortQ ?? 0));
-                vm.TotalStStkExcessQ = await _context.PurchasePlan.SumAsync(x => (decimal)(x.StStkExcessQ ?? 0));
-                vm.LastExecutionDate = await _context.TrfInPlan.MaxAsync(x => x.CreatedDt);
-                vm.CategorySummary = await _context.TrfInPlan.GroupBy(x => x.MajCat).Select(g => new CategorySummary { MajCat = g.Key, TotalTrfInQty = g.Sum(x => x.TrfInStkQ ?? 0), TotalShortQ = g.Sum(x => x.StClShortQ ?? 0), TotalExcessQ = g.Sum(x => x.StClExcessQ ?? 0), RowCount = g.Count() }).OrderByDescending(x => x.TotalTrfInQty).Take(15).ToListAsync();
-                vm.WeeklySummary = await _context.TrfInPlan.GroupBy(x => new { x.FyYear, x.FyWeek }).Select(g => new WeeklySummary { FyYear = g.Key.FyYear ?? 0, FyWeek = g.Key.FyWeek ?? 0, TotalTrfInQty = g.Sum(x => x.TrfInStkQ ?? 0), RowCount = g.Count() }).OrderBy(x => x.FyYear).ThenBy(x => x.FyWeek).ToListAsync();
-                vm.TopShortStores = await _context.TrfInPlan.Where(x => x.StClShortQ > 0).GroupBy(x => new { x.StCd, x.StNm, x.MajCat }).Select(g => new StoreMetric { StCd = g.Key.StCd, StNm = g.Key.StNm, MajCat = g.Key.MajCat, Quantity = g.Sum(x => x.StClShortQ ?? 0) }).OrderByDescending(x => x.Quantity).Take(10).ToListAsync();
-                vm.TopExcessStores = await _context.TrfInPlan.Where(x => x.StClExcessQ > 0).GroupBy(x => new { x.StCd, x.StNm, x.MajCat }).Select(g => new StoreMetric { StCd = g.Key.StCd, StNm = g.Key.StNm, MajCat = g.Key.MajCat, Quantity = g.Sum(x => x.StClExcessQ ?? 0) }).OrderByDescending(x => x.Quantity).Take(10).ToListAsync();
-                vm.RdcSummary = await _context.PurchasePlan.GroupBy(x => new { x.RdcCd, x.RdcNm }).Select(g => new RdcSummary { RdcCd = g.Key.RdcCd, RdcNm = g.Key.RdcNm, TotalPurchaseQty = g.Sum(x => x.BgtPurQInit ?? 0), TotalDcShortQ = g.Sum(x => x.DcStkShortQ ?? 0), TotalDcExcessQ = g.Sum(x => x.DcStkExcessQ ?? 0), RowCount = g.Count() }).OrderByDescending(x => x.TotalPurchaseQty).Take(10).ToListAsync();
-                vm.PpCategorySummary = await _context.PurchasePlan.GroupBy(x => x.MajCat).Select(g => new PpCategorySummary { MajCat = g.Key, TotalPurchaseQty = g.Sum(x => x.BgtPurQInit ?? 0), TotalDcShortQ = g.Sum(x => x.DcStkShortQ ?? 0), TotalDcExcessQ = g.Sum(x => x.DcStkExcessQ ?? 0), RowCount = g.Count() }).OrderByDescending(x => x.TotalPurchaseQty).Take(15).ToListAsync();
-                vm.PpWeeklySummary = await _context.PurchasePlan.GroupBy(x => new { x.FyYear, x.FyWeek }).Select(g => new PpWeeklySummary { FyYear = g.Key.FyYear ?? 0, FyWeek = g.Key.FyWeek ?? 0, TotalPurchaseQty = g.Sum(x => x.BgtPurQInit ?? 0), TotalDcShortQ = g.Sum(x => x.DcStkShortQ ?? 0), TotalDcExcessQ = g.Sum(x => x.DcStkExcessQ ?? 0) }).OrderBy(x => x.FyYear).ThenBy(x => x.FyWeek).ToListAsync();
-                vm.TopDcShortCategories = await _context.PurchasePlan.Where(x => x.DcStkShortQ > 0).GroupBy(x => x.MajCat).Select(g => new DcStockMetric { MajCat = g.Key, ShortQty = g.Sum(x => x.DcStkShortQ ?? 0), ExcessQty = 0 }).OrderByDescending(x => x.ShortQty).Take(10).ToListAsync();
-                vm.TopDcExcessCategories = await _context.PurchasePlan.Where(x => x.DcStkExcessQ > 0).GroupBy(x => x.MajCat).Select(g => new DcStockMetric { MajCat = g.Key, ExcessQty = g.Sum(x => x.DcStkExcessQ ?? 0), ShortQty = 0 }).OrderByDescending(x => x.ExcessQty).Take(10).ToListAsync();
+                vm.TotalStores = await _context.TrfInPlans.Select(x => x.StCd).Distinct().CountAsync();
+                vm.TotalCategories = await _context.TrfInPlans.Select(x => x.MajCat).Distinct().CountAsync();
+                vm.TotalPlanRows = await _context.TrfInPlans.CountAsync();
+                vm.TotalPurchasePlanRows = await _context.PurchasePlans.CountAsync();
+                vm.TotalTrfInQty = await _context.TrfInPlans.SumAsync(x => (decimal)(x.TrfInStkQ ?? 0));
+                vm.TotalPurchaseQty = await _context.PurchasePlans.SumAsync(x => (decimal)(x.BgtPurQInit ?? 0));
+                vm.TotalDcStkShortQ = await _context.PurchasePlans.SumAsync(x => (decimal)(x.DcStkShortQ ?? 0));
+                vm.TotalDcStkExcessQ = await _context.PurchasePlans.SumAsync(x => (decimal)(x.DcStkExcessQ ?? 0));
+                vm.TotalStStkShortQ = await _context.PurchasePlans.SumAsync(x => (decimal)(x.StStkShortQ ?? 0));
+                vm.TotalStStkExcessQ = await _context.PurchasePlans.SumAsync(x => (decimal)(x.StStkExcessQ ?? 0));
+                vm.LastExecutionDate = await _context.TrfInPlans.MaxAsync(x => x.CreatedDt);
+                vm.CategorySummary = await _context.TrfInPlans.GroupBy(x => x.MajCat).Select(g => new CategorySummary { MajCat = g.Key, TotalTrfInQty = g.Sum(x => x.TrfInStkQ ?? 0), TotalShortQ = g.Sum(x => x.StClShortQ ?? 0), TotalExcessQ = g.Sum(x => x.StClExcessQ ?? 0), RowCount = g.Count() }).OrderByDescending(x => x.TotalTrfInQty).Take(15).ToListAsync();
+                vm.WeeklySummary = await _context.TrfInPlans.GroupBy(x => new { x.FyYear, x.FyWeek }).Select(g => new WeeklySummary { FyYear = g.Key.FyYear ?? 0, FyWeek = g.Key.FyWeek ?? 0, TotalTrfInQty = g.Sum(x => x.TrfInStkQ ?? 0), RowCount = g.Count() }).OrderBy(x => x.FyYear).ThenBy(x => x.FyWeek).ToListAsync();
+                vm.TopShortStores = await _context.TrfInPlans.Where(x => x.StClShortQ > 0).GroupBy(x => new { x.StCd, x.StNm, x.MajCat }).Select(g => new StoreMetric { StCd = g.Key.StCd, StNm = g.Key.StNm, MajCat = g.Key.MajCat, Quantity = g.Sum(x => x.StClShortQ ?? 0) }).OrderByDescending(x => x.Quantity).Take(10).ToListAsync();
+                vm.TopExcessStores = await _context.TrfInPlans.Where(x => x.StClExcessQ > 0).GroupBy(x => new { x.StCd, x.StNm, x.MajCat }).Select(g => new StoreMetric { StCd = g.Key.StCd, StNm = g.Key.StNm, MajCat = g.Key.MajCat, Quantity = g.Sum(x => x.StClExcessQ ?? 0) }).OrderByDescending(x => x.Quantity).Take(10).ToListAsync();
+                vm.RdcSummary = await _context.PurchasePlans.GroupBy(x => new { x.RdcCd, x.RdcNm }).Select(g => new RdcSummary { RdcCd = g.Key.RdcCd, RdcNm = g.Key.RdcNm, TotalPurchaseQty = g.Sum(x => x.BgtPurQInit ?? 0), TotalDcShortQ = g.Sum(x => x.DcStkShortQ ?? 0), TotalDcExcessQ = g.Sum(x => x.DcStkExcessQ ?? 0), RowCount = g.Count() }).OrderByDescending(x => x.TotalPurchaseQty).Take(10).ToListAsync();
+                vm.PpCategorySummary = await _context.PurchasePlans.GroupBy(x => x.MajCat).Select(g => new PpCategorySummary { MajCat = g.Key, TotalPurchaseQty = g.Sum(x => x.BgtPurQInit ?? 0), TotalDcShortQ = g.Sum(x => x.DcStkShortQ ?? 0), TotalDcExcessQ = g.Sum(x => x.DcStkExcessQ ?? 0), RowCount = g.Count() }).OrderByDescending(x => x.TotalPurchaseQty).Take(15).ToListAsync();
+                vm.PpWeeklySummary = await _context.PurchasePlans.GroupBy(x => new { x.FyYear, x.FyWeek }).Select(g => new PpWeeklySummary { FyYear = g.Key.FyYear ?? 0, FyWeek = g.Key.FyWeek ?? 0, TotalPurchaseQty = g.Sum(x => x.BgtPurQInit ?? 0), TotalDcShortQ = g.Sum(x => x.DcStkShortQ ?? 0), TotalDcExcessQ = g.Sum(x => x.DcStkExcessQ ?? 0) }).OrderBy(x => x.FyYear).ThenBy(x => x.FyWeek).ToListAsync();
+                vm.TopDcShortCategories = await _context.PurchasePlans.Where(x => x.DcStkShortQ > 0).GroupBy(x => x.MajCat).Select(g => new DcStockMetric { MajCat = g.Key, ShortQty = g.Sum(x => x.DcStkShortQ ?? 0), ExcessQty = 0 }).OrderByDescending(x => x.ShortQty).Take(10).ToListAsync();
+                vm.TopDcExcessCategories = await _context.PurchasePlans.Where(x => x.DcStkExcessQ > 0).GroupBy(x => x.MajCat).Select(g => new DcStockMetric { MajCat = g.Key, ExcessQty = g.Sum(x => x.DcStkExcessQ ?? 0), ShortQty = 0 }).OrderByDescending(x => x.ExcessQty).Take(10).ToListAsync();
                 _logger.LogInformation("Dashboard loaded: Stores={Stores} Categories={Cat} TrfInRows={TrfIn} PPRows={PP}", vm.TotalStores, vm.TotalCategories, vm.TotalPlanRows, vm.TotalPurchasePlanRows);
             }
             catch (Exception ex) { _logger.LogError(ex, "Error loading dashboard data"); ViewBag.ErrorMessage = "Unable to load dashboard data: " + ex.Message; }
@@ -46,7 +46,7 @@ namespace TRANSFER_IN_PLAN.Controllers
         [HttpGet]
         public async Task<IActionResult> ExportTrfInCsv(int? fyYear, int? fyWeek, string? majCat, string? stCd)
         {
-            var query = _context.TrfInPlan.AsQueryable();
+            var query = _context.TrfInPlans.AsQueryable();
             if (fyYear.HasValue) query = query.Where(x => x.FyYear == fyYear);
             if (fyWeek.HasValue) query = query.Where(x => x.FyWeek == fyWeek);
             if (!string.IsNullOrEmpty(majCat)) query = query.Where(x => x.MajCat == majCat);
@@ -63,7 +63,7 @@ namespace TRANSFER_IN_PLAN.Controllers
         [HttpGet]
         public async Task<IActionResult> ExportPpCsv(int? fyYear, int? fyWeek, string? rdcCd, string? majCat)
         {
-            var query = _context.PurchasePlan.AsQueryable();
+            var query = _context.PurchasePlans.AsQueryable();
             if (fyYear.HasValue) query = query.Where(x => x.FyYear == fyYear);
             if (fyWeek.HasValue) query = query.Where(x => x.FyWeek == fyWeek);
             if (!string.IsNullOrEmpty(rdcCd)) query = query.Where(x => x.RdcCd == rdcCd);
