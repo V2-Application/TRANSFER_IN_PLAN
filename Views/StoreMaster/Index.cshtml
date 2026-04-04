@@ -1,40 +1,31 @@
 @{ ViewData["Title"] = "Store Master Management"; }
 @model IEnumerable<StoreMaster>
 
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <h3>Store Master</h3>
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h3><i class="bi bi-shop me-2"></i>Store Master</h3>
     <a asp-action="Create" class="btn btn-primary">
-        <i class="bi bi-plus-circle"></i> Add Store
+        <i class="bi bi-plus-circle me-1"></i>Add Store
     </a>
 </div>
 
 @if (TempData["SuccessMessage"] != null)
 {
-    <div class="alert alert-success alert-dismissible fade show" role="alert">
-        <i class="bi bi-check-circle-fill me-2"></i>@TempData["SuccessMessage"]
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    </div>
+    <div class="alert alert-success alert-dismissible fade show"><i class="bi bi-check-circle-fill me-2"></i>@TempData["SuccessMessage"]<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
 }
 @if (TempData["ErrorMessage"] != null)
 {
-    <div class="alert alert-danger alert-dismissible fade show" role="alert">
-        <i class="bi bi-exclamation-circle-fill me-2"></i>@TempData["ErrorMessage"]
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    </div>
+    <div class="alert alert-danger alert-dismissible fade show"><i class="bi bi-exclamation-circle-fill me-2"></i>@TempData["ErrorMessage"]<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
 }
 @if (!string.IsNullOrEmpty(ViewBag.ErrorMessage as string))
 {
-    <div class="alert alert-danger alert-dismissible fade show" role="alert">
-        <i class="bi bi-exclamation-circle-fill me-2"></i>@ViewBag.ErrorMessage
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    </div>
+    <div class="alert alert-danger alert-dismissible fade show"><i class="bi bi-exclamation-circle-fill me-2"></i>@ViewBag.ErrorMessage<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
 }
 
-<div class="card">
-    <div class="card-body">
+<div class="card shadow-sm">
+    <div class="card-body p-0">
         <div class="table-responsive">
-            <table class="table table-hover" id="storeMasterTable">
-                <thead class="table-light">
+            <table class="table table-hover table-bordered mb-0" id="storeMasterTable">
+                <thead class="table-dark">
                     <tr>
                         <th>Store Code</th>
                         <th>Store Name</th>
@@ -45,6 +36,23 @@
                         <th>Area</th>
                         <th>State</th>
                         <th class="text-center">Actions</th>
+                    </tr>
+                    <tr class="filter-row">
+                        <th><input type="text" class="form-control form-control-sm" placeholder="Filter..."></th>
+                        <th><input type="text" class="form-control form-control-sm" placeholder="Filter..."></th>
+                        <th><input type="text" class="form-control form-control-sm" placeholder="Filter..."></th>
+                        <th><input type="text" class="form-control form-control-sm" placeholder="Filter..."></th>
+                        <th><input type="text" class="form-control form-control-sm" placeholder="Filter..."></th>
+                        <th>
+                            <select class="form-select form-select-sm">
+                                <option value="">All</option>
+                                <option value="Active">Active</option>
+                                <option value="Inactive">Inactive</option>
+                            </select>
+                        </th>
+                        <th><input type="text" class="form-control form-control-sm" placeholder="Filter..."></th>
+                        <th><input type="text" class="form-control form-control-sm" placeholder="Filter..."></th>
+                        <th></th>
                     </tr>
                 </thead>
                 <tbody>
@@ -68,31 +76,17 @@
                             </td>
                             <td>@item.Area</td>
                             <td>@item.State</td>
-                            <td class="text-center">
+                            <td class="text-center text-nowrap">
                                 @if (item.Status == "Active")
                                 {
-                                    <a asp-action="ToggleStatus" asp-route-id="@item.Id"
-                                       class="btn btn-sm btn-outline-warning"
-                                       title="Deactivate Store"
-                                       onclick="return confirm('Deactivate store @item.StCd?')">
-                                        <i class="bi bi-toggle-on"></i>
-                                    </a>
+                                    <a asp-action="ToggleStatus" asp-route-id="@item.Id" class="btn btn-sm btn-outline-warning" title="Deactivate" onclick="return confirm('Deactivate store @item.StCd?')"><i class="bi bi-toggle-on"></i></a>
                                 }
                                 else
                                 {
-                                    <a asp-action="ToggleStatus" asp-route-id="@item.Id"
-                                       class="btn btn-sm btn-outline-success"
-                                       title="Activate Store"
-                                       onclick="return confirm('Activate store @item.StCd?')">
-                                        <i class="bi bi-toggle-off"></i>
-                                    </a>
+                                    <a asp-action="ToggleStatus" asp-route-id="@item.Id" class="btn btn-sm btn-outline-success" title="Activate" onclick="return confirm('Activate store @item.StCd?')"><i class="bi bi-toggle-off"></i></a>
                                 }
-                                <a asp-action="Edit" asp-route-id="@item.Id" class="btn btn-sm btn-warning" title="Edit">
-                                    <i class="bi bi-pencil"></i>
-                                </a>
-                                <a asp-action="Delete" asp-route-id="@item.Id" class="btn btn-sm btn-danger" title="Delete">
-                                    <i class="bi bi-trash"></i>
-                                </a>
+                                <a asp-action="Edit" asp-route-id="@item.Id" class="btn btn-sm btn-warning" title="Edit"><i class="bi bi-pencil"></i></a>
+                                <a asp-action="Delete" asp-route-id="@item.Id" class="btn btn-sm btn-danger" title="Delete"><i class="bi bi-trash"></i></a>
                             </td>
                         </tr>
                     }
@@ -103,20 +97,51 @@
 </div>
 
 @section Scripts {
-    <script>
-        $(document).ready(function () {
-            if (!$.fn.DataTable.isDataTable('#storeMasterTable')) {
-                $('#storeMasterTable').DataTable({
-                    pageLength: 25,
-                    order: [[0, 'asc']],
-                    language: {
-                        search: "Search:",
-                        lengthMenu: "Show _MENU_ entries",
-                        info: "Showing _START_ to _END_ of _TOTAL_ entries",
-                        emptyTable: "No store master data available"
-                    }
-                });
-            }
-        });
-    </script>
+<style>
+    .filter-row th { background: #f8f9fa; padding: 4px 6px; }
+    .filter-row input, .filter-row select { min-width: 60px; }
+    #storeMasterTable_wrapper .dt-layout-row:first-child { padding: 12px 12px 4px; }
+    #storeMasterTable_wrapper .dt-layout-row:last-child  { padding: 4px 12px 12px; }
+</style>
+<script>
+$(document).ready(function () {
+    if ($.fn.DataTable.isDataTable('#storeMasterTable')) {
+        $('#storeMasterTable').DataTable().destroy();
+    }
+    var table = $('#storeMasterTable').DataTable({
+        pageLength: 25,
+        lengthMenu: [[10, 25, 50, 100, -1], [10, 25, 50, 100, 'All']],
+        order: [[0, 'asc']],
+        autoWidth: false,
+        language: {
+            search: '<i class="bi bi-search"></i>',
+            searchPlaceholder: 'Global search...',
+            lengthMenu: 'Show _MENU_ rows',
+            info: 'Showing _START_–_END_ of _TOTAL_ records',
+            infoEmpty: 'No records',
+            zeroRecords: 'No matching records found',
+            paginate: { first: '«', last: '»', next: '›', previous: '‹' }
+        },
+        columnDefs: [{ orderable: false, targets: -1 }]
+    });
+
+    // Per-column filter (inputs + select for Status)
+    table.columns().every(function (i) {
+        var col = this;
+        var cell = $($('.filter-row th')[i]);
+        var input = cell.find('input');
+        var sel   = cell.find('select');
+        if (input.length) {
+            input.on('keyup change clear', function () {
+                if (col.search() !== this.value) col.search(this.value).draw();
+            });
+        }
+        if (sel.length) {
+            sel.on('change', function () {
+                if (col.search() !== this.value) col.search(this.value).draw();
+            });
+        }
+    });
+});
+</script>
 }
