@@ -47,7 +47,7 @@ namespace TRANSFER_IN_PLAN.Controllers
         [HttpGet]
         public async Task<IActionResult> Output(int? fyYear, int? fyWeek, string? rdcCd, string? majCat, int page = 1, int pageSize = 100)
         {
-            var query = _context.PurchasePlan.AsQueryable();
+            var query = _context.PurchasePlans.AsQueryable();
             if (fyYear.HasValue) query = query.Where(x => x.FyYear == fyYear);
             if (fyWeek.HasValue) query = query.Where(x => x.FyWeek == fyWeek);
             if (!string.IsNullOrEmpty(rdcCd)) query = query.Where(x => x.RdcCd == rdcCd);
@@ -60,8 +60,8 @@ namespace TRANSFER_IN_PLAN.Controllers
             ViewBag.FyWeek = fyWeek;
             ViewBag.RdcCd = rdcCd;
             ViewBag.MajCat = majCat;
-            ViewBag.Categories = await _context.PurchasePlan.Select(x => x.MajCat).Distinct().OrderBy(x => x).ToListAsync();
-            ViewBag.RdcCodes = await _context.PurchasePlan.Select(x => x.RdcCd).Distinct().OrderBy(x => x).ToListAsync();
+            ViewBag.Categories = await _context.PurchasePlans.Select(x => x.MajCat).Distinct().OrderBy(x => x).ToListAsync();
+            ViewBag.RdcCodes = await _context.PurchasePlans.Select(x => x.RdcCd).Distinct().OrderBy(x => x).ToListAsync();
 
             var data = await query.OrderBy(x => x.RdcCd).ThenBy(x => x.MajCat)
                 .Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();
@@ -72,7 +72,7 @@ namespace TRANSFER_IN_PLAN.Controllers
         [HttpGet]
         public async Task<IActionResult> ExportCsv(int? fyYear, int? fyWeek, string? rdcCd, string? majCat)
         {
-            var query = _context.PurchasePlan.AsQueryable();
+            var query = _context.PurchasePlans.AsQueryable();
             if (fyYear.HasValue) query = query.Where(x => x.FyYear == fyYear);
             if (fyWeek.HasValue) query = query.Where(x => x.FyWeek == fyWeek);
             if (!string.IsNullOrEmpty(rdcCd)) query = query.Where(x => x.RdcCd == rdcCd);
