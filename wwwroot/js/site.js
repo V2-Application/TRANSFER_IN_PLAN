@@ -16,7 +16,7 @@ function initializeDataTables() {
 
     // Find all DataTables and initialize them
     $('table[id*="Table"]').each(function () {
-        if (!$.fn.DataTable.isDataTable(this)) {
+        if (!$.fn.DataTable.isDataTable(this) && !$table.data('dtCustom')) {
             var $table = $(this);
             var config = {
                 pageLength: 25,
