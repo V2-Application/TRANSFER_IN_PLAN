@@ -33,7 +33,9 @@ namespace TRANSFER_IN_PLAN.Controllers
             {
                 await _context.Database.ExecuteSqlRawAsync(
                     "EXEC sp_PurchasePlan @StartWeekId={0}, @EndWeekId={1}, @RdcCode={2}, @MajCat={3}",
-                    model.StartWeekId, model.EndWeekId, model.RdcCode ?? (object)DBNull.Value, model.MajCat ?? (object)DBNull.Value);
+                    model.StartWeekId, model.EndWeekId,
+                    model.RdcCode != null ? (object)model.RdcCode : DBNull.Value,
+                    model.MajCat != null ? (object)model.MajCat : DBNull.Value);
                 _logger.LogInformation("PurchasePlan SP executed: StartWeek={Start} EndWeek={End}", model.StartWeekId, model.EndWeekId);
                 TempData["SuccessMessage"] = "Purchase Plan executed successfully.";
             }
