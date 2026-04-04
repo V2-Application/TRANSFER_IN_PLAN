@@ -12,24 +12,24 @@ public class DcStock
     public int Id { get; set; }
 
     [Column("RDC_CD")]
-    [StringLength(50)]
+    [StringLength(20)]
     public string? RdcCd { get; set; }
 
     [Column("RDC")]
-    [StringLength(255)]
+    [StringLength(100)]
     public string? Rdc { get; set; }
 
-    [Column("MAJ_CAT")]
-    [StringLength(100)]
+    [Column("MAJ-CAT")]
+    [StringLength(50)]
     public string? MajCat { get; set; }
 
-    [Column("DC_STK_Q")]
+    [Column("DC-STK-Q")]
     public decimal? DcStkQ { get; set; }
 
-    [Column("GRT_STK_Q")]
+    [Column("GRT-STK-Q")]
     public decimal? GrtStkQ { get; set; }
 
-    [Column("W_GRT_STK_Q")]
+    [Column("W-GRT-STK-Q")]
     public decimal? WGrtStkQ { get; set; }
 
     [Column("DATE")]
