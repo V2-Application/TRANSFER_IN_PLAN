@@ -78,6 +78,6 @@ namespace TRANSFER_IN_PLAN.Controllers
         }
 
         public IActionResult Privacy() => View();
-        private static string Q(string? s) { if (string.IsNullOrEmpty(s)) return ""; return "\"" + s.Replace("\"", "\"\""") + "\""; }
+        private static string Q(string? s) { if (string.IsNullOrEmpty(s)) return ""; return "\"" + s.Replace("\"", "\"\"") + "\""; }
     }
 }
