@@ -15,10 +15,10 @@ namespace TRANSFER_IN_PLAN.Controllers
         [HttpGet]
         public async Task<IActionResult> Index(string? stCd, string? majCat)
         {
-            var query = _context.DispQty.AsQueryable();
+            var query = _context.DispQties.AsQueryable();
             if (!string.IsNullOrEmpty(stCd)) query = query.Where(x => x.StCd == stCd);
             if (!string.IsNullOrEmpty(majCat)) query = query.Where(x => x.MajCat == majCat);
-            ViewBag.Categories = await _context.DispQty.Select(x => x.MajCat).Distinct().OrderBy(x => x).ToListAsync();
+            ViewBag.Categories = await _context.DispQties.Select(x => x.MajCat).Distinct().OrderBy(x => x).ToListAsync();
             ViewBag.StCd = stCd; ViewBag.MajCat = majCat;
             return View(await query.OrderBy(x => x.StCd).ThenBy(x => x.MajCat).ToListAsync());
         }
@@ -26,7 +26,7 @@ namespace TRANSFER_IN_PLAN.Controllers
         [HttpGet]
         public async Task<IActionResult> ExportCsv(string? stCd, string? majCat)
         {
-            var query = _context.DispQty.AsQueryable();
+            var query = _context.DispQties.AsQueryable();
             if (!string.IsNullOrEmpty(stCd)) query = query.Where(x => x.StCd == stCd);
             if (!string.IsNullOrEmpty(majCat)) query = query.Where(x => x.MajCat == majCat);
             var data = await query.OrderBy(x => x.StCd).ThenBy(x => x.MajCat).ToListAsync();
@@ -43,13 +43,13 @@ namespace TRANSFER_IN_PLAN.Controllers
 
         [HttpGet] public IActionResult Create() => View();
         [HttpPost][ValidateAntiForgeryToken]
-        public async Task<IActionResult> Create(DispQty model) { if (!ModelState.IsValid) return View(model); _context.DispQty.Add(model); await _context.SaveChangesAsync(); TempData["SuccessMessage"] = "Created."; return RedirectToAction(nameof(Index)); }
-        [HttpGet] public async Task<IActionResult> Edit(string stCd, string majCat) { var m = await _context.DispQty.FirstOrDefaultAsync(x => x.StCd == stCd && x.MajCat == majCat); return m == null ? NotFound() : View(m); }
+        public async Task<IActionResult> Create(DispQty model) { if (!ModelState.IsValid) return View(model); _context.DispQties.Add(model); await _context.SaveChangesAsync(); TempData["SuccessMessage"] = "Created."; return RedirectToAction(nameof(Index)); }
+        [HttpGet] public async Task<IActionResult> Edit(string stCd, string majCat) { var m = await _context.DispQties.FirstOrDefaultAsync(x => x.StCd == stCd && x.MajCat == majCat); return m == null ? NotFound() : View(m); }
         [HttpPost][ValidateAntiForgeryToken]
-        public async Task<IActionResult> Edit(DispQty model) { if (!ModelState.IsValid) return View(model); try { _context.Update(model); await _context.SaveChangesAsync(); TempData["SuccessMessage"] = "Updated."; } catch (DbUpdateConcurrencyException) { if (!await _context.DispQty.AnyAsync(x => x.StCd == model.StCd && x.MajCat == model.MajCat)) return NotFound(); throw; } return RedirectToAction(nameof(Index)); }
-        [HttpGet] public async Task<IActionResult> Delete(string stCd, string majCat) { var m = await _context.DispQty.FirstOrDefaultAsync(x => x.StCd == stCd && x.MajCat == majCat); return m == null ? NotFound() : View(m); }
+        public async Task<IActionResult> Edit(DispQty model) { if (!ModelState.IsValid) return View(model); try { _context.Update(model); await _context.SaveChangesAsync(); TempData["SuccessMessage"] = "Updated."; } catch (DbUpdateConcurrencyException) { if (!await _context.DispQties.AnyAsync(x => x.StCd == model.StCd && x.MajCat == model.MajCat)) return NotFound(); throw; } return RedirectToAction(nameof(Index)); }
+        [HttpGet] public async Task<IActionResult> Delete(string stCd, string majCat) { var m = await _context.DispQties.FirstOrDefaultAsync(x => x.StCd == stCd && x.MajCat == majCat); return m == null ? NotFound() : View(m); }
         [HttpPost, ActionName("Delete")][ValidateAntiForgeryToken]
-        public async Task<IActionResult> DeleteConfirmed(string stCd, string majCat) { var m = await _context.DispQty.FirstOrDefaultAsync(x => x.StCd == stCd && x.MajCat == majCat); if (m != null) { _context.DispQty.Remove(m); await _context.SaveChangesAsync(); TempData["SuccessMessage"] = "Deleted."; } return RedirectToAction(nameof(Index)); }
+        public async Task<IActionResult> DeleteConfirmed(string stCd, string majCat) { var m = await _context.DispQties.FirstOrDefaultAsync(x => x.StCd == stCd && x.MajCat == majCat); if (m != null) { _context.DispQties.Remove(m); await _context.SaveChangesAsync(); TempData["SuccessMessage"] = "Deleted."; } return RedirectToAction(nameof(Index)); }
         private static string Q(string? s) { if (string.IsNullOrEmpty(s)) return ""; return "\"" + s.Replace("\"", "\"\"") + "\""; }
     }
 }
