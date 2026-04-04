@@ -5,11 +5,24 @@ using Newtonsoft.Json;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Configure structured logging
+builder.Logging.ClearProviders();
+builder.Logging.AddConsole();
+builder.Logging.AddDebug();
+
 // Add services to the container
 builder.Services.AddDbContext<PlanningDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("PlanningDatabase")));
 
 builder.Services.AddScoped<PlanService>();
+
+// Add session for TempData support
+builder.Services.AddSession(options =>
+{
+    options.IdleTimeout = TimeSpan.FromMinutes(30);
+    options.Cookie.HttpOnly = true;
+    options.Cookie.IsEssential = true;
+});
 
 builder.Services.AddControllersWithViews()
     .AddNewtonsoftJson(options =>
@@ -29,8 +42,10 @@ if (!app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 app.UseStaticFiles();
-
 app.UseRouting();
+
+// Enable session middleware (required for TempData with session provider)
+app.UseSession();
 
 app.UseAuthorization();
 
