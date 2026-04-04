@@ -20,13 +20,13 @@ namespace TRANSFER_IN_PLAN.Controllers
         [HttpGet]
         public async Task<IActionResult> Index(string? stCd, string? rdcCd, string? area, bool? activeOnly)
         {
-            var query = _context.StoreMaster.AsQueryable();
+            var query = _context.StoreMasters.AsQueryable();
             if (!string.IsNullOrEmpty(stCd)) query = query.Where(x => x.StCd == stCd);
             if (!string.IsNullOrEmpty(rdcCd)) query = query.Where(x => x.RdcCd == rdcCd);
             if (!string.IsNullOrEmpty(area)) query = query.Where(x => x.Area == area);
             if (activeOnly == true) query = query.Where(x => x.Status == "A");
-            ViewBag.RdcCodes = await _context.StoreMaster.Select(x => x.RdcCd).Distinct().OrderBy(x => x).ToListAsync();
-            ViewBag.Areas = await _context.StoreMaster.Select(x => x.Area).Distinct().OrderBy(x => x).ToListAsync();
+            ViewBag.RdcCodes = await _context.StoreMasters.Select(x => x.RdcCd).Distinct().OrderBy(x => x).ToListAsync();
+            ViewBag.Areas = await _context.StoreMasters.Select(x => x.Area).Distinct().OrderBy(x => x).ToListAsync();
             ViewBag.StCd = stCd;
             ViewBag.RdcCd = rdcCd;
             ViewBag.Area = area;
@@ -38,7 +38,7 @@ namespace TRANSFER_IN_PLAN.Controllers
         [HttpGet]
         public async Task<IActionResult> ExportCsv(string? stCd, string? rdcCd, string? area, bool? activeOnly)
         {
-            var query = _context.StoreMaster.AsQueryable();
+            var query = _context.StoreMasters.AsQueryable();
             if (!string.IsNullOrEmpty(stCd)) query = query.Where(x => x.StCd == stCd);
             if (!string.IsNullOrEmpty(rdcCd)) query = query.Where(x => x.RdcCd == rdcCd);
             if (!string.IsNullOrEmpty(area)) query = query.Where(x => x.Area == area);
@@ -74,7 +74,7 @@ namespace TRANSFER_IN_PLAN.Controllers
         public async Task<IActionResult> Create(StoreMaster model)
         {
             if (!ModelState.IsValid) return View(model);
-            _context.StoreMaster.Add(model);
+            _context.StoreMasters.Add(model);
             await _context.SaveChangesAsync();
             _logger.LogInformation("StoreMaster created: StCd={StCd}", model.StCd);
             TempData["SuccessMessage"] = "Store created successfully.";
@@ -84,7 +84,7 @@ namespace TRANSFER_IN_PLAN.Controllers
         [HttpGet]
         public async Task<IActionResult> Edit(int id)
         {
-            var model = await _context.StoreMaster.FindAsync(id);
+            var model = await _context.StoreMasters.FindAsync(id);
             if (model == null) return NotFound();
             return View(model);
         }
@@ -104,7 +104,7 @@ namespace TRANSFER_IN_PLAN.Controllers
             }
             catch (DbUpdateConcurrencyException)
             {
-                if (!await _context.StoreMaster.AnyAsync(x => x.Id == id)) return NotFound();
+                if (!await _context.StoreMasters.AnyAsync(x => x.Id == id)) return NotFound();
                 throw;
             }
             return RedirectToAction(nameof(Index));
@@ -113,7 +113,7 @@ namespace TRANSFER_IN_PLAN.Controllers
         [HttpPost]
         public async Task<IActionResult> ToggleStatus(int id)
         {
-            var model = await _context.StoreMaster.FindAsync(id);
+            var model = await _context.StoreMasters.FindAsync(id);
             if (model == null) return NotFound();
             model.Status = model.Status == "A" ? "I" : "A";
             await _context.SaveChangesAsync();
@@ -125,7 +125,7 @@ namespace TRANSFER_IN_PLAN.Controllers
         [HttpGet]
         public async Task<IActionResult> Delete(int id)
         {
-            var model = await _context.StoreMaster.FindAsync(id);
+            var model = await _context.StoreMasters.FindAsync(id);
             if (model == null) return NotFound();
             return View(model);
         }
@@ -134,10 +134,10 @@ namespace TRANSFER_IN_PLAN.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> DeleteConfirmed(int id)
         {
-            var model = await _context.StoreMaster.FindAsync(id);
+            var model = await _context.StoreMasters.FindAsync(id);
             if (model != null)
             {
-                _context.StoreMaster.Remove(model);
+                _context.StoreMasters.Remove(model);
                 await _context.SaveChangesAsync();
                 _logger.LogInformation("StoreMaster deleted: Id={Id}", id);
                 TempData["SuccessMessage"] = "Store deleted.";
