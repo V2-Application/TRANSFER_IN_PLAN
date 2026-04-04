@@ -1,154 +1,154 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Text;
 using TRANSFER_IN_PLAN.Data;
 using TRANSFER_IN_PLAN.Models;
 
-namespace TRANSFER_IN_PLAN.Controllers;
-
-public class StoreMasterController : Controller
+namespace TRANSFER_IN_PLAN.Controllers
 {
-    private readonly PlanningDbContext _context;
-    private readonly ILogger<StoreMasterController> _logger;
-
-    public StoreMasterController(PlanningDbContext context, ILogger<StoreMasterController> logger)
+    public class StoreMasterController : Controller
     {
-        _context = context;
-        _logger = logger;
-    }
+        private readonly PlanningDbContext _context;
+        private readonly ILogger<StoreMasterController> _logger;
 
-    // GET: StoreMaster
-    public async Task<IActionResult> Index(string? statusFilter)
-    {
-        try
+        public StoreMasterController(PlanningDbContext context, ILogger<StoreMasterController> logger)
         {
-            _logger.LogInformation("Loading StoreMaster list. StatusFilter={StatusFilter}", statusFilter);
-            var query = _context.StoreMasters.AsQueryable();
-            if (!string.IsNullOrEmpty(statusFilter))
-                query = query.Where(s => s.Status == statusFilter);
-            var storeMasters = await query.OrderBy(s => s.StCd).ToListAsync();
-            ViewBag.StatusFilter = statusFilter;
-            ViewBag.StatusList = await _context.StoreMasters
-                .Where(s => s.Status != null).Select(s => s.Status).Distinct().OrderBy(s => s).ToListAsync();
-            return View(storeMasters);
+            _context = context;
+            _logger = logger;
         }
-        catch (Exception ex)
+
+        [HttpGet]
+        public async Task<IActionResult> Index(string? stCd, string? rdcCd, string? area, bool? activeOnly)
         {
-            _logger.LogError(ex, "Error loading StoreMaster list.");
-            ViewBag.ErrorMessage = "Error loading data: " + ex.Message;
-            return View(new List<StoreMaster>());
+            var query = _context.StoreMaster.AsQueryable();
+            if (!string.IsNullOrEmpty(stCd)) query = query.Where(x => x.StCd == stCd);
+            if (!string.IsNullOrEmpty(rdcCd)) query = query.Where(x => x.RdcCd == rdcCd);
+            if (!string.IsNullOrEmpty(area)) query = query.Where(x => x.Area == area);
+            if (activeOnly == true) query = query.Where(x => x.Status == "A");
+            ViewBag.RdcCodes = await _context.StoreMaster.Select(x => x.RdcCd).Distinct().OrderBy(x => x).ToListAsync();
+            ViewBag.Areas = await _context.StoreMaster.Select(x => x.Area).Distinct().OrderBy(x => x).ToListAsync();
+            ViewBag.StCd = stCd;
+            ViewBag.RdcCd = rdcCd;
+            ViewBag.Area = area;
+            ViewBag.ActiveOnly = activeOnly;
+            var data = await query.OrderBy(x => x.StCd).ToListAsync();
+            return View(data);
         }
-    }
 
-    public IActionResult Create() => View();
-
-    [HttpPost]
-    [ValidateAntiForgeryToken]
-    public async Task<IActionResult> Create([Bind("StCd,StNm,RdcCd,RdcNm,HubCd,HubNm,Status,GridStSts,OpDate,Area,State,RefState,SaleGrp,RefStCd,RefStNm,RefGrpNew,RefGrpOld,Date")] StoreMaster storeMaster)
-    {
-        if (ModelState.IsValid)
+        [HttpGet]
+        public async Task<IActionResult> ExportCsv(string? stCd, string? rdcCd, string? area, bool? activeOnly)
         {
-            try
+            var query = _context.StoreMaster.AsQueryable();
+            if (!string.IsNullOrEmpty(stCd)) query = query.Where(x => x.StCd == stCd);
+            if (!string.IsNullOrEmpty(rdcCd)) query = query.Where(x => x.RdcCd == rdcCd);
+            if (!string.IsNullOrEmpty(area)) query = query.Where(x => x.Area == area);
+            if (activeOnly == true) query = query.Where(x => x.Status == "A");
+            var data = await query.OrderBy(x => x.StCd).ToListAsync();
+            _logger.LogInformation("StoreMaster ExportCsv: {Count} rows exported", data.Count);
+
+            var sb = new StringBuilder();
+            sb.AppendLine("Id,StCd,StNm,RdcCd,RdcNm,HubCd,HubNm,Status,GridStSts,OpDate,Area,State,RefState,SaleGrp,RefStCd,RefStNm,RefGrpNew,RefGrpOld,Date");
+            foreach (var r in data)
             {
-                _context.Add(storeMaster);
-                await _context.SaveChangesAsync();
-                _logger.LogInformation("StoreMaster created: StCd={StCd}", storeMaster.StCd);
-                TempData["SuccessMessage"] = $"Store '{storeMaster.StCd} - {storeMaster.StNm}' created successfully.";
-                return RedirectToAction(nameof(Index));
+                sb.AppendLine(string.Join(",",
+                    r.Id, Q(r.StCd), Q(r.StNm), Q(r.RdcCd), Q(r.RdcNm),
+                    Q(r.HubCd), Q(r.HubNm), Q(r.Status), Q(r.GridStSts),
+                    r.OpDate?.ToString("yyyy-MM-dd"),
+                    Q(r.Area), Q(r.State), Q(r.RefState), Q(r.SaleGrp),
+                    Q(r.RefStCd), Q(r.RefStNm), Q(r.RefGrpNew), Q(r.RefGrpOld),
+                    r.Date?.ToString("yyyy-MM-dd")));
             }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error creating StoreMaster StCd={StCd}", storeMaster.StCd);
-                ModelState.AddModelError("", "Error saving record: " + ex.Message);
-            }
+
+            var bytes = Encoding.UTF8.GetBytes(sb.ToString());
+            return File(bytes, "text/csv", "StoreMaster.csv");
         }
-        return View(storeMaster);
-    }
 
-    public async Task<IActionResult> Edit(int? id)
-    {
-        if (id == null) return NotFound();
-        var storeMaster = await _context.StoreMasters.FindAsync(id);
-        if (storeMaster == null) return NotFound();
-        return View(storeMaster);
-    }
-
-    [HttpPost]
-    [ValidateAntiForgeryToken]
-    public async Task<IActionResult> Edit(int id, [Bind("Id,StCd,StNm,RdcCd,RdcNm,HubCd,HubNm,Status,GridStSts,OpDate,Area,State,RefState,SaleGrp,RefStCd,RefStNm,RefGrpNew,RefGrpOld,Date")] StoreMaster storeMaster)
-    {
-        if (id != storeMaster.Id) return NotFound();
-        if (ModelState.IsValid)
+        [HttpGet]
+        public IActionResult Create()
         {
-            try
-            {
-                _context.Update(storeMaster);
-                await _context.SaveChangesAsync();
-                _logger.LogInformation("StoreMaster updated: StCd={StCd}", storeMaster.StCd);
-                TempData["SuccessMessage"] = $"Store '{storeMaster.StCd}' updated successfully.";
-                return RedirectToAction(nameof(Index));
-            }
-            catch (DbUpdateConcurrencyException) { if (!StoreMasterExists(storeMaster.Id)) return NotFound(); throw; }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error updating StoreMaster StCd={StCd}", storeMaster.StCd);
-                ModelState.AddModelError("", "Error updating record: " + ex.Message);
-            }
+            return View();
         }
-        return View(storeMaster);
-    }
 
-    [HttpPost]
-    [ValidateAntiForgeryToken]
-    public async Task<IActionResult> ToggleStatus(int id)
-    {
-        try
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> Create(StoreMaster model)
         {
-            var store = await _context.StoreMasters.FindAsync(id);
-            if (store == null) return NotFound();
-            store.Status = store.Status == "Active" ? "Inactive" : "Active";
-            _context.Update(store);
+            if (!ModelState.IsValid) return View(model);
+            _context.StoreMaster.Add(model);
             await _context.SaveChangesAsync();
-            _logger.LogInformation("StoreMaster status toggled: StCd={StCd}, NewStatus={Status}", store.StCd, store.Status);
-            TempData["SuccessMessage"] = $"Store '{store.StCd}' status changed to '{store.Status}'.";
+            _logger.LogInformation("StoreMaster created: StCd={StCd}", model.StCd);
+            TempData["SuccessMessage"] = "Store created successfully.";
+            return RedirectToAction(nameof(Index));
         }
-        catch (Exception ex)
+
+        [HttpGet]
+        public async Task<IActionResult> Edit(int id)
         {
-            _logger.LogError(ex, "Error toggling StoreMaster status Id={Id}", id);
-            TempData["ErrorMessage"] = "Error updating status: " + ex.Message;
+            var model = await _context.StoreMaster.FindAsync(id);
+            if (model == null) return NotFound();
+            return View(model);
         }
-        return RedirectToAction(nameof(Index));
-    }
 
-    public async Task<IActionResult> Delete(int? id)
-    {
-        if (id == null) return NotFound();
-        var storeMaster = await _context.StoreMasters.FindAsync(id);
-        if (storeMaster == null) return NotFound();
-        return View(storeMaster);
-    }
-
-    [HttpPost, ActionName("Delete")]
-    [ValidateAntiForgeryToken]
-    public async Task<IActionResult> DeleteConfirmed(int id)
-    {
-        try
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> Edit(int id, StoreMaster model)
         {
-            var storeMaster = await _context.StoreMasters.FindAsync(id);
-            if (storeMaster != null)
+            if (id != model.Id) return NotFound();
+            if (!ModelState.IsValid) return View(model);
+            try
             {
-                _context.StoreMasters.Remove(storeMaster);
+                _context.Update(model);
+                await _context.SaveChangesAsync();
+                _logger.LogInformation("StoreMaster updated: Id={Id} StCd={StCd}", id, model.StCd);
+                TempData["SuccessMessage"] = "Store updated successfully.";
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                if (!await _context.StoreMaster.AnyAsync(x => x.Id == id)) return NotFound();
+                throw;
+            }
+            return RedirectToAction(nameof(Index));
+        }
+
+        [HttpPost]
+        public async Task<IActionResult> ToggleStatus(int id)
+        {
+            var model = await _context.StoreMaster.FindAsync(id);
+            if (model == null) return NotFound();
+            model.Status = model.Status == "A" ? "I" : "A";
+            await _context.SaveChangesAsync();
+            _logger.LogInformation("StoreMaster status toggled: Id={Id} NewStatus={Status}", id, model.Status);
+            TempData["SuccessMessage"] = "Store status updated.";
+            return RedirectToAction(nameof(Index));
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> Delete(int id)
+        {
+            var model = await _context.StoreMaster.FindAsync(id);
+            if (model == null) return NotFound();
+            return View(model);
+        }
+
+        [HttpPost, ActionName("Delete")]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> DeleteConfirmed(int id)
+        {
+            var model = await _context.StoreMaster.FindAsync(id);
+            if (model != null)
+            {
+                _context.StoreMaster.Remove(model);
                 await _context.SaveChangesAsync();
                 _logger.LogInformation("StoreMaster deleted: Id={Id}", id);
-                TempData["SuccessMessage"] = "Store record deleted successfully.";
+                TempData["SuccessMessage"] = "Store deleted.";
             }
+            return RedirectToAction(nameof(Index));
         }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error deleting StoreMaster Id={Id}", id);
-            TempData["ErrorMessage"] = "Error deleting record: " + ex.Message;
-        }
-        return RedirectToAction(nameof(Index));
-    }
 
-    private bool StoreMasterExists(int id) => _context.StoreMasters.Any(e => e.Id == id);
+        private static string Q(string? s)
+        {
+            if (string.IsNullOrEmpty(s)) return "";
+            return "\"" + s.Replace("\"", "\"\""") + "\"";
+        }
+    }
 }
