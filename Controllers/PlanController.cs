@@ -47,7 +47,7 @@ namespace TRANSFER_IN_PLAN.Controllers
         [HttpGet]
         public async Task<IActionResult> Output(int? fyYear, int? fyWeek, string? majCat, string? stCd, int page = 1, int pageSize = 100)
         {
-            var query = _context.TrfInPlan.AsQueryable();
+            var query = _context.TrfInPlans.AsQueryable();
             if (fyYear.HasValue) query = query.Where(x => x.FyYear == fyYear);
             if (fyWeek.HasValue) query = query.Where(x => x.FyWeek == fyWeek);
             if (!string.IsNullOrEmpty(majCat)) query = query.Where(x => x.MajCat == majCat);
@@ -60,7 +60,7 @@ namespace TRANSFER_IN_PLAN.Controllers
             ViewBag.FyWeek = fyWeek;
             ViewBag.MajCat = majCat;
             ViewBag.StCd = stCd;
-            ViewBag.Categories = await _context.TrfInPlan.Select(x => x.MajCat).Distinct().OrderBy(x => x).ToListAsync();
+            ViewBag.Categories = await _context.TrfInPlans.Select(x => x.MajCat).Distinct().OrderBy(x => x).ToListAsync();
 
             var data = await query.OrderBy(x => x.StCd).ThenBy(x => x.MajCat)
                 .Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();
@@ -71,7 +71,7 @@ namespace TRANSFER_IN_PLAN.Controllers
         [HttpGet]
         public async Task<IActionResult> ExportCsv(int? fyYear, int? fyWeek, string? majCat, string? stCd)
         {
-            var query = _context.TrfInPlan.AsQueryable();
+            var query = _context.TrfInPlans.AsQueryable();
             if (fyYear.HasValue) query = query.Where(x => x.FyYear == fyYear);
             if (fyWeek.HasValue) query = query.Where(x => x.FyWeek == fyWeek);
             if (!string.IsNullOrEmpty(majCat)) query = query.Where(x => x.MajCat == majCat);
