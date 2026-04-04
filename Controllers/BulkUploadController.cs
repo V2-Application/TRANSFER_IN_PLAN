@@ -124,7 +124,8 @@ public class BulkUploadController : Controller
         {
             _context.ChangeTracker.AutoDetectChangesEnabled = true;
             _logger.LogError(ex, "BulkUpload error on table {Table}", table);
-            TempData["ErrorMessage"] = $"Upload failed: {ex.Message}";
+            var innerMsg = ex.InnerException?.InnerException?.Message ?? ex.InnerException?.Message ?? ex.Message;
+                TempData["ErrorMessage"] = $"Upload failed: {innerMsg}";
         }
 
         return RedirectToAction(nameof(Index));
