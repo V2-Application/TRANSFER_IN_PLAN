@@ -1,154 +1,295 @@
 @{
     ViewData["Title"] = "Dashboard";
 }
+@model TRANSFER_IN_PLAN.Models.DashboardViewModel
+@using System.Text.Json
 
-@model DashboardViewModel
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h4 class="mb-0 fw-bold text-primary">
+        <i class="bi bi-speedometer2 me-2"></i>Analytics Dashboard
+    </h4>
+    <small class="text-muted">
+        @if (Model.LastExecutionDate.HasValue)
+        { <span><i class="bi bi-clock me-1"></i>Last Run: @Model.LastExecutionDate.Value.ToString("dd-MMM-yyyy HH:mm")</span> }
+        else
+        { <span class="text-warning">No plan executed yet</span> }
+    </small>
+</div>
 
-<div class="dashboard-container">
-    <!-- Stats Cards -->
-    <div class="row mb-4">
-        <div class="col-md-3">
-            <div class="stat-card">
-                <div class="stat-icon stores">
-                    <i class="bi bi-shop"></i>
+@* ── Row 1: Transfer In KPIs ─────────────────────────────────────────── *@
+<div class="row g-3 mb-3">
+    <div class="col-6 col-md-3">
+        <div class="card border-0 shadow-sm h-100" style="border-left:4px solid #e74c3c !important;">
+            <div class="card-body d-flex align-items-center gap-3 py-3">
+                <div class="rounded-circle d-flex align-items-center justify-content-center" style="width:48px;height:48px;background:#fdecea;">
+                    <i class="bi bi-shop text-danger fs-5"></i>
                 </div>
-                <div class="stat-content">
-                    <h6 class="stat-label">Total Stores</h6>
-                    <h2 class="stat-value">@Model.TotalStores</h2>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-md-3">
-            <div class="stat-card">
-                <div class="stat-icon categories">
-                    <i class="bi bi-collection"></i>
-                </div>
-                <div class="stat-content">
-                    <h6 class="stat-label">Categories</h6>
-                    <h2 class="stat-value">@Model.TotalCategories</h2>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-md-3">
-            <div class="stat-card">
-                <div class="stat-icon rows">
-                    <i class="bi bi-list-ul"></i>
-                </div>
-                <div class="stat-content">
-                    <h6 class="stat-label">Plan Rows</h6>
-                    <h2 class="stat-value">@Model.TotalPlanRows</h2>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-md-3">
-            <div class="stat-card">
-                <div class="stat-icon execution">
-                    <i class="bi bi-calendar-event"></i>
-                </div>
-                <div class="stat-content">
-                    <h6 class="stat-label">Last Execution</h6>
-                    <h6 class="stat-date">@(Model.LastExecutionDate?.ToString("yyyy-MM-dd HH:mm") ?? "Never")</h6>
+                <div>
+                    <div class="text-muted small text-uppercase fw-semibold">Total Stores</div>
+                    <div class="fw-bold fs-4 text-dark">@Model.TotalStores.ToString("N0")</div>
                 </div>
             </div>
         </div>
     </div>
-
-    <!-- Charts Row -->
-    <div class="row mb-4">
-        <div class="col-lg-6">
-            <div class="card chart-card">
-                <div class="card-header">
-                    <h5 class="card-title mb-0">Transfer In by Category</h5>
+    <div class="col-6 col-md-3">
+        <div class="card border-0 shadow-sm h-100" style="border-left:4px solid #27ae60 !important;">
+            <div class="card-body d-flex align-items-center gap-3 py-3">
+                <div class="rounded-circle d-flex align-items-center justify-content-center" style="width:48px;height:48px;background:#eafaf1;">
+                    <i class="bi bi-tags text-success fs-5"></i>
                 </div>
-                <div class="card-body">
-                    <canvas id="categoryChart"></canvas>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-lg-6">
-            <div class="card chart-card">
-                <div class="card-header">
-                    <h5 class="card-title mb-0">Weekly Transfer In Trend</h5>
-                </div>
-                <div class="card-body">
-                    <canvas id="weeklyChart"></canvas>
+                <div>
+                    <div class="text-muted small text-uppercase fw-semibold">Categories</div>
+                    <div class="fw-bold fs-4 text-dark">@Model.TotalCategories.ToString("N0")</div>
                 </div>
             </div>
         </div>
     </div>
-
-    <!-- Data Tables Row -->
-    <div class="row">
-        <div class="col-lg-6">
-            <div class="card table-card">
-                <div class="card-header">
-                    <h5 class="card-title mb-0">Top 10 Short Stores</h5>
+    <div class="col-6 col-md-3">
+        <div class="card border-0 shadow-sm h-100" style="border-left:4px solid #2980b9 !important;">
+            <div class="card-body d-flex align-items-center gap-3 py-3">
+                <div class="rounded-circle d-flex align-items-center justify-content-center" style="width:48px;height:48px;background:#eaf4fb;">
+                    <i class="bi bi-arrow-left-right text-primary fs-5"></i>
                 </div>
-                <div class="card-body">
-                    <div class="table-responsive">
-                        <table class="table table-sm table-hover">
-                            <thead>
-                                <tr>
-                                    <th>Store Code</th>
-                                    <th>Store Name</th>
-                                    <th>Category</th>
-                                    <th class="text-end">Qty</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @foreach (var store in Model.TopShortStores.Take(10))
-                                {
-                                    <tr>
-                                        <td>@store.StCd</td>
-                                        <td>@store.StNm</td>
-                                        <td>@store.MajCat</td>
-                                        <td class="text-end">
-                                            <span class="badge bg-danger">@store.Quantity.ToString("F2")</span>
-                                        </td>
-                                    </tr>
-                                }
-                            </tbody>
-                        </table>
-                    </div>
+                <div>
+                    <div class="text-muted small text-uppercase fw-semibold">TrfIn Qty</div>
+                    <div class="fw-bold fs-4 text-dark">@((Model.TotalTrfInQty/1000).ToString("N1"))K</div>
                 </div>
             </div>
         </div>
-
-        <div class="col-lg-6">
-            <div class="card table-card">
-                <div class="card-header">
-                    <h5 class="card-title mb-0">Top 10 Excess Stores</h5>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card border-0 shadow-sm h-100" style="border-left:4px solid #8e44ad !important;">
+            <div class="card-body d-flex align-items-center gap-3 py-3">
+                <div class="rounded-circle d-flex align-items-center justify-content-center" style="width:48px;height:48px;background:#f5eef8;">
+                    <i class="bi bi-cart-check text-purple fs-5" style="color:#8e44ad;"></i>
                 </div>
-                <div class="card-body">
-                    <div class="table-responsive">
-                        <table class="table table-sm table-hover">
-                            <thead>
-                                <tr>
-                                    <th>Store Code</th>
-                                    <th>Store Name</th>
-                                    <th>Category</th>
-                                    <th class="text-end">Qty</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @foreach (var store in Model.TopExcessStores.Take(10))
-                                {
-                                    <tr>
-                                        <td>@store.StCd</td>
-                                        <td>@store.StNm</td>
-                                        <td>@store.MajCat</td>
-                                        <td class="text-end">
-                                            <span class="badge bg-warning">@store.Quantity.ToString("F2")</span>
-                                        </td>
-                                    </tr>
-                                }
-                            </tbody>
-                        </table>
-                    </div>
+                <div>
+                    <div class="text-muted small text-uppercase fw-semibold">TrfIn Rows</div>
+                    <div class="fw-bold fs-4 text-dark">@((Model.TotalPlanRows/1000).ToString("N0"))K</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@* ── Row 2: Purchase Plan KPIs ───────────────────────────────────────── *@
+<div class="row g-3 mb-3">
+    <div class="col-6 col-md-3">
+        <div class="card border-0 shadow-sm h-100" style="border-left:4px solid #f39c12 !important;">
+            <div class="card-body d-flex align-items-center gap-3 py-3">
+                <div class="rounded-circle d-flex align-items-center justify-content-center" style="width:48px;height:48px;background:#fef9e7;">
+                    <i class="bi bi-bag-check fs-5" style="color:#f39c12;"></i>
+                </div>
+                <div>
+                    <div class="text-muted small text-uppercase fw-semibold">PP Purchase Qty</div>
+                    <div class="fw-bold fs-4 text-dark">@((Model.TotalPurchaseQty/1000).ToString("N1"))K</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card border-0 shadow-sm h-100" style="border-left:4px solid #c0392b !important;">
+            <div class="card-body d-flex align-items-center gap-3 py-3">
+                <div class="rounded-circle d-flex align-items-center justify-content-center" style="width:48px;height:48px;background:#fdedec;">
+                    <i class="bi bi-exclamation-triangle text-danger fs-5"></i>
+                </div>
+                <div>
+                    <div class="text-muted small text-uppercase fw-semibold">DC Short Qty</div>
+                    <div class="fw-bold fs-4 text-danger">@((Model.TotalDcStkShortQ/1000).ToString("N1"))K</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card border-0 shadow-sm h-100" style="border-left:4px solid #16a085 !important;">
+            <div class="card-body d-flex align-items-center gap-3 py-3">
+                <div class="rounded-circle d-flex align-items-center justify-content-center" style="width:48px;height:48px;background:#e8f8f5;">
+                    <i class="bi bi-check-circle fs-5" style="color:#16a085;"></i>
+                </div>
+                <div>
+                    <div class="text-muted small text-uppercase fw-semibold">DC Excess Qty</div>
+                    <div class="fw-bold fs-4" style="color:#16a085;">@((Model.TotalDcStkExcessQ/1000).ToString("N1"))K</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card border-0 shadow-sm h-100" style="border-left:4px solid #7f8c8d !important;">
+            <div class="card-body d-flex align-items-center gap-3 py-3">
+                <div class="rounded-circle d-flex align-items-center justify-content-center" style="width:48px;height:48px;background:#f2f3f4;">
+                    <i class="bi bi-list-check text-secondary fs-5"></i>
+                </div>
+                <div>
+                    <div class="text-muted small text-uppercase fw-semibold">PP Rows</div>
+                    <div class="fw-bold fs-4 text-dark">@((Model.TotalPurchasePlanRows/1000).ToString("N0"))K</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@* ── Row 3: Charts – TrfIn Category + TrfIn Weekly ──────────────────── *@
+<div class="row g-3 mb-3">
+    <div class="col-md-6">
+        <div class="card shadow-sm border-0 h-100">
+            <div class="card-header bg-white border-bottom-0 pt-3 pb-0">
+                <h6 class="fw-bold text-primary mb-0"><i class="bi bi-bar-chart me-2"></i>Transfer In by Category (Top 15)</h6>
+            </div>
+            <div class="card-body pt-2"><canvas id="catChart" height="220"></canvas></div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card shadow-sm border-0 h-100">
+            <div class="card-header bg-white border-bottom-0 pt-3 pb-0">
+                <h6 class="fw-bold text-success mb-0"><i class="bi bi-graph-up me-2"></i>Weekly Transfer In Trend</h6>
+            </div>
+            <div class="card-body pt-2"><canvas id="weeklyChart" height="220"></canvas></div>
+        </div>
+    </div>
+</div>
+
+@* ── Row 4: Charts – PP Category + PP Weekly ────────────────────────── *@
+<div class="row g-3 mb-3">
+    <div class="col-md-6">
+        <div class="card shadow-sm border-0 h-100">
+            <div class="card-header bg-white border-bottom-0 pt-3 pb-0">
+                <h6 class="fw-bold text-warning mb-0"><i class="bi bi-bar-chart-steps me-2"></i>Purchase Plan – DC Short vs Excess by Category</h6>
+            </div>
+            <div class="card-body pt-2"><canvas id="ppCatChart" height="220"></canvas></div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card shadow-sm border-0 h-100">
+            <div class="card-header bg-white border-bottom-0 pt-3 pb-0">
+                <h6 class="fw-bold text-info mb-0"><i class="bi bi-graph-up-arrow me-2"></i>Purchase Plan Weekly Trend</h6>
+            </div>
+            <div class="card-body pt-2"><canvas id="ppWeeklyChart" height="220"></canvas></div>
+        </div>
+    </div>
+</div>
+
+@* ── Row 5: RDC Summary + Store Short vs Excess ─────────────────────── *@
+<div class="row g-3 mb-3">
+    <div class="col-md-6">
+        <div class="card shadow-sm border-0 h-100">
+            <div class="card-header bg-white border-bottom-0 pt-3 pb-0">
+                <h6 class="fw-bold mb-0" style="color:#8e44ad;"><i class="bi bi-building me-2"></i>RDC-wise Transfer In (Top 15)</h6>
+            </div>
+            <div class="card-body pt-2"><canvas id="rdcChart" height="220"></canvas></div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card shadow-sm border-0 h-100">
+            <div class="card-header bg-white border-bottom-0 pt-3 pb-0">
+                <h6 class="fw-bold text-danger mb-0"><i class="bi bi-arrow-left-right me-2"></i>Category Short vs Excess (TrfIn)</h6>
+            </div>
+            <div class="card-body pt-2"><canvas id="shortExcessChart" height="220"></canvas></div>
+        </div>
+    </div>
+</div>
+
+@* ── Row 6: Top Short / Excess Stores ───────────────────────────────── *@
+<div class="row g-3 mb-3">
+    <div class="col-md-6">
+        <div class="card shadow-sm border-0">
+            <div class="card-header bg-danger text-white py-2">
+                <h6 class="mb-0 fw-bold"><i class="bi bi-arrow-down-circle me-2"></i>Top 10 Short Stores (Transfer In)</h6>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover mb-0">
+                        <thead class="table-light"><tr><th>Store</th><th>Name</th><th>Category</th><th class="text-end">Short Qty</th></tr></thead>
+                        <tbody>
+                        @foreach (var s in Model.TopShortStores)
+                        {
+                            <tr>
+                                <td class="fw-semibold text-primary">@s.StCd</td>
+                                <td class="small">@s.StNm</td>
+                                <td><span class="badge bg-secondary small">@s.MajCat</span></td>
+                                <td class="text-end"><span class="badge bg-danger">@s.Quantity.ToString("N2")</span></td>
+                            </tr>
+                        }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card shadow-sm border-0">
+            <div class="card-header py-2" style="background:#f39c12;color:white;">
+                <h6 class="mb-0 fw-bold"><i class="bi bi-arrow-up-circle me-2"></i>Top 10 Excess Stores (Transfer In)</h6>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover mb-0">
+                        <thead class="table-light"><tr><th>Store</th><th>Name</th><th>Category</th><th class="text-end">Excess Qty</th></tr></thead>
+                        <tbody>
+                        @foreach (var s in Model.TopExcessStores)
+                        {
+                            <tr>
+                                <td class="fw-semibold text-primary">@s.StCd</td>
+                                <td class="small">@s.StNm</td>
+                                <td><span class="badge bg-secondary small">@s.MajCat</span></td>
+                                <td class="text-end"><span class="badge" style="background:#f39c12;">@s.Quantity.ToString("N2")</span></td>
+                            </tr>
+                        }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@* ── Row 7: DC Short / DC Excess from Purchase Plan ─────────────────── *@
+<div class="row g-3 mb-4">
+    <div class="col-md-6">
+        <div class="card shadow-sm border-0">
+            <div class="card-header py-2" style="background:#c0392b;color:white;">
+                <h6 class="mb-0 fw-bold"><i class="bi bi-database-x me-2"></i>Top 10 DC Short (Purchase Plan)</h6>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover mb-0">
+                        <thead class="table-light"><tr><th>RDC</th><th>RDC Name</th><th>Category</th><th class="text-end">Short Qty</th></tr></thead>
+                        <tbody>
+                        @foreach (var d in Model.TopDcShortCategories)
+                        {
+                            <tr>
+                                <td class="fw-semibold text-danger">@d.RdcCd</td>
+                                <td class="small">@d.RdcNm</td>
+                                <td><span class="badge bg-secondary small">@d.MajCat</span></td>
+                                <td class="text-end"><span class="badge bg-danger">@d.Quantity.ToString("N2")</span></td>
+                            </tr>
+                        }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card shadow-sm border-0">
+            <div class="card-header py-2" style="background:#16a085;color:white;">
+                <h6 class="mb-0 fw-bold"><i class="bi bi-database-check me-2"></i>Top 10 DC Excess (Purchase Plan)</h6>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover mb-0">
+                        <thead class="table-light"><tr><th>RDC</th><th>RDC Name</th><th>Category</th><th class="text-end">Excess Qty</th></tr></thead>
+                        <tbody>
+                        @foreach (var d in Model.TopDcExcessCategories)
+                        {
+                            <tr>
+                                <td class="fw-semibold" style="color:#16a085;">@d.RdcCd</td>
+                                <td class="small">@d.RdcNm</td>
+                                <td><span class="badge bg-secondary small">@d.MajCat</span></td>
+                                <td class="text-end"><span class="badge" style="background:#16a085;">@d.Quantity.ToString("N2")</span></td>
+                            </tr>
+                        }
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </div>
@@ -156,56 +297,94 @@
 </div>
 
 @section Scripts {
-    <script>
-        // Category Chart
-        const categoryCtx = document.getElementById('categoryChart').getContext('2d');
-        new Chart(categoryCtx, {
-            type: 'bar',
-            data: {
-                labels: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.CategorySummary.Select(c => c.MajCat).ToList())),
-                datasets: [{
-                    label: 'Transfer In Quantity',
-                    data: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.CategorySummary.Select(c => c.TotalTrfInQty).ToList())),
-                    backgroundColor: '#1F4E79',
-                    borderColor: '#1F4E79',
-                    borderWidth: 1
-                }]
-            },
-            options: {
-                responsive: true,
-                plugins: {
-                    legend: { display: false }
-                },
-                scales: {
-                    y: { beginAtZero: true }
-                }
-            }
-        });
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+    Chart.defaults.font.family = "'Segoe UI', sans-serif";
+    Chart.defaults.font.size   = 11;
+    const COLORS = ['#2980b9','#27ae60','#e74c3c','#f39c12','#8e44ad','#16a085','#c0392b','#2c3e50','#d35400','#1abc9c','#e67e22','#3498db','#9b59b6','#1e8bc3','#2ecc71'];
 
-        // Weekly Chart
-        const weeklyCtx = document.getElementById('weeklyChart').getContext('2d');
-        new Chart(weeklyCtx, {
-            type: 'line',
-            data: {
-                labels: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.WeeklySummary.Select(w => "FY" + w.FyYear + " W" + w.FyWeek).ToList())),
-                datasets: [{
-                    label: 'Transfer In Quantity',
-                    data: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.WeeklySummary.Select(w => w.TotalTrfInQty).ToList())),
-                    borderColor: '#1F4E79',
-                    backgroundColor: 'rgba(31, 78, 121, 0.1)',
-                    tension: 0.4,
-                    fill: true
-                }]
-            },
-            options: {
-                responsive: true,
-                plugins: {
-                    legend: { display: true }
-                },
-                scales: {
-                    y: { beginAtZero: true }
-                }
-            }
-        });
-    </script>
+    // 1. TrfIn by Category
+    new Chart(document.getElementById('catChart'), {
+        type: 'bar',
+        data: {
+            labels: @Html.Raw(JsonSerializer.Serialize(Model.CategorySummary.Select(c => c.MajCat).ToList())),
+            datasets: [{
+                label: 'Transfer In Qty',
+                data:  @Html.Raw(JsonSerializer.Serialize(Model.CategorySummary.Select(c => c.TotalTrfInQty).ToList())),
+                backgroundColor: COLORS,
+                borderRadius: 4
+            }]
+        },
+        options: { responsive:true, plugins:{legend:{display:false}}, scales:{y:{beginAtZero:true}} }
+    });
+
+    // 2. TrfIn Weekly
+    new Chart(document.getElementById('weeklyChart'), {
+        type: 'line',
+        data: {
+            labels: @Html.Raw(JsonSerializer.Serialize(Model.WeeklySummary.Select(w => "FY"+w.FyYear+"W"+w.FyWeek).ToList())),
+            datasets: [{
+                label: 'Transfer In Qty', fill: true,
+                data: @Html.Raw(JsonSerializer.Serialize(Model.WeeklySummary.Select(w => w.TotalTrfInQty).ToList())),
+                borderColor:'#2980b9', backgroundColor:'rgba(41,128,185,0.1)', tension:0.3, pointRadius:2
+            }]
+        },
+        options: { responsive:true, plugins:{legend:{position:'top'}}, scales:{y:{beginAtZero:true}} }
+    });
+
+    // 3. PP Category – DC Short vs Excess grouped bar
+    new Chart(document.getElementById('ppCatChart'), {
+        type: 'bar',
+        data: {
+            labels: @Html.Raw(JsonSerializer.Serialize(Model.PpCategorySummary.Select(c => c.MajCat).ToList())),
+            datasets: [
+                { label:'DC Short', data:@Html.Raw(JsonSerializer.Serialize(Model.PpCategorySummary.Select(c => c.DcStkShortQ).ToList())),  backgroundColor:'rgba(192,57,43,0.8)',  borderRadius:3 },
+                { label:'DC Excess',data:@Html.Raw(JsonSerializer.Serialize(Model.PpCategorySummary.Select(c => c.DcStkExcessQ).ToList())), backgroundColor:'rgba(22,160,133,0.8)', borderRadius:3 },
+                { label:'Bgt Purchase',data:@Html.Raw(JsonSerializer.Serialize(Model.PpCategorySummary.Select(c => c.BgtPurQ).ToList())), backgroundColor:'rgba(243,156,18,0.7)',  borderRadius:3 }
+            ]
+        },
+        options: { responsive:true, plugins:{legend:{position:'top'}}, scales:{x:{stacked:false},y:{beginAtZero:true}} }
+    });
+
+    // 4. PP Weekly Trend
+    new Chart(document.getElementById('ppWeeklyChart'), {
+        type: 'line',
+        data: {
+            labels: @Html.Raw(JsonSerializer.Serialize(Model.PpWeeklySummary.Select(w => "FY"+w.FyYear+"W"+w.FyWeek).ToList())),
+            datasets: [
+                { label:'Bgt Purchase Qty', fill:true, data:@Html.Raw(JsonSerializer.Serialize(Model.PpWeeklySummary.Select(w => w.BgtPurQ).ToList())),      borderColor:'#f39c12', backgroundColor:'rgba(243,156,18,0.1)',  tension:0.3, pointRadius:2 },
+                { label:'DC Short',         fill:false,data:@Html.Raw(JsonSerializer.Serialize(Model.PpWeeklySummary.Select(w => w.DcStkShortQ).ToList())),  borderColor:'#e74c3c', backgroundColor:'transparent', tension:0.3, pointRadius:2, borderDash:[4,3] },
+                { label:'DC Excess',        fill:false,data:@Html.Raw(JsonSerializer.Serialize(Model.PpWeeklySummary.Select(w => w.DcStkExcessQ).ToList())), borderColor:'#16a085', backgroundColor:'transparent', tension:0.3, pointRadius:2, borderDash:[4,3] }
+            ]
+        },
+        options: { responsive:true, plugins:{legend:{position:'top'}}, scales:{y:{beginAtZero:true}} }
+    });
+
+    // 5. RDC Chart – horizontal bar
+    new Chart(document.getElementById('rdcChart'), {
+        type: 'bar',
+        data: {
+            labels: @Html.Raw(JsonSerializer.Serialize(Model.RdcSummary.Select(r => r.RdcCd + (r.RdcNm != null ? " - " + r.RdcNm.Substring(0, Math.Min(r.RdcNm.Length,12)) : "")).ToList())),
+            datasets: [{
+                label:'TrfIn Qty',
+                data:@Html.Raw(JsonSerializer.Serialize(Model.RdcSummary.Select(r => r.TotalTrfInQty).ToList())),
+                backgroundColor:'rgba(142,68,173,0.75)', borderRadius:4
+            }]
+        },
+        options: { indexAxis:'y', responsive:true, plugins:{legend:{display:false}}, scales:{x:{beginAtZero:true}} }
+    });
+
+    // 6. Short vs Excess by Category
+    new Chart(document.getElementById('shortExcessChart'), {
+        type: 'bar',
+        data: {
+            labels: @Html.Raw(JsonSerializer.Serialize(Model.CategorySummary.Select(c => c.MajCat).ToList())),
+            datasets: [
+                { label:'Short Qty',  data:@Html.Raw(JsonSerializer.Serialize(Model.CategorySummary.Select(c => c.TotalShortQ).ToList())),  backgroundColor:'rgba(231,76,60,0.8)',   borderRadius:3 },
+                { label:'Excess Qty', data:@Html.Raw(JsonSerializer.Serialize(Model.CategorySummary.Select(c => c.TotalExcessQ).ToList())), backgroundColor:'rgba(243,156,18,0.8)',  borderRadius:3 }
+            ]
+        },
+        options: { responsive:true, plugins:{legend:{position:'top'}}, scales:{y:{beginAtZero:true}} }
+    });
+</script>
 }
