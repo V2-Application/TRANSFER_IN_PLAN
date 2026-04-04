@@ -47,6 +47,6 @@ namespace TRANSFER_IN_PLAN.Controllers
         [HttpGet] public async Task<IActionResult> Delete(int id) { var m = await _context.StoreStock.FindAsync(id); return m == null ? NotFound() : View(m); }
         [HttpPost, ActionName("Delete")][ValidateAntiForgeryToken]
         public async Task<IActionResult> DeleteConfirmed(int id) { var m = await _context.StoreStock.FindAsync(id); if (m != null) { _context.StoreStock.Remove(m); await _context.SaveChangesAsync(); TempData["SuccessMessage"] = "Deleted."; } return RedirectToAction(nameof(Index)); }
-        private static string Q(string? s) { if (string.IsNullOrEmpty(s)) return ""; return "\"" + s.Replace("\"", "\"\""") + "\""; }
+        private static string Q(string? s) { if (string.IsNullOrEmpty(s)) return ""; return "\"" + s.Replace("\"", "\"\"") + "\""; }
     }
 }
