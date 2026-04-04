@@ -1,56 +1,95 @@
-@{
-    ViewData["Title"] = "Display Qty Management";
-}
-
+@{ ViewData["Title"] = "Display Qty Management"; }
 @model IEnumerable<DispQty>
 
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <h3>Display Quantity Data</h3>
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h3><i class="bi bi-display me-2"></i>Display Quantity Data</h3>
     <a asp-action="Create" class="btn btn-primary">
-        <i class="bi bi-plus-circle"></i> Add Display Qty
+        <i class="bi bi-plus-circle me-1"></i>Add Display Qty
     </a>
 </div>
 
-<div class="card">
-    <div class="card-body">
+@if (TempData["SuccessMessage"] != null)
+{
+    <div class="alert alert-success alert-dismissible fade show"><i class="bi bi-check-circle-fill me-2"></i>@TempData["SuccessMessage"]<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
+}
+@if (TempData["ErrorMessage"] != null)
+{
+    <div class="alert alert-danger alert-dismissible fade show"><i class="bi bi-exclamation-circle-fill me-2"></i>@TempData["ErrorMessage"]<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
+}
+@if (!string.IsNullOrEmpty(ViewBag.ErrorMessage as string))
+{
+    <div class="alert alert-danger alert-dismissible fade show"><i class="bi bi-exclamation-circle-fill me-2"></i>@ViewBag.ErrorMessage<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
+}
+
+<div class="card shadow-sm">
+    <div class="card-body p-0">
         <div class="table-responsive">
-            <table class="table table-hover table-sm" id="dispQtyTable">
-                <thead class="table-light">
+            <table class="table table-hover table-bordered table-sm mb-0" id="dispQtyTable">
+                <thead class="table-dark">
                     <tr>
-                        <th>Store Code</th>
-                        <th>Major Category</th>
-                        <th class="text-end">W1</th>
-                        <th class="text-end">W2</th>
-                        <th class="text-end">W3</th>
-                        <th class="text-end">W4</th>
-                        <th class="text-end">W5</th>
-                        <th class="text-end">W6</th>
-                        <th class="text-end">W7</th>
-                        <th class="text-end">W8</th>
+                        <th class="sticky-col">Store Code</th>
+                        <th class="sticky-col2">Major Category</th>
+                        <th class="text-end">W1</th><th class="text-end">W2</th><th class="text-end">W3</th><th class="text-end">W4</th>
+                        <th class="text-end">W5</th><th class="text-end">W6</th><th class="text-end">W7</th><th class="text-end">W8</th>
+                        <th class="text-end">W9</th><th class="text-end">W10</th><th class="text-end">W11</th><th class="text-end">W12</th>
+                        <th class="text-end">W13</th><th class="text-end">W14</th><th class="text-end">W15</th><th class="text-end">W16</th>
+                        <th class="text-end">W17</th><th class="text-end">W18</th><th class="text-end">W19</th><th class="text-end">W20</th>
+                        <th class="text-end">W21</th><th class="text-end">W22</th><th class="text-end">W23</th><th class="text-end">W24</th>
+                        <th class="text-end">W25</th><th class="text-end">W26</th><th class="text-end">W27</th><th class="text-end">W28</th>
+                        <th class="text-end">W29</th><th class="text-end">W30</th><th class="text-end">W31</th><th class="text-end">W32</th>
+                        <th class="text-end">W33</th><th class="text-end">W34</th><th class="text-end">W35</th><th class="text-end">W36</th>
+                        <th class="text-end">W37</th><th class="text-end">W38</th><th class="text-end">W39</th><th class="text-end">W40</th>
+                        <th class="text-end">W41</th><th class="text-end">W42</th><th class="text-end">W43</th><th class="text-end">W44</th>
+                        <th class="text-end">W45</th><th class="text-end">W46</th><th class="text-end">W47</th><th class="text-end">W48</th>
+                        <th class="text-end">Col2</th>
                         <th class="text-center">Actions</th>
+                    </tr>
+                    <tr class="filter-row">
+                        <th><input type="text" class="form-control form-control-sm" placeholder="Store..."></th>
+                        <th><input type="text" class="form-control form-control-sm" placeholder="Category..."></th>
+                        <th></th><th></th><th></th><th></th><th></th><th></th><th></th><th></th>
+                        <th></th><th></th><th></th><th></th><th></th><th></th><th></th><th></th>
+                        <th></th><th></th><th></th><th></th><th></th><th></th><th></th><th></th>
+                        <th></th><th></th><th></th><th></th><th></th><th></th><th></th><th></th>
+                        <th></th><th></th><th></th><th></th><th></th><th></th><th></th><th></th>
+                        <th></th><th></th><th></th><th></th><th></th><th></th><th></th><th></th>
+                        <th></th><th></th>
                     </tr>
                 </thead>
                 <tbody>
                     @foreach (var item in Model)
                     {
                         <tr>
-                            <td>@item.StCd</td>
-                            <td>@item.MajCat</td>
-                            <td class="text-end">@item.Wk1?.ToString("F2")</td>
-                            <td class="text-end">@item.Wk2?.ToString("F2")</td>
-                            <td class="text-end">@item.Wk3?.ToString("F2")</td>
-                            <td class="text-end">@item.Wk4?.ToString("F2")</td>
-                            <td class="text-end">@item.Wk5?.ToString("F2")</td>
-                            <td class="text-end">@item.Wk6?.ToString("F2")</td>
-                            <td class="text-end">@item.Wk7?.ToString("F2")</td>
-                            <td class="text-end">@item.Wk8?.ToString("F2")</td>
-                            <td class="text-center">
-                                <a asp-action="Edit" asp-route-stCd="@item.StCd" asp-route-majCat="@item.MajCat" class="btn btn-sm btn-warning">
-                                    <i class="bi bi-pencil"></i>
-                                </a>
-                                <a asp-action="Delete" asp-route-stCd="@item.StCd" asp-route-majCat="@item.MajCat" class="btn btn-sm btn-danger">
-                                    <i class="bi bi-trash"></i>
-                                </a>
+                            <td class="sticky-col fw-semibold">@item.StCd</td>
+                            <td class="sticky-col2">@item.MajCat</td>
+                            <td class="text-end">@item.Wk1?.ToString("F0")</td><td class="text-end">@item.Wk2?.ToString("F0")</td>
+                            <td class="text-end">@item.Wk3?.ToString("F0")</td><td class="text-end">@item.Wk4?.ToString("F0")</td>
+                            <td class="text-end">@item.Wk5?.ToString("F0")</td><td class="text-end">@item.Wk6?.ToString("F0")</td>
+                            <td class="text-end">@item.Wk7?.ToString("F0")</td><td class="text-end">@item.Wk8?.ToString("F0")</td>
+                            <td class="text-end">@item.Wk9?.ToString("F0")</td><td class="text-end">@item.Wk10?.ToString("F0")</td>
+                            <td class="text-end">@item.Wk11?.ToString("F0")</td><td class="text-end">@item.Wk12?.ToString("F0")</td>
+                            <td class="text-end">@item.Wk13?.ToString("F0")</td><td class="text-end">@item.Wk14?.ToString("F0")</td>
+                            <td class="text-end">@item.Wk15?.ToString("F0")</td><td class="text-end">@item.Wk16?.ToString("F0")</td>
+                            <td class="text-end">@item.Wk17?.ToString("F0")</td><td class="text-end">@item.Wk18?.ToString("F0")</td>
+                            <td class="text-end">@item.Wk19?.ToString("F0")</td><td class="text-end">@item.Wk20?.ToString("F0")</td>
+                            <td class="text-end">@item.Wk21?.ToString("F0")</td><td class="text-end">@item.Wk22?.ToString("F0")</td>
+                            <td class="text-end">@item.Wk23?.ToString("F0")</td><td class="text-end">@item.Wk24?.ToString("F0")</td>
+                            <td class="text-end">@item.Wk25?.ToString("F0")</td><td class="text-end">@item.Wk26?.ToString("F0")</td>
+                            <td class="text-end">@item.Wk27?.ToString("F0")</td><td class="text-end">@item.Wk28?.ToString("F0")</td>
+                            <td class="text-end">@item.Wk29?.ToString("F0")</td><td class="text-end">@item.Wk30?.ToString("F0")</td>
+                            <td class="text-end">@item.Wk31?.ToString("F0")</td><td class="text-end">@item.Wk32?.ToString("F0")</td>
+                            <td class="text-end">@item.Wk33?.ToString("F0")</td><td class="text-end">@item.Wk34?.ToString("F0")</td>
+                            <td class="text-end">@item.Wk35?.ToString("F0")</td><td class="text-end">@item.Wk36?.ToString("F0")</td>
+                            <td class="text-end">@item.Wk37?.ToString("F0")</td><td class="text-end">@item.Wk38?.ToString("F0")</td>
+                            <td class="text-end">@item.Wk39?.ToString("F0")</td><td class="text-end">@item.Wk40?.ToString("F0")</td>
+                            <td class="text-end">@item.Wk41?.ToString("F0")</td><td class="text-end">@item.Wk42?.ToString("F0")</td>
+                            <td class="text-end">@item.Wk43?.ToString("F0")</td><td class="text-end">@item.Wk44?.ToString("F0")</td>
+                            <td class="text-end">@item.Wk45?.ToString("F0")</td><td class="text-end">@item.Wk46?.ToString("F0")</td>
+                            <td class="text-end">@item.Wk47?.ToString("F0")</td><td class="text-end">@item.Wk48?.ToString("F0")</td>
+                            <td class="text-end">@item.Col2?.ToString("F0")</td>
+                            <td class="text-center text-nowrap">
+                                <a asp-action="Edit" asp-route-stCd="@item.StCd" asp-route-majCat="@item.MajCat" class="btn btn-sm btn-warning" title="Edit"><i class="bi bi-pencil"></i></a>
+                                <a asp-action="Delete" asp-route-stCd="@item.StCd" asp-route-majCat="@item.MajCat" class="btn btn-sm btn-danger" title="Delete"><i class="bi bi-trash"></i></a>
                             </td>
                         </tr>
                     }
@@ -61,13 +100,47 @@
 </div>
 
 @section Scripts {
-    <script>
-        $(document).ready(function () {
-            $('#dispQtyTable').DataTable({
-                pageLength: 25,
-                scrollX: true,
-                order: [[0, 'asc']]
+<style>
+    .filter-row th { background: #f8f9fa; padding: 4px 6px; }
+    #dispQtyTable_wrapper .dt-layout-row:first-child { padding: 12px 12px 4px; }
+    #dispQtyTable_wrapper .dt-layout-row:last-child  { padding: 4px 12px 12px; }
+    .sticky-col  { position: sticky; left: 0;    background: #fff; z-index: 2; min-width: 90px; }
+    .sticky-col2 { position: sticky; left: 90px; background: #fff; z-index: 2; min-width: 120px; }
+    thead .sticky-col, thead .sticky-col2 { background: #212529; z-index: 3; }
+    .filter-row .sticky-col, .filter-row .sticky-col2 { background: #f8f9fa; z-index: 3; }
+</style>
+<script>
+$(document).ready(function () {
+    if ($.fn.DataTable.isDataTable('#dispQtyTable')) {
+        $('#dispQtyTable').DataTable().destroy();
+    }
+    var table = $('#dispQtyTable').DataTable({
+        pageLength: 25,
+        lengthMenu: [[10, 25, 50, 100, -1], [10, 25, 50, 100, 'All']],
+        order: [[0, 'asc'], [1, 'asc']],
+        scrollX: true,
+        autoWidth: false,
+        language: {
+            search: '<i class="bi bi-search"></i>',
+            searchPlaceholder: 'Global search...',
+            lengthMenu: 'Show _MENU_ rows',
+            info: 'Showing _START_–_END_ of _TOTAL_ records',
+            infoEmpty: 'No records',
+            zeroRecords: 'No matching records found',
+            paginate: { first: '«', last: '»', next: '›', previous: '‹' }
+        },
+        columnDefs: [{ orderable: false, targets: -1 }]
+    });
+
+    [0, 1].forEach(function (i) {
+        var col = table.column(i);
+        var input = $($('.filter-row th')[i]).find('input');
+        if (input.length) {
+            input.on('keyup change clear', function () {
+                if (col.search() !== this.value) col.search(this.value).draw();
             });
-        });
-    </script>
+        }
+    });
+});
+</script>
 }
