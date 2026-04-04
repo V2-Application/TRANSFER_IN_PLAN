@@ -24,16 +24,24 @@ public class HomeController : Controller
 
             var vm = new DashboardViewModel();
 
-            // Total active stores
-            vm.TotalStores = await _context.StoreMasters
-                .Where(s => s.Status == "Active")
-                .CountAsync();
+            // Total stores (all stores in master)
+            vm.TotalStores = await _context.StoreMasters.CountAsync();
 
-            // Total distinct categories from TrfInPlan
-            vm.TotalCategories = await _context.TrfInPlans
-                .Select(t => t.MajCat)
+            // Total distinct MajCat categories from StoreStock (reference data)
+            vm.TotalCategories = await _context.StoreStocks
+                .Where(s => s.MajCat != null)
+                .Select(s => s.MajCat)
                 .Distinct()
                 .CountAsync();
+            if (vm.TotalCategories == 0)
+            {
+                // Fallback: use BinCapacities or TrfInPlan
+                vm.TotalCategories = await _context.TrfInPlans
+                    .Where(t => t.MajCat != null)
+                    .Select(t => t.MajCat)
+                    .Distinct()
+                    .CountAsync();
+            }
 
             // Total plan rows
             vm.TotalPlanRows = await _context.TrfInPlans.CountAsync();
@@ -45,7 +53,7 @@ public class HomeController : Controller
                 .Select(t => t.CreatedDt)
                 .FirstOrDefaultAsync();
 
-            // Category summary - sum TrfInStkQ grouped by MajCat
+            // Category summary - sum TrfInStkQ grouped by MajCat (top 10)
             vm.CategorySummary = await _context.TrfInPlans
                 .Where(t => t.MajCat != null && t.TrfInStkQ != null)
                 .GroupBy(t => t.MajCat)
@@ -59,7 +67,7 @@ public class HomeController : Controller
                 .Take(10)
                 .ToListAsync();
 
-            // Weekly summary - sum TrfInStkQ grouped by FyWeek/FyYear
+            // Weekly summary - sum TrfInStkQ grouped by FyWeek
             vm.WeeklySummary = await _context.TrfInPlans
                 .Where(t => t.FyWeek != null && t.TrfInStkQ != null)
                 .GroupBy(t => new { t.FyYear, t.FyWeek })
@@ -74,7 +82,7 @@ public class HomeController : Controller
                 .Take(48)
                 .ToListAsync();
 
-            // Top 10 short stores (highest shortage)
+            // Top 10 short stores (highest shortage quantity)
             vm.TopShortStores = await _context.TrfInPlans
                 .Where(t => t.StClShortQ != null && t.StClShortQ > 0)
                 .GroupBy(t => new { t.StCd, t.StNm, t.MajCat })
@@ -89,7 +97,7 @@ public class HomeController : Controller
                 .Take(10)
                 .ToListAsync();
 
-            // Top 10 excess stores (highest excess)
+            // Top 10 excess stores (highest excess quantity)
             vm.TopExcessStores = await _context.TrfInPlans
                 .Where(t => t.StClExcessQ != null && t.StClExcessQ > 0)
                 .GroupBy(t => new { t.StCd, t.StNm, t.MajCat })
@@ -104,7 +112,8 @@ public class HomeController : Controller
                 .Take(10)
                 .ToListAsync();
 
-            _logger.LogInformation("Dashboard loaded: {Stores} stores, {PlanRows} plan rows", vm.TotalStores, vm.TotalPlanRows);
+            _logger.LogInformation("Dashboard loaded: Stores={Stores}, Categories={Cat}, PlanRows={Rows}",
+                vm.TotalStores, vm.TotalCategories, vm.TotalPlanRows);
             return View(vm);
         }
         catch (Exception ex)
