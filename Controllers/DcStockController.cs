@@ -20,11 +20,11 @@ namespace TRANSFER_IN_PLAN.Controllers
         [HttpGet]
         public async Task<IActionResult> Index(string? rdcCd, string? majCat)
         {
-            var query = _context.DcStock.AsQueryable();
+            var query = _context.DcStocks.AsQueryable();
             if (!string.IsNullOrEmpty(rdcCd)) query = query.Where(x => x.RdcCd == rdcCd);
             if (!string.IsNullOrEmpty(majCat)) query = query.Where(x => x.MajCat == majCat);
-            ViewBag.RdcCodes = await _context.DcStock.Select(x => x.RdcCd).Distinct().OrderBy(x => x).ToListAsync();
-            ViewBag.Categories = await _context.DcStock.Select(x => x.MajCat).Distinct().OrderBy(x => x).ToListAsync();
+            ViewBag.RdcCodes = await _context.DcStocks.Select(x => x.RdcCd).Distinct().OrderBy(x => x).ToListAsync();
+            ViewBag.Categories = await _context.DcStocks.Select(x => x.MajCat).Distinct().OrderBy(x => x).ToListAsync();
             ViewBag.RdcCd = rdcCd;
             ViewBag.MajCat = majCat;
             var data = await query.OrderBy(x => x.RdcCd).ThenBy(x => x.MajCat).ToListAsync();
@@ -34,7 +34,7 @@ namespace TRANSFER_IN_PLAN.Controllers
         [HttpGet]
         public async Task<IActionResult> ExportCsv(string? rdcCd, string? majCat)
         {
-            var query = _context.DcStock.AsQueryable();
+            var query = _context.DcStocks.AsQueryable();
             if (!string.IsNullOrEmpty(rdcCd)) query = query.Where(x => x.RdcCd == rdcCd);
             if (!string.IsNullOrEmpty(majCat)) query = query.Where(x => x.MajCat == majCat);
             var data = await query.OrderBy(x => x.RdcCd).ThenBy(x => x.MajCat).ToListAsync();
@@ -65,7 +65,7 @@ namespace TRANSFER_IN_PLAN.Controllers
         public async Task<IActionResult> Create(DcStock model)
         {
             if (!ModelState.IsValid) return View(model);
-            _context.DcStock.Add(model);
+            _context.DcStocks.Add(model);
             await _context.SaveChangesAsync();
             _logger.LogInformation("DcStock created: RdcCd={RdcCd} MajCat={MajCat}", model.RdcCd, model.MajCat);
             TempData["SuccessMessage"] = "DC Stock record created.";
@@ -75,7 +75,7 @@ namespace TRANSFER_IN_PLAN.Controllers
         [HttpGet]
         public async Task<IActionResult> Edit(int id)
         {
-            var model = await _context.DcStock.FindAsync(id);
+            var model = await _context.DcStocks.FindAsync(id);
             if (model == null) return NotFound();
             return View(model);
         }
@@ -95,7 +95,7 @@ namespace TRANSFER_IN_PLAN.Controllers
             }
             catch (DbUpdateConcurrencyException)
             {
-                if (!await _context.DcStock.AnyAsync(x => x.Id == id)) return NotFound();
+                if (!await _context.DcStocks.AnyAsync(x => x.Id == id)) return NotFound();
                 throw;
             }
             return RedirectToAction(nameof(Index));
@@ -104,7 +104,7 @@ namespace TRANSFER_IN_PLAN.Controllers
         [HttpGet]
         public async Task<IActionResult> Delete(int id)
         {
-            var model = await _context.DcStock.FindAsync(id);
+            var model = await _context.DcStocks.FindAsync(id);
             if (model == null) return NotFound();
             return View(model);
         }
@@ -113,10 +113,10 @@ namespace TRANSFER_IN_PLAN.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> DeleteConfirmed(int id)
         {
-            var model = await _context.DcStock.FindAsync(id);
+            var model = await _context.DcStocks.FindAsync(id);
             if (model != null)
             {
-                _context.DcStock.Remove(model);
+                _context.DcStocks.Remove(model);
                 await _context.SaveChangesAsync();
                 _logger.LogInformation("DcStock deleted: Id={Id}", id);
                 TempData["SuccessMessage"] = "DC Stock record deleted.";
