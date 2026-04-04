@@ -1,125 +1,50 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Text;
 using TRANSFER_IN_PLAN.Data;
 using TRANSFER_IN_PLAN.Models;
 
-namespace TRANSFER_IN_PLAN.Controllers;
-
-public class BinCapacityController : Controller
+namespace TRANSFER_IN_PLAN.Controllers
 {
-    private readonly PlanningDbContext _context;
-    private readonly ILogger<BinCapacityController> _logger;
-
-    public BinCapacityController(PlanningDbContext context, ILogger<BinCapacityController> logger)
+    public class BinCapacityController : Controller
     {
-        _context = context;
-        _logger = logger;
-    }
+        private readonly PlanningDbContext _context;
+        private readonly ILogger<BinCapacityController> _logger;
+        public BinCapacityController(PlanningDbContext context, ILogger<BinCapacityController> logger) { _context = context; _logger = logger; }
 
-    public async Task<IActionResult> Index()
-    {
-        try
+        [HttpGet]
+        public async Task<IActionResult> Index(string? majCat)
         {
-            _logger.LogInformation("Loading BinCapacity list.");
-            var items = await _context.BinCapacities.OrderBy(b => b.MajCat).ToListAsync();
-            return View(items);
+            var query = _context.BinCapacity.AsQueryable();
+            if (!string.IsNullOrEmpty(majCat)) query = query.Where(x => x.MajCat == majCat);
+            ViewBag.Categories = await _context.BinCapacity.Select(x => x.MajCat).Distinct().OrderBy(x => x).ToListAsync();
+            ViewBag.MajCat = majCat;
+            return View(await query.OrderBy(x => x.MajCat).ToListAsync());
         }
-        catch (Exception ex)
+
+        [HttpGet]
+        public async Task<IActionResult> ExportCsv(string? majCat)
         {
-            _logger.LogError(ex, "Error loading BinCapacity list.");
-            ViewBag.ErrorMessage = "Error loading data: " + ex.Message;
-            return View(new List<BinCapacity>());
+            var query = _context.BinCapacity.AsQueryable();
+            if (!string.IsNullOrEmpty(majCat)) query = query.Where(x => x.MajCat == majCat);
+            var data = await query.OrderBy(x => x.MajCat).ToListAsync();
+            _logger.LogInformation("BinCapacity ExportCsv: {Count} rows", data.Count);
+            var sb = new StringBuilder();
+            sb.AppendLine("Id,MajCat,BinCapDcTeam,BinCap");
+            foreach (var r in data)
+                sb.AppendLine(string.Join(",", r.Id, Q(r.MajCat), r.BinCapDcTeam, r.BinCap));
+            return File(Encoding.UTF8.GetBytes(sb.ToString()), "text/csv", "BinCapacity.csv");
         }
+
+        [HttpGet] public IActionResult Create() => View();
+        [HttpPost][ValidateAntiForgeryToken]
+        public async Task<IActionResult> Create(BinCapacity model) { if (!ModelState.IsValid) return View(model); _context.BinCapacity.Add(model); await _context.SaveChangesAsync(); TempData["SuccessMessage"] = "Created."; return RedirectToAction(nameof(Index)); }
+        [HttpGet] public async Task<IActionResult> Edit(int id) { var m = await _context.BinCapacity.FindAsync(id); return m == null ? NotFound() : View(m); }
+        [HttpPost][ValidateAntiForgeryToken]
+        public async Task<IActionResult> Edit(int id, BinCapacity model) { if (id != model.Id) return NotFound(); if (!ModelState.IsValid) return View(model); try { _context.Update(model); await _context.SaveChangesAsync(); TempData["SuccessMessage"] = "Updated."; } catch (DbUpdateConcurrencyException) { if (!await _context.BinCapacity.AnyAsync(x => x.Id == id)) return NotFound(); throw; } return RedirectToAction(nameof(Index)); }
+        [HttpGet] public async Task<IActionResult> Delete(int id) { var m = await _context.BinCapacity.FindAsync(id); return m == null ? NotFound() : View(m); }
+        [HttpPost, ActionName("Delete")][ValidateAntiForgeryToken]
+        public async Task<IActionResult> DeleteConfirmed(int id) { var m = await _context.BinCapacity.FindAsync(id); if (m != null) { _context.BinCapacity.Remove(m); await _context.SaveChangesAsync(); TempData["SuccessMessage"] = "Deleted."; } return RedirectToAction(nameof(Index)); }
+        private static string Q(string? s) { if (string.IsNullOrEmpty(s)) return ""; return "\"" + s.Replace("\"", "\"\""") + "\""; }
     }
-
-    public IActionResult Create() => View();
-
-    [HttpPost]
-    [ValidateAntiForgeryToken]
-    public async Task<IActionResult> Create([Bind("MajCat,BinCapDcTeam,BinCap")] BinCapacity binCapacity)
-    {
-        if (ModelState.IsValid)
-        {
-            try
-            {
-                _context.Add(binCapacity);
-                await _context.SaveChangesAsync();
-                _logger.LogInformation("BinCapacity created: MajCat={MajCat}", binCapacity.MajCat);
-                TempData["SuccessMessage"] = $"Bin Capacity for '{binCapacity.MajCat}' created successfully.";
-                return RedirectToAction(nameof(Index));
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error creating BinCapacity MajCat={MajCat}", binCapacity.MajCat);
-                ModelState.AddModelError("", "Error saving record: " + ex.Message);
-            }
-        }
-        return View(binCapacity);
-    }
-
-    public async Task<IActionResult> Edit(int? id)
-    {
-        if (id == null) return NotFound();
-        var item = await _context.BinCapacities.FindAsync(id);
-        if (item == null) return NotFound();
-        return View(item);
-    }
-
-    [HttpPost]
-    [ValidateAntiForgeryToken]
-    public async Task<IActionResult> Edit(int id, [Bind("Id,MajCat,BinCapDcTeam,BinCap")] BinCapacity binCapacity)
-    {
-        if (id != binCapacity.Id) return NotFound();
-        if (ModelState.IsValid)
-        {
-            try
-            {
-                _context.Update(binCapacity);
-                await _context.SaveChangesAsync();
-                _logger.LogInformation("BinCapacity updated: Id={Id}, MajCat={MajCat}", id, binCapacity.MajCat);
-                TempData["SuccessMessage"] = $"Bin Capacity for '{binCapacity.MajCat}' updated successfully.";
-                return RedirectToAction(nameof(Index));
-            }
-            catch (DbUpdateConcurrencyException) { if (!BinCapacityExists(binCapacity.Id)) return NotFound(); throw; }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error updating BinCapacity Id={Id}", id);
-                ModelState.AddModelError("", "Error updating record: " + ex.Message);
-            }
-        }
-        return View(binCapacity);
-    }
-
-    public async Task<IActionResult> Delete(int? id)
-    {
-        if (id == null) return NotFound();
-        var item = await _context.BinCapacities.FindAsync(id);
-        if (item == null) return NotFound();
-        return View(item);
-    }
-
-    [HttpPost, ActionName("Delete")]
-    [ValidateAntiForgeryToken]
-    public async Task<IActionResult> DeleteConfirmed(int id)
-    {
-        try
-        {
-            var item = await _context.BinCapacities.FindAsync(id);
-            if (item != null)
-            {
-                _context.BinCapacities.Remove(item);
-                await _context.SaveChangesAsync();
-                _logger.LogInformation("BinCapacity deleted: Id={Id}", id);
-                TempData["SuccessMessage"] = "Bin Capacity record deleted successfully.";
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error deleting BinCapacity Id={Id}", id);
-            TempData["ErrorMessage"] = "Error deleting record: " + ex.Message;
-        }
-        return RedirectToAction(nameof(Index));
-    }
-
-    private bool BinCapacityExists(int id) => _context.BinCapacities.Any(e => e.Id == id);
 }
