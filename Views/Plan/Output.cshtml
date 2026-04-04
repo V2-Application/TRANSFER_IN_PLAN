@@ -2,138 +2,93 @@
     ViewData["Title"] = "Transfer In Plan Output";
 }
 
-@model IEnumerable<TrfInPlan>
+@model IEnumerable<TRANSFER_IN_PLAN.Models.TrfInPlan>
 
-<div class="mb-4">
-    <h3>Transfer In Plan Output</h3>
+<div class="mb-4 d-flex justify-content-between align-items-center flex-wrap gap-2">
+    <h3 class="mb-0"><i class="bi bi-table me-2"></i>Transfer In Plan Output</h3>
+    <a href="@Url.Action("ExportCsv", "Plan", new { fyYear = ViewBag.FyYear, fyWeek = ViewBag.FyWeek, majCat = ViewBag.MajCat, stCd = ViewBag.StCd })" class="btn btn-success btn-sm">
+        <i class="bi bi-filetype-csv me-1"></i> Export CSV
+    </a>
 </div>
 
 <div class="card mb-4">
-    <div class="card-header">
-        <h5 class="card-title mb-0">Filters</h5>
-    </div>
+    <div class="card-header"><h5 class="card-title mb-0"><i class="bi bi-funnel me-2"></i>Filters</h5></div>
     <div class="card-body">
         <form method="get" id="filterForm" class="row g-3">
-            <div class="col-md-2">
-                <label for="startWeekId" class="form-label">Start Week</label>
-                <select name="startWeekId" id="startWeekId" class="form-select">
-                    <option value="">-- All --</option>
-                    @foreach (var week in ViewBag.WeekCalendars)
-                    {
-                        <option value="@week.WeekId">@week.YearWeek</option>
-                    }
-                </select>
-            </div>
-
-            <div class="col-md-2">
-                <label for="endWeekId" class="form-label">End Week</label>
-                <select name="endWeekId" id="endWeekId" class="form-select">
-                    <option value="">-- All --</option>
-                    @foreach (var week in ViewBag.WeekCalendars)
-                    {
-                        <option value="@week.WeekId">@week.YearWeek</option>
-                    }
-                </select>
-            </div>
-
+            <div class="col-md-2"><label class="form-label">FY Year</label><input type="number" name="fyYear" class="form-control form-control-sm" value="@ViewBag.FyYear" placeholder="e.g. 2026" /></div>
+            <div class="col-md-2"><label class="form-label">FY Week</label><input type="number" name="fyWeek" class="form-control form-control-sm" value="@ViewBag.FyWeek" placeholder="e.g. 40" /></div>
             <div class="col-md-3">
-                <label for="storeCode" class="form-label">Store Code</label>
-                <select name="storeCode" id="storeCode" class="form-select">
-                    <option value="">-- All Stores --</option>
-                    @foreach (var store in ViewBag.StoreList)
-                    {
-                        <option value="@store">@store</option>
-                    }
+                <label class="form-label">Category</label>
+                <select name="majCat" class="form-select form-select-sm">
+                    <option value="">-- All --</option>
+                    @foreach (var c in (ViewBag.Categories as IEnumerable<string> ?? new List<string>())) { <option value="@c" selected="@(c == ViewBag.MajCat?.ToString() ? "selected" : null)">@c</option> }
                 </select>
             </div>
-
-            <div class="col-md-3">
-                <label for="majCat" class="form-label">Major Category</label>
-                <select name="majCat" id="majCat" class="form-select">
-                    <option value="">-- All Categories --</option>
-                    @foreach (var cat in ViewBag.CategoryList)
-                    {
-                        <option value="@cat">@cat</option>
-                    }
+            <div class="col-md-2"><label class="form-label">Store Code</label><input type="text" name="stCd" class="form-control form-control-sm" value="@ViewBag.StCd" placeholder="Store Code" /></div>
+            <div class="col-md-3"><label class="form-label">Page Size</label>
+                <select name="pageSize" class="form-select form-select-sm">
+                    @foreach (var ps in new[] { 50, 100, 250, 500 }) { <option value="@ps" selected="@((ViewBag.PageSize?.ToString() == ps.ToString()) ? "selected" : null)">@ps rows</option> }
                 </select>
             </div>
-
-            <div class="col-md-2 d-flex align-items-end gap-2">
-                <button type="submit" class="btn btn-primary">
-                    <i class="bi bi-search"></i> Filter
-                </button>
-                <a href="@Url.Action("Output")" class="btn btn-secondary">Reset</a>
+            <div class="col-12 d-flex gap-2 align-items-end flex-wrap">
+                <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-search me-1"></i> Filter</button>
+                <a href="@Url.Action("Output")" class="btn btn-outline-secondary btn-sm"><i class="bi bi-x-circle me-1"></i> Clear</a>
+                <a href="@Url.Action("ExportCsv", "Plan", new { fyYear = ViewBag.FyYear, fyWeek = ViewBag.FyWeek, majCat = ViewBag.MajCat, stCd = ViewBag.StCd })" class="btn btn-success btn-sm ms-auto">
+                    <i class="bi bi-filetype-csv me-1"></i> Export to CSV
+                </a>
             </div>
         </form>
     </div>
 </div>
 
+@if (ViewBag.TotalCount != null)
+{
+    <div class="alert alert-info py-2"><i class="bi bi-info-circle me-1"></i>Showing <strong>@Model.Count()</strong> of <strong>@ViewBag.TotalCount</strong> records (Page @ViewBag.Page, @ViewBag.PageSize per page)</div>
+}
+
 <div class="card">
-    <div class="card-header d-flex justify-content-between align-items-center">
-        <h5 class="card-title mb-0">Plan Details</h5>
-        <form asp-action="ExportExcel" method="post" class="d-inline">
-            <button type="submit" class="btn btn-success btn-sm">
-                <i class="bi bi-download"></i> Export to Excel
-            </button>
-        </form>
-    </div>
-    <div class="card-body">
+    <div class="card-body p-0">
         <div class="table-responsive">
-            <table class="table table-hover table-sm" id="planOutputTable">
-                <thead class="table-light">
+            <table class="table table-sm table-hover table-bordered mb-0" id="planOutputTable">
+                <thead class="table-dark">
                     <tr>
-                        <th>Store Code</th>
-                        <th>Store Name</th>
-                        <th>RDC Code</th>
-                        <th>Category</th>
-                        <th>Week</th>
-                        <th class="text-end">TRF IN STK Q</th>
-                        <th class="text-end">TRF IN OPT CNT</th>
-                        <th class="text-end">TRF IN OPT MBQ</th>
-                        <th class="text-end">DC MBQ</th>
-                        <th class="text-end">EXCESS Q</th>
-                        <th class="text-end">SHORT Q</th>
+                        <th>Store Code</th><th class="d-none d-sm-table-cell">Store Name</th><th class="d-none d-md-table-cell">RDC Code</th><th>Category</th>
+                        <th class="d-none d-sm-table-cell">FY Year</th><th>FY Week</th><th>TRF IN STK Q</th>
+                        <th class="d-none d-lg-table-cell">TRF IN OPT CNT</th><th class="d-none d-lg-table-cell">TRF IN OPT MBQ</th>
+                        <th class="d-none d-md-table-cell">DC MBQ</th><th>EXCESS Q</th><th>SHORT Q</th>
                     </tr>
                 </thead>
                 <tbody>
                     @foreach (var item in Model)
                     {
                         <tr>
-                            <td>@item.StCd</td>
-                            <td>@item.StNm</td>
-                            <td>@item.RdcCd</td>
-                            <td>@item.MajCat</td>
-                            <td>FY@item.FyYear W@item.FyWeek</td>
-                            <td class="text-end">@item.TrfInStkQ?.ToString("F2")</td>
-                            <td class="text-end">@item.TrfInOptCnt?.ToString("F2")</td>
-                            <td class="text-end">@item.TrfInOptMbq?.ToString("F2")</td>
-                            <td class="text-end">@item.DcMbq?.ToString("F2")</td>
-                            <td class="text-end"><span class="badge bg-warning">@item.StClExcessQ?.ToString("F2")</span></td>
-                            <td class="text-end"><span class="badge bg-danger">@item.StClShortQ?.ToString("F2")</span></td>
+                            <td>@item.StCd</td><td class="d-none d-sm-table-cell">@item.StNm</td><td class="d-none d-md-table-cell">@item.RdcCd</td><td>@item.MajCat</td>
+                            <td class="d-none d-sm-table-cell">@item.FyYear</td><td>@item.FyWeek</td><td class="text-end">@item.TrfInStkQ?.ToString("N2")</td>
+                            <td class="text-end d-none d-lg-table-cell">@item.TrfInOptCnt?.ToString("N2")</td><td class="text-end d-none d-lg-table-cell">@item.TrfInOptMbq?.ToString("N2")</td>
+                            <td class="text-end d-none d-md-table-cell">@item.DcMbq?.ToString("N2")</td>
+                            <td class="text-end">@if (item.StClExcessQ > 0) { <span class="badge bg-warning text-dark">@item.StClExcessQ?.ToString("N2")</span> } else { @item.StClExcessQ?.ToString("N2") }</td>
+                            <td class="text-end">@if (item.StClShortQ > 0) { <span class="badge bg-danger">@item.StClShortQ?.ToString("N2")</span> } else { @item.StClShortQ?.ToString("N2") }</td>
                         </tr>
                     }
                 </tbody>
             </table>
-            @if (!Model.Any())
-            {
-                <div class="alert alert-info">
-                    No data found. Please check your filters or execute the plan generation.
-                </div>
-            }
         </div>
     </div>
 </div>
 
+@if (ViewBag.TotalCount != null && ViewBag.PageSize != null && ViewBag.Page != null)
+{
+    var totalPages = (int)Math.Ceiling((double)(int)ViewBag.TotalCount / (int)ViewBag.PageSize);
+    <nav class="mt-3"><ul class="pagination pagination-sm justify-content-center flex-wrap">
+        @for (int p = Math.Max(1, (int)ViewBag.Page - 3); p <= Math.Min(totalPages, (int)ViewBag.Page + 3); p++)
+        {
+            <li class="page-item @(p == (int)ViewBag.Page ? "active" : "")"><a class="page-link" href="@Url.Action("Output", new { fyYear = ViewBag.FyYear, fyWeek = ViewBag.FyWeek, majCat = ViewBag.MajCat, stCd = ViewBag.StCd, page = p, pageSize = ViewBag.PageSize })">@p</a></li>
+        }
+    </ul></nav>
+}
+
 @section Scripts {
     <script>
-        $(document).ready(function () {
-            if ($('#planOutputTable tbody tr').length > 0) {
-                $('#planOutputTable').DataTable({
-                    pageLength: 50,
-                    scrollX: true,
-                    order: [[0, 'asc'], [4, 'asc']]
-                });
-            }
-        });
+        $(function () { if (!$.fn.DataTable.isDataTable('#planOutputTable')) { $('#planOutputTable').DataTable({ paging: false, ordering: true, searching: true, responsive: true, dom: 'lrtip' }); } });
     </script>
 }
