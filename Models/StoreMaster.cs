@@ -11,11 +11,11 @@ public class StoreMaster
     [Column("ID")]
     public int Id { get; set; }
 
-    [Column("ST_CD")]
+    [Column("ST CD")]
     [StringLength(50)]
     public string? StCd { get; set; }
 
-    [Column("ST_NM")]
+    [Column("ST NM")]
     [StringLength(255)]
     public string? StNm { get; set; }
 
@@ -43,7 +43,7 @@ public class StoreMaster
     [StringLength(50)]
     public string? GridStSts { get; set; }
 
-    [Column("OP_DATE")]
+    [Column("OP-DATE")]
     public DateTime? OpDate { get; set; }
 
     [Column("AREA")]
@@ -54,27 +54,27 @@ public class StoreMaster
     [StringLength(100)]
     public string? State { get; set; }
 
-    [Column("REF_STATE")]
+    [Column("REF STATE")]
     [StringLength(100)]
     public string? RefState { get; set; }
 
-    [Column("SALE_GRP")]
+    [Column("SALE GRP")]
     [StringLength(100)]
     public string? SaleGrp { get; set; }
 
-    [Column("REF_ST_CD")]
+    [Column("REF_ST CD")]
     [StringLength(50)]
     public string? RefStCd { get; set; }
 
-    [Column("REF_ST_NM")]
+    [Column("REF_ST NM")]
     [StringLength(255)]
     public string? RefStNm { get; set; }
 
-    [Column("REF_GRP_NEW")]
+    [Column("REF-GRP-NEW")]
     [StringLength(100)]
     public string? RefGrpNew { get; set; }
 
-    [Column("REF_GRP_OLD")]
+    [Column("REF-GRP-OLD")]
     [StringLength(100)]
     public string? RefGrpOld { get; set; }
 

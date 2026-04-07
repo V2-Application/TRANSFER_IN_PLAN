@@ -19,6 +19,17 @@ namespace TRANSFER_IN_PLAN.Controllers
             if (!string.IsNullOrEmpty(majCat)) query = query.Where(x => x.MajCat == majCat);
             ViewBag.Categories = await _context.BinCapacities.Select(x => x.MajCat).Distinct().OrderBy(x => x).ToListAsync();
             ViewBag.MajCat = majCat;
+
+            // Analytics
+            var all = await _context.BinCapacities.ToListAsync();
+            ViewBag.TotalRows = all.Count;
+            ViewBag.TotalCategories = all.Select(x => x.MajCat).Distinct().Count();
+            ViewBag.AvgBinCap = all.Any() ? all.Average(x => x.BinCap ?? 0) : 0;
+            ViewBag.AvgDcTeam = all.Any() ? all.Average(x => x.BinCapDcTeam ?? 0) : 0;
+            ViewBag.ChartLabels = all.OrderBy(x => x.MajCat).Select(x => x.MajCat ?? "NA").ToList();
+            ViewBag.ChartBinCap = all.OrderBy(x => x.MajCat).Select(x => x.BinCap ?? 0).ToList();
+            ViewBag.ChartDcTeam = all.OrderBy(x => x.MajCat).Select(x => x.BinCapDcTeam ?? 0).ToList();
+
             return View(await query.OrderBy(x => x.MajCat).ToListAsync());
         }
 

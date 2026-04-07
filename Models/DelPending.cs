@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
@@ -14,11 +15,12 @@ public class DelPending
     [StringLength(50)]
     public string? RdcCd { get; set; }
 
-    [Column("MAJ-CAT")]
+    [Column("MAJ_CAT")]
     [StringLength(100)]
     public string? MajCat { get; set; }
 
     [Column("DEL_PEND_Q")]
+    [Precision(18, 4)]
     public decimal? DelPendQ { get; set; }
 
     [Column("DATE")]

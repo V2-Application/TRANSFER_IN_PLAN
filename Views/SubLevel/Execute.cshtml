@@ -1,0 +1,318 @@
+@{ ViewData["Title"] = "Sub-Level Plan Execution"; }
+
+<div class="mb-3">
+    <h3 class="mb-1"><i class="bi bi-layers me-2"></i>Sub-Level Plan Execution</h3>
+    <small class="text-muted">Runs FULL TRF + PP algorithm per level using level-specific Stock, Sale × CONT%, Display × CONT%</small>
+</div>
+
+<div class="row g-3 mb-3">
+    <!-- LEFT: Execution Form -->
+    <div class="col-lg-7">
+        <div class="card shadow-sm border-0">
+            <div class="card-header"><h5 class="card-title mb-0"><i class="bi bi-play-circle me-2"></i>Generate Sub-Level Plans</h5></div>
+            <div class="card-body">
+                <form method="post" asp-action="RunGenerate" id="execForm">
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Start Week <span class="text-danger">*</span></label>
+                            <select name="startWeekId" class="form-select form-select-sm search-select" required>
+                                <option value="">-- Select --</option>
+                                @foreach (var w in (ViewBag.WeekCalendars as IEnumerable<TRANSFER_IN_PLAN.Models.WeekCalendar> ?? new List<TRANSFER_IN_PLAN.Models.WeekCalendar>()))
+                                { <option value="@w.WeekId">@w.WeekId — FY@(w.FyYear) W@(w.FyWeek)</option> }
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">End Week <span class="text-danger">*</span></label>
+                            <select name="endWeekId" class="form-select form-select-sm search-select" required>
+                                <option value="">-- Select --</option>
+                                @foreach (var w in (ViewBag.WeekCalendars as IEnumerable<TRANSFER_IN_PLAN.Models.WeekCalendar> ?? new List<TRANSFER_IN_PLAN.Models.WeekCalendar>()))
+                                { <option value="@w.WeekId">@w.WeekId — FY@(w.FyYear) W@(w.FyWeek)</option> }
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Major Category <span class="badge bg-secondary">Optional</span></label>
+                            <select name="majCat" class="form-select form-select-sm search-select">
+                                <option value="">-- All Categories --</option>
+                                @foreach (var c in (ViewBag.MajCats as IEnumerable<string> ?? new List<string>())) { <option value="@c">@c</option> }
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Store Code <span class="badge bg-secondary">Optional</span></label>
+                            <select name="storeCode" class="form-select form-select-sm search-select">
+                                <option value="">-- All Stores --</option>
+                                @foreach (var s in (ViewBag.StoreCodes as IEnumerable<string> ?? new List<string>())) { <option value="@s">@s</option> }
+                            </select>
+                        </div>
+                        <div class="col-md-12">
+                            <label class="form-label fw-semibold">Select Levels</label>
+                            <div class="d-flex flex-wrap gap-3">
+                                <div class="form-check"><input class="form-check-input" type="checkbox" name="levels" value="mvgr" id="chkMvgr" checked /><label class="form-check-label" for="chkMvgr">Macro MVGR</label></div>
+                                <div class="form-check"><input class="form-check-input" type="checkbox" name="levels" value="sz" id="chkSz" checked /><label class="form-check-label" for="chkSz">Size</label></div>
+                                <div class="form-check"><input class="form-check-input" type="checkbox" name="levels" value="seg" id="chkSeg" checked /><label class="form-check-label" for="chkSeg">Segment</label></div>
+                                <div class="form-check"><input class="form-check-input" type="checkbox" name="levels" value="vnd" id="chkVnd" checked /><label class="form-check-label" for="chkVnd">Vendor</label></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="alert alert-info py-2 small mb-3">
+                        <i class="bi bi-info-circle me-1"></i><strong>Algorithm:</strong> Same chain logic as main plan. Uses level-specific <strong>Store Stock</strong> (SUB_ST_STK_*), <strong>DC Stock</strong> (SUB_DC_STK_*), Sale Qty × CONT%, Display Qty × CONT%. Runs TRF first, then PP reads from TRF output.
+                    </div>
+                    <button type="submit" class="btn btn-primary" id="btnExec">
+                        <i class="bi bi-play-fill me-1"></i>Generate Sub-Level Plans
+                    </button>
+                    <span class="ms-2 text-muted small" id="execStatus"></span>
+                </form>
+                <hr class="my-2">
+                <div class="d-flex flex-wrap gap-2 align-items-center">
+                    <span class="small fw-semibold text-muted">Reset:</span>
+                    @foreach (var (key, label) in new[] { ("mvgr","MVGR"), ("sz","Size"), ("seg","Segment"), ("vnd","Vendor") })
+                    {
+                        <form asp-action="ResetLevel" method="post" class="d-inline" onsubmit="return confirm('Delete all @label sub-level data?');">
+                            <input type="hidden" name="level" value="@key" />
+                            <button type="submit" class="btn btn-outline-danger btn-sm py-0 px-2"><i class="bi bi-trash me-1"></i>@label</button>
+                        </form>
+                    }
+                    <form asp-action="ResetLevel" method="post" class="d-inline" onsubmit="return confirm('Delete ALL sub-level data (all 4 levels)?');">
+                        <input type="hidden" name="level" value="all" />
+                        <button type="submit" class="btn btn-danger btn-sm py-0 px-2"><i class="bi bi-trash-fill me-1"></i>Reset All</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- View Output -->
+        <h5 class="mt-3 mb-2"><i class="bi bi-table me-2"></i>View Output</h5>
+        <div class="row g-2">
+            @{
+                var levels = new[] { ("mvgr","MVGR","bi-grid-3x3-gap"), ("sz","Size","bi-rulers"), ("seg","Segment","bi-diagram-2"), ("vnd","Vendor","bi-shop") };
+            }
+            @foreach (var (key, label, icon) in levels)
+            {
+                <div class="col-md-3"><a href="@Url.Action("TrfOutput", new { level = key })" class="btn btn-outline-primary btn-sm w-100 mb-1"><i class="bi @icon me-1"></i>TRF @label</a></div>
+            }
+            @foreach (var (key, label, icon) in levels)
+            {
+                <div class="col-md-3"><a href="@Url.Action("PpOutput", new { level = key })" class="btn btn-outline-secondary btn-sm w-100"><i class="bi @icon me-1"></i>PP @label</a></div>
+            }
+        </div>
+    </div>
+
+    <!-- RIGHT: Full Run + Status -->
+    <div class="col-lg-5">
+        <!-- Full Run Card -->
+        <div class="card shadow-sm border-0 border-start border-4 border-danger mb-3">
+            <div class="card-header py-2">
+                <h6 class="fw-bold mb-0 text-danger"><i class="bi bi-rocket-takeoff me-2"></i>Full Run — All 4 Levels (Background)</h6>
+            </div>
+            <div class="card-body">
+                <p class="small text-muted mb-3">Runs SP_GENERATE_SUB_LEVEL_TRF + PP for all selected levels in background. You can navigate away — the job keeps running.</p>
+                <div class="row g-2 mb-3">
+                    <div class="col-6">
+                        <label class="form-label small fw-semibold mb-1">Start Week ID</label>
+                        <input type="number" id="fullStartWeek" class="form-control form-control-sm" value="1" min="1" />
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label small fw-semibold mb-1">End Week ID</label>
+                        <input type="number" id="fullEndWeek" class="form-control form-control-sm" value="52" min="1" />
+                    </div>
+                </div>
+                <div class="alert alert-warning py-2 small mb-3" id="fullRunWarning">
+                    <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                    This will <strong>DELETE existing sub-level data</strong> for each level before regenerating.
+                </div>
+                <button class="btn btn-danger w-100" id="fullRunBtn" onclick="startSubFullRun()">
+                    <i class="bi bi-play-fill me-1"></i>Start Full Run (All Levels)
+                </button>
+
+                <!-- Job Running Panel -->
+                <div class="mt-3 d-none" id="jobPanel">
+                    <div class="card border-0 bg-light">
+                        <div class="card-body py-2">
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <span class="fw-bold small" id="jobPhase">
+                                    <span class="spinner-border spinner-border-sm text-primary me-1"></span> Running...
+                                </span>
+                                <span class="badge bg-primary" id="jobElapsed">0:00</span>
+                            </div>
+                            <div class="small text-muted" id="jobStatusText">Starting...</div>
+                            <div class="progress mt-2" style="height:5px;">
+                                <div class="progress-bar progress-bar-striped progress-bar-animated" id="jobProgress" style="width:0%"></div>
+                            </div>
+                            <div class="small text-muted mt-1" id="jobLevelInfo"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Completed Panel -->
+                <div class="mt-3 d-none" id="jobDonePanel">
+                    <div class="alert alert-success py-2 small mb-0">
+                        <i class="bi bi-check-circle-fill me-1"></i>
+                        <span id="jobDoneMsg">Completed!</span><br>
+                        <a href="@Url.Action("TrfOutput", new { level = "mvgr" })" class="fw-bold">View TRF Output</a> |
+                        <a href="@Url.Action("PpOutput", new { level = "mvgr" })" class="fw-bold">View PP Output</a>
+                    </div>
+                </div>
+
+                <!-- Error Panel -->
+                <div class="mt-3 d-none" id="jobErrorPanel">
+                    <div class="alert alert-danger py-2 small mb-0">
+                        <i class="bi bi-x-circle-fill me-1"></i>
+                        <span id="jobErrorMsg">Error</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Input Data Status -->
+        <div class="card shadow-sm border-0 mb-3">
+            <div class="card-header py-2 d-flex justify-content-between align-items-center">
+                <h6 class="card-title mb-0"><i class="bi bi-database me-2"></i>Input Data Status</h6>
+                <button class="btn btn-sm btn-outline-primary py-0 px-2" onclick="refreshInputStatus()"><i class="bi bi-arrow-clockwise"></i></button>
+            </div>
+            <div class="card-body p-0">
+                <table class="table table-sm table-bordered mb-0 small">
+                    <thead class="table-dark"><tr><th>Category</th><th>Table</th><th>Used For</th><th class="text-end">Rows</th><th class="text-center">Status</th></tr></thead>
+                    <tbody id="contStatus"><tr><td colspan="5" class="text-center py-1"><span class="spinner-border spinner-border-sm"></span></td></tr></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Per-Level Output -->
+        <div class="card shadow-sm border-0">
+            <div class="card-header py-2"><h6 class="card-title mb-0"><i class="bi bi-layers me-2"></i>Sub-Level Output (per level)</h6></div>
+            <div class="card-body p-0">
+                <table class="table table-sm table-bordered mb-0 small">
+                    <thead class="table-dark"><tr><th>Level</th><th class="text-end">TRF Rows</th><th class="text-end">PP Rows</th><th>Last Run</th></tr></thead>
+                    <tbody id="subStatus"><tr><td colspan="4" class="text-center py-1"><span class="spinner-border spinner-border-sm"></span></td></tr></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+$(function(){
+    // Load both status tables on page load + auto-refresh every 30s
+    refreshInputStatus();
+    refreshSubStatus();
+    setInterval(refreshInputStatus, 30000);
+    setInterval(refreshSubStatus, 30000);
+
+    // Sync form submit (existing behavior)
+    $('#execForm').on('submit', function(){ $('#btnExec').prop('disabled',true).html('<span class="spinner-border spinner-border-sm me-1"></span>Running...'); $('#execStatus').text('Running full algorithm per level...'); });
+
+    // Check if background job already running on page load
+    pollSubJob();
+});
+
+function refreshInputStatus(){
+    $.getJSON('/SubLevel/ContStatus', function(d){
+        var h='', lastCat='';
+        $.each(d,function(i,r){
+            var badge = r.rows<0 ? '<span class="badge bg-secondary">N/A</span>' : r.rows===0 ? '<span class="badge bg-danger">No Data</span>' : '<span class="badge bg-success">Ready</span>';
+            var catCell = r.category!==lastCat ? '<td class="fw-semibold" style="white-space:nowrap;">'+r.category+'</td>' : '<td></td>';
+            lastCat = r.category;
+            h+='<tr>'+catCell+'<td><code class="small">'+r.table+'</code></td><td class="text-muted" style="font-size:0.75rem;">'+r.logic+'</td><td class="text-end fw-bold">'+(r.rows>=0?r.rows.toLocaleString():'—')+'</td><td class="text-center">'+badge+'</td></tr>';
+        });
+        $('#contStatus').html(h);
+    });
+}
+
+function refreshSubStatus(){
+    $.getJSON('/SubLevel/SubOutputStatusByLevel', function(d){
+        var h='';
+        $.each(d,function(i,r){
+            var lr=r.lastRun?'<span class="badge bg-success">'+r.lastRun+'</span>':'<span class="badge bg-secondary">Not Run</span>';
+            h+='<tr><td><strong>'+r.level+'</strong></td><td class="text-end">'+r.trfRows.toLocaleString()+'</td><td class="text-end">'+r.ppRows.toLocaleString()+'</td><td>'+lr+'</td></tr>';
+        });
+        $('#subStatus').html(h||'<tr><td colspan="4" class="text-muted text-center">Not generated</td></tr>');
+    });
+}
+
+// ── Background Full Run ──
+var subJobTimer = null;
+
+function startSubFullRun(){
+    var startW = $('#fullStartWeek').val() || 1;
+    var endW = $('#fullEndWeek').val() || 52;
+    if(!confirm('This will run TRF + PP for all 4 sub-levels in background.\n\nStart Week: '+startW+', End Week: '+endW+'\n\nContinue?')) return;
+
+    var btn = $('#fullRunBtn');
+    btn.prop('disabled',true).html('<span class="spinner-border spinner-border-sm me-1"></span>Starting...');
+
+    var token = $('input[name="__RequestVerificationToken"]').first().val();
+
+    $.ajax({
+        url: '@Url.Action("StartFullRun", "SubLevel")',
+        method: 'POST',
+        data: { 'levels[0]':'MVGR','levels[1]':'SZ','levels[2]':'SEG','levels[3]':'VND', startWeekId:startW, endWeekId:endW, __RequestVerificationToken:token },
+        success: function(d){
+            if(d.success){
+                $('#jobPanel').removeClass('d-none');
+                $('#jobDonePanel,#jobErrorPanel').addClass('d-none');
+                $('#fullRunWarning').addClass('d-none');
+                btn.html('<i class="bi bi-hourglass-split me-1"></i>Job Running...');
+                subJobTimer = setInterval(pollSubJob, 5000);
+            } else {
+                btn.prop('disabled',false).html('<i class="bi bi-play-fill me-1"></i>Start Full Run (All Levels)');
+                alert(d.message);
+            }
+        },
+        error: function(){ btn.prop('disabled',false).html('<i class="bi bi-play-fill me-1"></i>Start Full Run (All Levels)'); alert('Request failed.'); }
+    });
+}
+
+function pollSubJob(){
+    $.getJSON('@Url.Action("SubJobStatus", "SubLevel")', function(d){
+        if(!d.isRunning && d.phase === 'Idle' && !d.completedAt) return; // never ran
+
+        var elapsed = d.elapsedSeconds || 0;
+        var min = Math.floor(elapsed/60), sec = elapsed%60;
+        $('#jobElapsed').text(min+':'+String(sec).padStart(2,'0'));
+        $('#jobStatusText').text(d.status);
+
+        if(d.isRunning){
+            $('#jobPanel').removeClass('d-none');
+            $('#jobDonePanel,#jobErrorPanel').addClass('d-none');
+            $('#fullRunBtn').prop('disabled',true).html('<i class="bi bi-hourglass-split me-1"></i>Job Running...');
+            $('#fullRunWarning').addClass('d-none');
+
+            var pct = d.totalLevels>0 ? Math.round(((d.levelsCompleted + 0.5) / d.totalLevels)*100) : 50;
+            $('#jobProgress').css('width', pct+'%');
+            $('#jobLevelInfo').text('Level '+d.currentLevel+' ('+d.levelsCompleted+'/'+d.totalLevels+' done) — Phase: '+d.phase);
+
+            if(d.phase==='TRF') $('#jobPhase').html('<span class="spinner-border spinner-border-sm text-primary me-1"></span> TRF: '+d.currentLevel);
+            else if(d.phase==='PP') $('#jobPhase').html('<span class="spinner-border spinner-border-sm text-warning me-1"></span> PP: '+d.currentLevel);
+            else $('#jobPhase').html('<span class="spinner-border spinner-border-sm text-info me-1"></span> '+d.phase);
+
+            if(!subJobTimer) subJobTimer = setInterval(pollSubJob, 5000);
+        }
+        else if(d.phase==='Done'){
+            clearInterval(subJobTimer); subJobTimer=null;
+            $('#jobPanel').addClass('d-none');
+            $('#jobDonePanel').removeClass('d-none');
+            $('#jobDoneMsg').text(d.status);
+            resetFullRunBtn();
+            refreshInputStatus();
+            refreshSubStatus();
+        }
+        else if(d.phase==='Error'){
+            clearInterval(subJobTimer); subJobTimer=null;
+            $('#jobPanel').addClass('d-none');
+            $('#jobErrorPanel').removeClass('d-none');
+            $('#jobErrorMsg').text(d.status);
+            resetFullRunBtn();
+        }
+        else if(!d.isRunning && d.completedAt){
+            // Page load with previous completed job
+            if(d.phase==='Done'){ $('#jobDonePanel').removeClass('d-none'); $('#jobDoneMsg').text(d.status); }
+        }
+    });
+}
+
+function resetFullRunBtn(){
+    $('#fullRunBtn').prop('disabled',false).html('<i class="bi bi-play-fill me-1"></i>Start Full Run (All Levels)');
+    $('#fullRunWarning').removeClass('d-none');
+}
+</script>
+}

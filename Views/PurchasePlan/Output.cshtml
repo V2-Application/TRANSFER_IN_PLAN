@@ -6,9 +6,14 @@
 
 <div class="mb-4 d-flex justify-content-between align-items-center flex-wrap gap-2">
     <h3 class="mb-0"><i class="bi bi-bag-check me-2"></i>Purchase Plan Output</h3>
-    <a href="@Url.Action("ExportCsv", "PurchasePlan", new { fyYear = ViewBag.FyYear, fyWeek = ViewBag.FyWeek, rdcCd = ViewBag.RdcCd, majCat = ViewBag.MajCat })" class="btn btn-success btn-sm">
-        <i class="bi bi-filetype-csv me-1"></i> Export CSV
-    </a>
+    <div class="d-flex gap-2 flex-wrap">
+        <a href="@Url.Action("ExportCsv", "PurchasePlan", new { fyYear = ViewBag.FyYear, fyWeek = ViewBag.FyWeek, rdcCd = ViewBag.RdcCd, majCat = ViewBag.MajCat })" class="btn btn-success btn-sm">
+            <i class="bi bi-filetype-csv me-1"></i> Export CSV
+        </a>
+        <a href="@Url.Action("ExportPivotCsv", "PurchasePlan", new { fyYear = ViewBag.FyYear, fyWeek = ViewBag.FyWeek, rdcCd = ViewBag.RdcCd, majCat = ViewBag.MajCat })" class="btn btn-primary btn-sm">
+            <i class="bi bi-grid-3x3 me-1"></i> Pivot CSV
+        </a>
+    </div>
 </div>
 
 <div class="card mb-4">
@@ -18,19 +23,21 @@
             <div class="col-md-2"><label class="form-label">FY Year</label><input type="number" name="fyYear" class="form-control form-control-sm" value="@ViewBag.FyYear" placeholder="e.g. 2026" /></div>
             <div class="col-md-2"><label class="form-label">FY Week</label><input type="number" name="fyWeek" class="form-control form-control-sm" value="@ViewBag.FyWeek" placeholder="e.g. 40" /></div>
             <div class="col-md-2"><label class="form-label">RDC Code</label>
-                <select name="rdcCd" class="form-select form-select-sm">
+                @{ var selRdcs = (ViewBag.RdcCd as string ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries).ToHashSet(); }
+                <select name="rdcCd" class="form-select form-select-sm multi-select">
                     <option value="">-- All --</option>
-                    @foreach (var r in (ViewBag.RdcCodes as IEnumerable<string> ?? new List<string>())) { <option value="@r" selected="@(r == ViewBag.RdcCd?.ToString() ? "selected" : null)">@r</option> }
+                    @foreach (var r in (ViewBag.RdcCodes as IEnumerable<string> ?? new List<string>())) { <option value="@r" selected="@(selRdcs.Contains(r) ? "selected" : null)">@r</option> }
                 </select>
             </div>
             <div class="col-md-3"><label class="form-label">Category</label>
-                <select name="majCat" class="form-select form-select-sm">
+                @{ var selCats = (ViewBag.MajCat as string ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries).ToHashSet(); }
+                <select name="majCat" class="form-select form-select-sm multi-select">
                     <option value="">-- All --</option>
-                    @foreach (var c in (ViewBag.Categories as IEnumerable<string> ?? new List<string>())) { <option value="@c" selected="@(c == ViewBag.MajCat?.ToString() ? "selected" : null)">@c</option> }
+                    @foreach (var c in (ViewBag.Categories as IEnumerable<string> ?? new List<string>())) { <option value="@c" selected="@(selCats.Contains(c) ? "selected" : null)">@c</option> }
                 </select>
             </div>
             <div class="col-md-3"><label class="form-label">Page Size</label>
-                <select name="pageSize" class="form-select form-select-sm">
+                <select name="pageSize" class="form-select form-select-sm search-select">
                     @foreach (var ps in new[] { 50, 100, 250, 500 }) { <option value="@ps" selected="@((ViewBag.PageSize?.ToString() == ps.ToString()) ? "selected" : null)">@ps rows</option> }
                 </select>
             </div>
@@ -38,7 +45,10 @@
                 <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-search me-1"></i> Filter</button>
                 <a href="@Url.Action("Output")" class="btn btn-outline-secondary btn-sm"><i class="bi bi-x-circle me-1"></i> Clear</a>
                 <a href="@Url.Action("ExportCsv", "PurchasePlan", new { fyYear = ViewBag.FyYear, fyWeek = ViewBag.FyWeek, rdcCd = ViewBag.RdcCd, majCat = ViewBag.MajCat })" class="btn btn-success btn-sm ms-auto">
-                    <i class="bi bi-filetype-csv me-1"></i> Export to CSV
+                    <i class="bi bi-filetype-csv me-1"></i> Export CSV
+                </a>
+                <a href="@Url.Action("ExportPivotCsv", "PurchasePlan", new { fyYear = ViewBag.FyYear, fyWeek = ViewBag.FyWeek, rdcCd = ViewBag.RdcCd, majCat = ViewBag.MajCat })" class="btn btn-primary btn-sm">
+                    <i class="bi bi-grid-3x3 me-1"></i> Pivot CSV
                 </a>
             </div>
         </form>
@@ -53,29 +63,91 @@
 <div class="card">
     <div class="card-body p-0">
         <div class="table-responsive">
-            <table class="table table-sm table-hover table-bordered mb-0" id="ppOutputTable">
+            <table class="table table-sm table-hover table-bordered mb-0 small" id="ppOutputTable">
                 <thead class="table-dark">
                     <tr>
-                        <th>RDC Code</th><th class="d-none d-md-table-cell">RDC Name</th><th>Category</th>
-                        <th class="d-none d-sm-table-cell">FY Year</th><th>FY Week</th>
-                        <th class="d-none d-md-table-cell">DC Stock Q</th><th class="d-none d-md-table-cell">GRT Stock Q</th>
-                        <th>BGT Pur Q</th><th class="d-none d-lg-table-cell">POS PO</th><th class="d-none d-lg-table-cell">NEG PO</th>
-                        <th>DC Excess</th><th>DC Short</th><th class="d-none d-md-table-cell">ST Excess</th><th class="d-none d-md-table-cell">ST Short</th>
+                        <th>RDC CD</th><th>RDC NM</th><th>MAJ CAT</th>
+                        <th>SEG</th><th>DIV</th><th>SUB DIV</th><th>MAJ CAT NM</th><th>SSN</th>
+                        <th>FY YEAR</th><th>FY WEEK</th>
+                        <th>DC STK Q</th><th>GRT STK Q</th><th>S GRT STK Q</th><th>W GRT STK Q</th>
+                        <th>BIN CAP DC TEAM</th><th>BIN CAP</th>
+                        <th>BGT DISP CL Q</th>
+                        <th>CW BGT SALE Q</th><th>CW1 BGT SALE Q</th><th>CW2 BGT SALE Q</th><th>CW3 BGT SALE Q</th><th>CW4 BGT SALE Q</th><th>CW5 BGT SALE Q</th>
+                        <th>BGT ST OP MBQ</th><th>NET ST OP STK Q</th>
+                        <th>BGT DC OP STK Q</th><th>PP NT ACT Q</th><th>BGT CF STK Q</th>
+                        <th>TTL STK</th><th>OP STK</th><th>NT ACT STK</th>
+                        <th>GRT CONS PCT</th><th>GRT CONS Q</th>
+                        <th>DEL PEND Q</th><th>PP NET BGT CF STK Q</th>
+                        <th>CW TRF OUT Q</th><th>CW1 TRF OUT Q</th><th>CW2 TRF OUT Q</th><th>CW3 TRF OUT Q</th><th>CW4 TRF OUT Q</th><th>TTL TRF OUT Q</th>
+                        <th>BGT ST CL MBQ</th><th>NET BGT ST CL STK Q</th><th>NET SSNL CL STK Q</th>
+                        <th>BGT DC MBQ SALE</th><th>BGT DC CL MBQ</th><th>BGT DC CL STK Q</th>
+                        <th>BGT PUR Q INIT</th><th>POS PO RAISED</th><th>NEG PO RAISED</th>
+                        <th>BGT CO CL STK Q</th>
+                        <th>DC STK EXCESS Q</th><th>DC STK SHORT Q</th>
+                        <th>ST STK EXCESS Q</th><th>ST STK SHORT Q</th>
+                        <th>CO STK EXCESS Q</th><th>CO STK SHORT Q</th>
+                        <th>FRESH BIN REQ</th><th>GRT BIN REQ</th>
                     </tr>
                 </thead>
                 <tbody>
                     @foreach (var item in Model)
                     {
                         <tr>
-                            <td>@item.RdcCd</td><td class="d-none d-md-table-cell">@item.RdcNm</td><td>@item.MajCat</td>
-                            <td class="d-none d-sm-table-cell">@item.FyYear</td><td>@item.FyWeek</td>
-                            <td class="text-end d-none d-md-table-cell">@item.DcStkQ?.ToString("N2")</td><td class="text-end d-none d-md-table-cell">@item.GrtStkQ?.ToString("N2")</td>
-                            <td class="text-end fw-bold">@item.BgtPurQInit?.ToString("N2")</td>
-                            <td class="text-end d-none d-lg-table-cell">@item.PosPORaised?.ToString("N2")</td><td class="text-end d-none d-lg-table-cell">@item.NegPORaised?.ToString("N2")</td>
-                            <td class="text-end">@if (item.DcStkExcessQ > 0) { <span class="badge bg-warning text-dark">@item.DcStkExcessQ?.ToString("N2")</span> } else { @item.DcStkExcessQ?.ToString("N2") }</td>
-                            <td class="text-end">@if (item.DcStkShortQ > 0) { <span class="badge bg-danger">@item.DcStkShortQ?.ToString("N2")</span> } else { @item.DcStkShortQ?.ToString("N2") }</td>
-                            <td class="text-end d-none d-md-table-cell">@if (item.StStkExcessQ > 0) { <span class="badge bg-warning text-dark">@item.StStkExcessQ?.ToString("N2")</span> } else { @item.StStkExcessQ?.ToString("N2") }</td>
-                            <td class="text-end d-none d-md-table-cell">@if (item.StStkShortQ > 0) { <span class="badge bg-danger">@item.StStkShortQ?.ToString("N2")</span> } else { @item.StStkShortQ?.ToString("N2") }</td>
+                            <td class="fw-semibold text-primary">@item.RdcCd</td>
+                            <td>@(item.RdcNm ?? "NA")</td>
+                            <td>@item.MajCat</td>
+                            <td>@(item.Seg ?? "NA")</td><td>@(item.Div ?? "NA")</td><td>@(item.SubDiv ?? "NA")</td><td>@(item.MajCatNm ?? "NA")</td>
+                            <td>@(item.Ssn ?? "NA")</td>
+                            <td>@item.FyYear</td><td>@item.FyWeek</td>
+                            <td class="text-end">@((item.DcStkQ ?? 0).ToString("N4"))</td>
+                            <td class="text-end">@((item.GrtStkQ ?? 0).ToString("N4"))</td>
+                            <td class="text-end">@((item.SGrtStkQ ?? 0).ToString("N4"))</td>
+                            <td class="text-end">@((item.WGrtStkQ ?? 0).ToString("N4"))</td>
+                            <td class="text-end">@((item.BinCapDcTeam ?? 0).ToString("N4"))</td>
+                            <td class="text-end">@((item.BinCap ?? 0).ToString("N4"))</td>
+                            <td class="text-end">@((item.BgtDispClQ ?? 0).ToString("N4"))</td>
+                            <td class="text-end">@((item.CwBgtSaleQ ?? 0).ToString("N4"))</td>
+                            <td class="text-end">@((item.Cw1BgtSaleQ ?? 0).ToString("N4"))</td>
+                            <td class="text-end">@((item.Cw2BgtSaleQ ?? 0).ToString("N4"))</td>
+                            <td class="text-end">@((item.Cw3BgtSaleQ ?? 0).ToString("N4"))</td>
+                            <td class="text-end">@((item.Cw4BgtSaleQ ?? 0).ToString("N4"))</td>
+                            <td class="text-end">@((item.Cw5BgtSaleQ ?? 0).ToString("N4"))</td>
+                            <td class="text-end">@((item.BgtStOpMbq ?? 0).ToString("N4"))</td>
+                            <td class="text-end">@((item.NetStOpStkQ ?? 0).ToString("N4"))</td>
+                            <td class="text-end">@((item.BgtDcOpStkQ ?? 0).ToString("N4"))</td>
+                            <td class="text-end">@((item.PpNtActQ ?? 0).ToString("N4"))</td>
+                            <td class="text-end">@((item.BgtCfStkQ ?? 0).ToString("N4"))</td>
+                            <td class="text-end">@((item.TtlStk ?? 0).ToString("N4"))</td>
+                            <td class="text-end">@((item.OpStk ?? 0).ToString("N4"))</td>
+                            <td class="text-end">@((item.NtActStk ?? 0).ToString("N4"))</td>
+                            <td class="text-end">@((item.GrtConsPct ?? 0).ToString("N4"))</td>
+                            <td class="text-end">@((item.GrtConsQ ?? 0).ToString("N4"))</td>
+                            <td class="text-end">@((item.DelPendQ ?? 0).ToString("N4"))</td>
+                            <td class="text-end">@((item.PpNetBgtCfStkQ ?? 0).ToString("N4"))</td>
+                            <td class="text-end">@((item.CwTrfOutQ ?? 0).ToString("N4"))</td>
+                            <td class="text-end">@((item.Cw1TrfOutQ ?? 0).ToString("N4"))</td>
+                            <td class="text-end">@((item.Cw2TrfOutQ ?? 0).ToString("N4"))</td>
+                            <td class="text-end">@((item.Cw3TrfOutQ ?? 0).ToString("N4"))</td>
+                            <td class="text-end">@((item.Cw4TrfOutQ ?? 0).ToString("N4"))</td>
+                            <td class="text-end">@((item.TtlTrfOutQ ?? 0).ToString("N4"))</td>
+                            <td class="text-end">@((item.BgtStClMbq ?? 0).ToString("N4"))</td>
+                            <td class="text-end">@((item.NetBgtStClStkQ ?? 0).ToString("N4"))</td>
+                            <td class="text-end">@((item.NetSsnlClStkQ ?? 0).ToString("N4"))</td>
+                            <td class="text-end">@((item.BgtDcMbqSale ?? 0).ToString("N4"))</td>
+                            <td class="text-end">@((item.BgtDcClMbq ?? 0).ToString("N4"))</td>
+                            <td class="text-end">@((item.BgtDcClStkQ ?? 0).ToString("N4"))</td>
+                            <td class="text-end fw-bold">@((item.BgtPurQInit ?? 0).ToString("N4"))</td>
+                            <td class="text-end">@((item.PosPORaised ?? 0).ToString("N4"))</td>
+                            <td class="text-end">@((item.NegPORaised ?? 0).ToString("N4"))</td>
+                            <td class="text-end">@((item.BgtCoClStkQ ?? 0).ToString("N4"))</td>
+                            <td class="text-end">@((item.DcStkExcessQ ?? 0).ToString("N4"))</td>
+                            <td class="text-end">@((item.DcStkShortQ ?? 0).ToString("N4"))</td>
+                            <td class="text-end">@((item.StStkExcessQ ?? 0).ToString("N4"))</td>
+                            <td class="text-end">@((item.StStkShortQ ?? 0).ToString("N4"))</td>
+                            <td class="text-end">@((item.CoStkExcessQ ?? 0).ToString("N4"))</td>
+                            <td class="text-end">@((item.CoStkShortQ ?? 0).ToString("N4"))</td>
+                            <td class="text-end">@((item.FreshBinReq ?? 0).ToString("N4"))</td>
+                            <td class="text-end">@((item.GrtBinReq ?? 0).ToString("N4"))</td>
                         </tr>
                     }
                 </tbody>

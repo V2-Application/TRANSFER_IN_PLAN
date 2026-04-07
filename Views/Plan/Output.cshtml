@@ -4,11 +4,8 @@
 
 @model IEnumerable<TRANSFER_IN_PLAN.Models.TrfInPlan>
 
-<div class="mb-4 d-flex justify-content-between align-items-center flex-wrap gap-2">
+<div class="mb-4">
     <h3 class="mb-0"><i class="bi bi-table me-2"></i>Transfer In Plan Output</h3>
-    <a href="@Url.Action("ExportCsv", "Plan", new { fyYear = ViewBag.FyYear, fyWeek = ViewBag.FyWeek, majCat = ViewBag.MajCat, stCd = ViewBag.StCd })" class="btn btn-success btn-sm">
-        <i class="bi bi-filetype-csv me-1"></i> Export CSV
-    </a>
 </div>
 
 <div class="card mb-4">
@@ -19,14 +16,22 @@
             <div class="col-md-2"><label class="form-label">FY Week</label><input type="number" name="fyWeek" class="form-control form-control-sm" value="@ViewBag.FyWeek" placeholder="e.g. 40" /></div>
             <div class="col-md-3">
                 <label class="form-label">Category</label>
-                <select name="majCat" class="form-select form-select-sm">
+                @{ var selCats = (ViewBag.MajCat as string ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries).ToHashSet(); }
+                <select name="majCat" class="form-select form-select-sm multi-select">
                     <option value="">-- All --</option>
-                    @foreach (var c in (ViewBag.Categories as IEnumerable<string> ?? new List<string>())) { <option value="@c" selected="@(c == ViewBag.MajCat?.ToString() ? "selected" : null)">@c</option> }
+                    @foreach (var c in (ViewBag.Categories as IEnumerable<string> ?? new List<string>())) { <option value="@c" selected="@(selCats.Contains(c) ? "selected" : null)">@c</option> }
                 </select>
             </div>
-            <div class="col-md-2"><label class="form-label">Store Code</label><input type="text" name="stCd" class="form-control form-control-sm" value="@ViewBag.StCd" placeholder="Store Code" /></div>
+            <div class="col-md-2">
+                <label class="form-label">Store Code</label>
+                @{ var selStores = (ViewBag.StCd as string ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries).ToHashSet(); }
+                <select name="stCd" class="form-select form-select-sm multi-select">
+                    <option value="">-- All --</option>
+                    @foreach (var s in (ViewBag.StoreCodes as IEnumerable<string> ?? new List<string>())) { <option value="@s" selected="@(selStores.Contains(s) ? "selected" : null)">@s</option> }
+                </select>
+            </div>
             <div class="col-md-3"><label class="form-label">Page Size</label>
-                <select name="pageSize" class="form-select form-select-sm">
+                <select name="pageSize" class="form-select form-select-sm search-select">
                     @foreach (var ps in new[] { 50, 100, 250, 500 }) { <option value="@ps" selected="@((ViewBag.PageSize?.ToString() == ps.ToString()) ? "selected" : null)">@ps rows</option> }
                 </select>
             </div>
@@ -34,7 +39,10 @@
                 <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-search me-1"></i> Filter</button>
                 <a href="@Url.Action("Output")" class="btn btn-outline-secondary btn-sm"><i class="bi bi-x-circle me-1"></i> Clear</a>
                 <a href="@Url.Action("ExportCsv", "Plan", new { fyYear = ViewBag.FyYear, fyWeek = ViewBag.FyWeek, majCat = ViewBag.MajCat, stCd = ViewBag.StCd })" class="btn btn-success btn-sm ms-auto">
-                    <i class="bi bi-filetype-csv me-1"></i> Export to CSV
+                    <i class="bi bi-filetype-csv me-1"></i> Export CSV
+                </a>
+                <a href="@Url.Action("ExportPivotCsv", "Plan", new { fyYear = ViewBag.FyYear, fyWeek = ViewBag.FyWeek, majCat = ViewBag.MajCat, stCd = ViewBag.StCd })" class="btn btn-primary btn-sm">
+                    <i class="bi bi-grid-3x3 me-1"></i> Pivot CSV
                 </a>
             </div>
         </form>
@@ -49,25 +57,93 @@
 <div class="card">
     <div class="card-body p-0">
         <div class="table-responsive">
-            <table class="table table-sm table-hover table-bordered mb-0" id="planOutputTable">
+            <table class="table table-sm table-hover table-bordered mb-0 small" id="planOutputTable">
                 <thead class="table-dark">
                     <tr>
-                        <th>Store Code</th><th class="d-none d-sm-table-cell">Store Name</th><th class="d-none d-md-table-cell">RDC Code</th><th>Category</th>
-                        <th class="d-none d-sm-table-cell">FY Year</th><th>FY Week</th><th>TRF IN STK Q</th>
-                        <th class="d-none d-lg-table-cell">TRF IN OPT CNT</th><th class="d-none d-lg-table-cell">TRF IN OPT MBQ</th>
-                        <th class="d-none d-md-table-cell">DC MBQ</th><th>EXCESS Q</th><th>SHORT Q</th>
+                        <th>ST CD</th>
+                        <th>ST NM</th>
+                        <th>RDC CD</th>
+                        <th>RDC NM</th>
+                        <th>HUB CD</th>
+                        <th>HUB NM</th>
+                        <th>AREA</th>
+                        <th>MAJ CAT</th>
+                        <th>SEG</th>
+                        <th>DIV</th>
+                        <th>SUB DIV</th>
+                        <th>MAJ CAT NM</th>
+                        <th>SSN</th>
+                        <th>FY YEAR</th>
+                        <th>FY WEEK</th>
+                        <th>S GRT STK Q</th>
+                        <th>W GRT STK Q</th>
+                        <th>BGT DISP CL Q</th>
+                        <th>BGT DISP CL OPT</th>
+                        <th>CM1 SALE COVER DAY</th>
+                        <th>CM2 SALE COVER DAY</th>
+                        <th>COVER SALE QTY</th>
+                        <th>BGT ST CL MBQ</th>
+                        <th>BGT DISP CL OPT MBQ</th>
+                        <th>BGT TTL CF OP STK Q</th>
+                        <th>NT ACT Q</th>
+                        <th>NET BGT CF STK Q</th>
+                        <th>CM BGT SALE Q</th>
+                        <th>CM1 BGT SALE Q</th>
+                        <th>CM2 BGT SALE Q</th>
+                        <th>TRF IN STK Q</th>
+                        <th>TRF IN OPT CNT</th>
+                        <th>TRF IN OPT MBQ</th>
+                        <th>DC MBQ</th>
+                        <th>BGT TTL CF CL STK Q</th>
+                        <th>BGT NT ACT Q</th>
+                        <th>NET ST CL STK Q</th>
+                        <th>ST CL EXCESS Q</th>
+                        <th>ST CL SHORT Q</th>
                     </tr>
                 </thead>
                 <tbody>
                     @foreach (var item in Model)
                     {
                         <tr>
-                            <td>@item.StCd</td><td class="d-none d-sm-table-cell">@item.StNm</td><td class="d-none d-md-table-cell">@item.RdcCd</td><td>@item.MajCat</td>
-                            <td class="d-none d-sm-table-cell">@item.FyYear</td><td>@item.FyWeek</td><td class="text-end">@item.TrfInStkQ?.ToString("N2")</td>
-                            <td class="text-end d-none d-lg-table-cell">@item.TrfInOptCnt?.ToString("N2")</td><td class="text-end d-none d-lg-table-cell">@item.TrfInOptMbq?.ToString("N2")</td>
-                            <td class="text-end d-none d-md-table-cell">@item.DcMbq?.ToString("N2")</td>
-                            <td class="text-end">@if (item.StClExcessQ > 0) { <span class="badge bg-warning text-dark">@item.StClExcessQ?.ToString("N2")</span> } else { @item.StClExcessQ?.ToString("N2") }</td>
-                            <td class="text-end">@if (item.StClShortQ > 0) { <span class="badge bg-danger">@item.StClShortQ?.ToString("N2")</span> } else { @item.StClShortQ?.ToString("N2") }</td>
+                            <td class="fw-semibold text-primary">@item.StCd</td>
+                            <td>@(item.StNm ?? "NA")</td>
+                            <td>@(item.RdcCd ?? "NA")</td>
+                            <td>@(item.RdcNm ?? "NA")</td>
+                            <td>@(item.HubCd ?? "NA")</td>
+                            <td>@(item.HubNm ?? "NA")</td>
+                            <td>@(item.Area ?? "NA")</td>
+                            <td>@item.MajCat</td>
+                            <td>@(item.Seg ?? "NA")</td>
+                            <td>@(item.Div ?? "NA")</td>
+                            <td>@(item.SubDiv ?? "NA")</td>
+                            <td>@(item.MajCatNm ?? "NA")</td>
+                            <td>@(item.Ssn ?? "NA")</td>
+                            <td>@item.FyYear</td>
+                            <td>@item.FyWeek</td>
+                            <td class="text-end">@((item.SGrtStkQ ?? 0).ToString("N4"))</td>
+                            <td class="text-end">@((item.WGrtStkQ ?? 0).ToString("N4"))</td>
+                            <td class="text-end">@((item.BgtDispClQ ?? 0).ToString("N4"))</td>
+                            <td class="text-end">@((item.BgtDispClOpt ?? 0).ToString("N4"))</td>
+                            <td class="text-end">@((item.Cm1SaleCoverDay ?? 0).ToString("N4"))</td>
+                            <td class="text-end">@((item.Cm2SaleCoverDay ?? 0).ToString("N4"))</td>
+                            <td class="text-end">@((item.CoverSaleQty ?? 0).ToString("N4"))</td>
+                            <td class="text-end">@((item.BgtStClMbq ?? 0).ToString("N4"))</td>
+                            <td class="text-end">@((item.BgtDispClOptMbq ?? 0).ToString("N4"))</td>
+                            <td class="text-end">@((item.BgtTtlCfOpStkQ ?? 0).ToString("N4"))</td>
+                            <td class="text-end">@((item.NtActQ ?? 0).ToString("N4"))</td>
+                            <td class="text-end">@((item.NetBgtCfStkQ ?? 0).ToString("N4"))</td>
+                            <td class="text-end">@((item.CmBgtSaleQ ?? 0).ToString("N4"))</td>
+                            <td class="text-end">@((item.Cm1BgtSaleQ ?? 0).ToString("N4"))</td>
+                            <td class="text-end">@((item.Cm2BgtSaleQ ?? 0).ToString("N4"))</td>
+                            <td class="text-end fw-bold">@((item.TrfInStkQ ?? 0).ToString("N4"))</td>
+                            <td class="text-end">@((item.TrfInOptCnt ?? 0).ToString("N4"))</td>
+                            <td class="text-end">@((item.TrfInOptMbq ?? 0).ToString("N4"))</td>
+                            <td class="text-end">@((item.DcMbq ?? 0).ToString("N4"))</td>
+                            <td class="text-end">@((item.BgtTtlCfClStkQ ?? 0).ToString("N4"))</td>
+                            <td class="text-end">@((item.BgtNtActQ ?? 0).ToString("N4"))</td>
+                            <td class="text-end">@((item.NetStClStkQ ?? 0).ToString("N4"))</td>
+                            <td class="text-end">@if ((item.StClExcessQ ?? 0) > 0) { <span class="badge bg-warning text-dark">@item.StClExcessQ?.ToString("N4")</span> } else { @((item.StClExcessQ ?? 0).ToString("N4")) }</td>
+                            <td class="text-end">@if ((item.StClShortQ ?? 0) > 0) { <span class="badge bg-danger">@item.StClShortQ?.ToString("N4")</span> } else { @((item.StClShortQ ?? 0).ToString("N4")) }</td>
                         </tr>
                     }
                 </tbody>

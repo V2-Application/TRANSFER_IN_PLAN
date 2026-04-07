@@ -13,14 +13,22 @@ namespace TRANSFER_IN_PLAN.Controllers
         public StoreStockController(PlanningDbContext context, ILogger<StoreStockController> logger) { _context = context; _logger = logger; }
 
         [HttpGet]
-        public async Task<IActionResult> Index(string? stCd, string? majCat)
+        public async Task<IActionResult> Index(string? stCd, string? majCat, int page = 1, int pageSize = 100)
         {
             var query = _context.StoreStocks.AsQueryable();
             if (!string.IsNullOrEmpty(stCd)) query = query.Where(x => x.StCd == stCd);
             if (!string.IsNullOrEmpty(majCat)) query = query.Where(x => x.MajCat == majCat);
+            ViewBag.TotalCount = await query.CountAsync();
+            ViewBag.Page = page; ViewBag.PageSize = pageSize;
             ViewBag.Categories = await _context.StoreStocks.Select(x => x.MajCat).Distinct().OrderBy(x => x).ToListAsync();
+            ViewBag.StoreCodes = await _context.StoreStocks.Select(x => x.StCd).Distinct().OrderBy(x => x).ToListAsync();
             ViewBag.StCd = stCd; ViewBag.MajCat = majCat;
-            return View(await query.OrderBy(x => x.StCd).ThenBy(x => x.MajCat).ToListAsync());
+            ViewBag.TotalRows = await _context.StoreStocks.CountAsync();
+            ViewBag.TotalStores = await _context.StoreStocks.Select(x => x.StCd).Distinct().CountAsync();
+            ViewBag.TotalCats = await _context.StoreStocks.Select(x => x.MajCat).Distinct().CountAsync();
+            var data = await query.OrderBy(x => x.StCd).ThenBy(x => x.MajCat)
+                .Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();
+            return View(data);
         }
 
         [HttpGet]
@@ -38,15 +46,20 @@ namespace TRANSFER_IN_PLAN.Controllers
             return File(Encoding.UTF8.GetBytes(sb.ToString()), "text/csv", "StoreStock.csv");
         }
 
-        [HttpGet] public IActionResult Create() => View();
+        [HttpGet] public async Task<IActionResult> Create() { await LoadDropdowns(); return View(); }
         [HttpPost][ValidateAntiForgeryToken]
-        public async Task<IActionResult> Create(StoreStock model) { if (!ModelState.IsValid) return View(model); _context.StoreStocks.Add(model); await _context.SaveChangesAsync(); TempData["SuccessMessage"] = "Created."; return RedirectToAction(nameof(Index)); }
-        [HttpGet] public async Task<IActionResult> Edit(int id) { var m = await _context.StoreStocks.FindAsync(id); return m == null ? NotFound() : View(m); }
+        public async Task<IActionResult> Create(StoreStock model) { if (!ModelState.IsValid) { await LoadDropdowns(); return View(model); } _context.StoreStocks.Add(model); await _context.SaveChangesAsync(); TempData["SuccessMessage"] = "Created."; return RedirectToAction(nameof(Index)); }
+        [HttpGet] public async Task<IActionResult> Edit(int id) { var m = await _context.StoreStocks.FindAsync(id); if (m == null) return NotFound(); await LoadDropdowns(); return View(m); }
         [HttpPost][ValidateAntiForgeryToken]
         public async Task<IActionResult> Edit(int id, StoreStock model) { if (id != model.Id) return NotFound(); if (!ModelState.IsValid) return View(model); try { _context.Update(model); await _context.SaveChangesAsync(); TempData["SuccessMessage"] = "Updated."; } catch (DbUpdateConcurrencyException) { if (!await _context.StoreStocks.AnyAsync(x => x.Id == id)) return NotFound(); throw; } return RedirectToAction(nameof(Index)); }
         [HttpGet] public async Task<IActionResult> Delete(int id) { var m = await _context.StoreStocks.FindAsync(id); return m == null ? NotFound() : View(m); }
         [HttpPost, ActionName("Delete")][ValidateAntiForgeryToken]
         public async Task<IActionResult> DeleteConfirmed(int id) { var m = await _context.StoreStocks.FindAsync(id); if (m != null) { _context.StoreStocks.Remove(m); await _context.SaveChangesAsync(); TempData["SuccessMessage"] = "Deleted."; } return RedirectToAction(nameof(Index)); }
+        private async Task LoadDropdowns()
+        {
+            ViewBag.StoreCodes = await _context.StoreMasters.Select(x => x.StCd).Where(x => x != null).Distinct().OrderBy(x => x).ToListAsync();
+            ViewBag.MajCats = await _context.BinCapacities.Select(x => x.MajCat).Where(x => x != null).Distinct().OrderBy(x => x).ToListAsync();
+        }
         private static string Q(string? s) { if (string.IsNullOrEmpty(s)) return ""; return "\"" + s.Replace("\"", "\"\"") + "\""; }
     }
 }

@@ -1,11 +1,73 @@
 @{ ViewData["Title"] = "Store Master Management"; }
 @model IEnumerable<StoreMaster>
+@using System.Text.Json
 
 <div class="d-flex justify-content-between align-items-center mb-3">
     <h3><i class="bi bi-shop me-2"></i>Store Master</h3>
     <a asp-action="Create" class="btn btn-primary">
         <i class="bi bi-plus-circle me-1"></i>Add Store
     </a>
+</div>
+
+@* ===== STORE ANALYTICS ===== *@
+<div class="row g-2 mb-3">
+    <div class="col-6 col-sm-4 col-lg-2">
+        <div class="card border-0 shadow-sm text-center py-2" style="border-top:3px solid #2980b9 !important;">
+            <div class="fw-bold fs-4" style="color:#2980b9;">@ViewBag.TotalStores</div>
+            <div class="text-muted" style="font-size:0.65rem;text-transform:uppercase;font-weight:700;">Total Stores</div>
+        </div>
+    </div>
+    <div class="col-6 col-sm-4 col-lg-2">
+        <div class="card border-0 shadow-sm text-center py-2" style="border-top:3px solid #27ae60 !important;">
+            <div class="fw-bold fs-4 text-success">@ViewBag.NewCount</div>
+            <div class="text-muted" style="font-size:0.65rem;text-transform:uppercase;font-weight:700;">NEW Stores</div>
+        </div>
+    </div>
+    <div class="col-6 col-sm-4 col-lg-2">
+        <div class="card border-0 shadow-sm text-center py-2" style="border-top:3px solid #7f8c8d !important;">
+            <div class="fw-bold fs-4 text-secondary">@ViewBag.OldCount</div>
+            <div class="text-muted" style="font-size:0.65rem;text-transform:uppercase;font-weight:700;">OLD Stores</div>
+        </div>
+    </div>
+    <div class="col-6 col-sm-4 col-lg-2">
+        <div class="card border-0 shadow-sm text-center py-2" style="border-top:3px solid #3498db !important;">
+            <div class="fw-bold fs-4 text-info">@ViewBag.UpcCount</div>
+            <div class="text-muted" style="font-size:0.65rem;text-transform:uppercase;font-weight:700;">UPC Stores</div>
+        </div>
+    </div>
+    <div class="col-6 col-sm-4 col-lg-2">
+        <div class="card border-0 shadow-sm text-center py-2" style="border-top:3px solid #8e44ad !important;">
+            <div class="fw-bold fs-4" style="color:#8e44ad;">@ViewBag.RdcCount</div>
+            <div class="text-muted" style="font-size:0.65rem;text-transform:uppercase;font-weight:700;">RDCs</div>
+        </div>
+    </div>
+    <div class="col-6 col-sm-4 col-lg-2">
+        <div class="card border-0 shadow-sm text-center py-2" style="border-top:3px solid #e67e22 !important;">
+            <div class="fw-bold fs-4" style="color:#e67e22;">@ViewBag.StateCount</div>
+            <div class="text-muted" style="font-size:0.65rem;text-transform:uppercase;font-weight:700;">States</div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-2 mb-3">
+    <div class="col-12 col-md-4">
+        <div class="card shadow-sm border-0 h-100">
+            <div class="card-header bg-white border-0 py-2"><h6 class="fw-bold mb-0 small"><i class="bi bi-pie-chart me-1 text-primary"></i>Stores by Status</h6></div>
+            <div class="card-body pt-0 d-flex align-items-center justify-content-center" style="height:220px;"><canvas id="statusChart"></canvas></div>
+        </div>
+    </div>
+    <div class="col-12 col-md-4">
+        <div class="card shadow-sm border-0 h-100">
+            <div class="card-header bg-white border-0 py-2"><h6 class="fw-bold mb-0 small"><i class="bi bi-building me-1" style="color:#8e44ad;"></i>Stores by RDC</h6></div>
+            <div class="card-body pt-0" style="height:220px;"><canvas id="rdcChart"></canvas></div>
+        </div>
+    </div>
+    <div class="col-12 col-md-4">
+        <div class="card shadow-sm border-0 h-100">
+            <div class="card-header bg-white border-0 py-2"><h6 class="fw-bold mb-0 small"><i class="bi bi-geo-alt me-1 text-danger"></i>Stores by State (Top 15)</h6></div>
+            <div class="card-body pt-0" style="height:220px;"><canvas id="stateChart"></canvas></div>
+        </div>
+    </div>
 </div>
 
 @if (TempData["SuccessMessage"] != null)
@@ -46,8 +108,9 @@
                         <th>
                             <select class="form-select form-select-sm">
                                 <option value="">All</option>
-                                <option value="Active">Active</option>
-                                <option value="Inactive">Inactive</option>
+                                <option value="NEW">NEW</option>
+                                <option value="OLD">OLD</option>
+                                <option value="UPC">UPC</option>
                             </select>
                         </th>
                         <th><input type="text" class="form-control form-control-sm" placeholder="Filter..."></th>
@@ -65,26 +128,26 @@
                             <td>@item.RdcNm</td>
                             <td>@item.HubCd</td>
                             <td>
-                                @if (item.Status == "Active")
+                                @switch (item.Status?.ToUpper())
                                 {
-                                    <span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Active</span>
-                                }
-                                else
-                                {
-                                    <span class="badge bg-secondary"><i class="bi bi-x-circle me-1"></i>Inactive</span>
+                                    case "NEW":
+                                        <span class="badge bg-success"><i class="bi bi-star-fill me-1"></i>NEW</span>
+                                        break;
+                                    case "OLD":
+                                        <span class="badge bg-secondary"><i class="bi bi-archive me-1"></i>OLD</span>
+                                        break;
+                                    case "UPC":
+                                        <span class="badge bg-info text-dark"><i class="bi bi-clock-history me-1"></i>UPC</span>
+                                        break;
+                                    default:
+                                        <span class="badge bg-light text-dark">@(item.Status ?? "NA")</span>
+                                        break;
                                 }
                             </td>
                             <td>@item.Area</td>
                             <td>@item.State</td>
                             <td class="text-center text-nowrap">
-                                @if (item.Status == "Active")
-                                {
-                                    <a asp-action="ToggleStatus" asp-route-id="@item.Id" class="btn btn-sm btn-outline-warning" title="Deactivate" onclick="return confirm('Deactivate store @item.StCd?')"><i class="bi bi-toggle-on"></i></a>
-                                }
-                                else
-                                {
-                                    <a asp-action="ToggleStatus" asp-route-id="@item.Id" class="btn btn-sm btn-outline-success" title="Activate" onclick="return confirm('Activate store @item.StCd?')"><i class="bi bi-toggle-off"></i></a>
-                                }
+                                <a asp-action="Details" asp-route-id="@item.Id" class="btn btn-sm btn-outline-primary" title="View"><i class="bi bi-eye"></i></a>
                                 <a asp-action="Edit" asp-route-id="@item.Id" class="btn btn-sm btn-warning" title="Edit"><i class="bi bi-pencil"></i></a>
                                 <a asp-action="Delete" asp-route-id="@item.Id" class="btn btn-sm btn-danger" title="Delete"><i class="bi bi-trash"></i></a>
                             </td>
@@ -143,5 +206,39 @@ $(document).ready(function () {
         }
     });
 });
+</script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+(function(){
+    var statusLabels = @Html.Raw(JsonSerializer.Serialize(ViewBag.StatusLabels as List<string> ?? new List<string>()));
+    var statusCounts = @Html.Raw(JsonSerializer.Serialize(ViewBag.StatusCounts as List<int> ?? new List<int>()));
+    var rdcLabels = @Html.Raw(JsonSerializer.Serialize(ViewBag.RdcLabels as List<string> ?? new List<string>()));
+    var rdcCounts = @Html.Raw(JsonSerializer.Serialize(ViewBag.RdcStoreCounts as List<int> ?? new List<int>()));
+    var stateLabels = @Html.Raw(JsonSerializer.Serialize(ViewBag.StateLabels as List<string> ?? new List<string>()));
+    var stateCounts = @Html.Raw(JsonSerializer.Serialize(ViewBag.StateStoreCounts as List<int> ?? new List<int>()));
+
+    var statusColors = statusLabels.map(function(s){ return s==='NEW'?'#27ae60':s==='OLD'?'#95a5a6':s==='UPC'?'#3498db':'#bdc3c7'; });
+
+    // 1. Status Doughnut
+    new Chart(document.getElementById('statusChart'),{
+        type:'doughnut',
+        data:{ labels:statusLabels, datasets:[{ data:statusCounts, backgroundColor:statusColors, borderWidth:2, borderColor:'#fff' }] },
+        options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{ position:'bottom', labels:{ font:{size:11}, padding:12, usePointStyle:true } } }, cutout:'55%' }
+    });
+
+    // 2. RDC Bar
+    new Chart(document.getElementById('rdcChart'),{
+        type:'bar',
+        data:{ labels:rdcLabels, datasets:[{ label:'Stores', data:rdcCounts, backgroundColor:'rgba(142,68,173,0.75)', borderRadius:4 }] },
+        options:{ responsive:true, maintainAspectRatio:false, indexAxis:'y', plugins:{ legend:{display:false} }, scales:{ x:{beginAtZero:true, ticks:{font:{size:10}}}, y:{ticks:{font:{size:10}}} } }
+    });
+
+    // 3. State Bar
+    new Chart(document.getElementById('stateChart'),{
+        type:'bar',
+        data:{ labels:stateLabels, datasets:[{ label:'Stores', data:stateCounts, backgroundColor:'rgba(231,76,60,0.7)', borderRadius:4 }] },
+        options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{display:false} }, scales:{ x:{ticks:{font:{size:9}, maxRotation:45}}, y:{beginAtZero:true, ticks:{font:{size:10}}} } }
+    });
+})();
 </script>
 }

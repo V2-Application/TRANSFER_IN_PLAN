@@ -1,5 +1,9 @@
-@{ ViewData["Title"] = "Store Stock Management"; }
+@{ ViewData["Title"] = "Store Stock Management";
+   ViewBag.Kpi2Label = "Stores"; ViewBag.Kpi2Value = ViewBag.TotalStores; ViewBag.Kpi2Color = "#27ae60";
+   ViewBag.Kpi3Label = "Categories"; ViewBag.Kpi3Value = ViewBag.TotalCats; ViewBag.Kpi3Color = "#8e44ad"; }
 @model IEnumerable<StoreStock>
+
+<partial name="_RefTableAnalytics" />
 
 <div class="d-flex justify-content-between align-items-center mb-3">
     <h3><i class="bi bi-archive me-2"></i>Store Stock</h3>

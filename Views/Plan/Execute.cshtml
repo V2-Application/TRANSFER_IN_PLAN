@@ -1,100 +1,370 @@
-@{
-    ViewData["Title"] = "Execute Plan Generation";
-}
-
+@{ ViewData["Title"] = "Execute Plan Generation"; }
 @model SpExecutionParams
 
-<div class="row">
-    <div class="col-md-8">
-        <div class="card">
-            <div class="card-header">
-                <h5 class="card-title mb-0">Execute SP_GENERATE_TRF_IN_PLAN</h5>
-            </div>
+<div class="row g-3">
+    <div class="col-lg-7">
+        <div class="card shadow-sm border-0">
+            <div class="card-header bg-white py-2"><h5 class="card-title mb-0"><i class="bi bi-lightning me-2 text-warning"></i>Execute Plan Generation</h5></div>
             <div class="card-body">
                 <form asp-action="Execute" method="post" id="executionForm">
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label asp-for="StartWeekId" class="form-label">Start Week ID</label>
-                            <select asp-for="StartWeekId" class="form-select" asp-items="@(new SelectList(ViewBag.WeekCalendars, "WeekId", "YearWeek"))" required>
-                                <option value="">-- Select Start Week --</option>
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label asp-for="StartWeekId" class="form-label fw-semibold">Start Week <span class="text-danger">*</span></label>
+                            <select asp-for="StartWeekId" class="form-select search-select" asp-items="@(new SelectList(ViewBag.WeekCalendars, "WeekId", "YearWeek"))" required>
+                                <option value="">-- Select --</option>
                             </select>
-                            <span asp-validation-for="StartWeekId" class="text-danger"></span>
                         </div>
-
-                        <div class="col-md-6 mb-3">
-                            <label asp-for="EndWeekId" class="form-label">End Week ID</label>
-                            <select asp-for="EndWeekId" class="form-select" asp-items="@(new SelectList(ViewBag.WeekCalendars, "WeekId", "YearWeek"))" required>
-                                <option value="">-- Select End Week --</option>
+                        <div class="col-md-6">
+                            <label asp-for="EndWeekId" class="form-label fw-semibold">End Week <span class="text-danger">*</span></label>
+                            <select asp-for="EndWeekId" class="form-select search-select" asp-items="@(new SelectList(ViewBag.WeekCalendars, "WeekId", "YearWeek"))" required>
+                                <option value="">-- Select --</option>
                             </select>
-                            <span asp-validation-for="EndWeekId" class="text-danger"></span>
                         </div>
-                    </div>
-
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label asp-for="StoreCode" class="form-label">Store Code (Optional)</label>
-                            <input asp-for="StoreCode" class="form-control" placeholder="Leave blank for all stores" />
-                            <span asp-validation-for="StoreCode" class="text-danger"></span>
+                        <div class="col-md-6">
+                            <label asp-for="StoreCode" class="form-label fw-semibold">Store Code <span class="badge bg-info text-dark">Optional</span></label>
+                            <select asp-for="StoreCode" class="form-select search-select">
+                                <option value="">-- All Stores --</option>
+                                @foreach (var s in (ViewBag.StoreCodes as IEnumerable<string> ?? new List<string>())) { <option value="@s">@s</option> }
+                            </select>
                         </div>
-
-                        <div class="col-md-6 mb-3">
-                            <label asp-for="MajCat" class="form-label">Major Category (Optional)</label>
-                            <input asp-for="MajCat" class="form-control" placeholder="Leave blank for all categories" />
-                            <span asp-validation-for="MajCat" class="text-danger"></span>
+                        <div class="col-md-6">
+                            <label asp-for="MajCat" class="form-label fw-semibold">Major Category <span class="badge bg-info text-dark">Optional</span></label>
+                            <select asp-for="MajCat" class="form-select search-select">
+                                <option value="">-- All Categories --</option>
+                                @foreach (var c in (ViewBag.MajCats as IEnumerable<string> ?? new List<string>())) { <option value="@c">@c</option> }
+                            </select>
                         </div>
-                    </div>
-
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label asp-for="CoverDaysCm1" class="form-label">Cover Days CM1</label>
+                        <div class="col-md-6">
+                            <label asp-for="CoverDaysCm1" class="form-label fw-semibold">Cover Days CM1</label>
                             <input asp-for="CoverDaysCm1" type="number" step="0.01" class="form-control" />
-                            <span asp-validation-for="CoverDaysCm1" class="text-danger"></span>
                         </div>
-
-                        <div class="col-md-6 mb-3">
-                            <label asp-for="CoverDaysCm2" class="form-label">Cover Days CM2</label>
+                        <div class="col-md-6">
+                            <label asp-for="CoverDaysCm2" class="form-label fw-semibold">Cover Days CM2</label>
                             <input asp-for="CoverDaysCm2" type="number" step="0.01" class="form-control" />
-                            <span asp-validation-for="CoverDaysCm2" class="text-danger"></span>
                         </div>
                     </div>
 
-                    <div class="alert alert-info">
-                        <i class="bi bi-info-circle"></i> Leave Store Code and Major Category blank to process all data. This will execute the stored procedure with the specified parameters.
+                    <div class="alert alert-warning mt-3 py-2 small">
+                        <i class="bi bi-exclamation-triangle me-1"></i>
+                        <strong>Single store test</strong>: enter a Store Code (e.g., ST001). Runs in ~10 seconds.<br>
+                        <strong>All @ViewBag.TotalStores stores</strong>: leave Store Code blank — takes ~27 min via SSMS. Web UI may timeout for full runs.
                     </div>
 
-                    <div class="d-flex gap-2">
-                        <button type="submit" class="btn btn-success btn-lg" id="executeBtn">
-                            <i class="bi bi-play-circle"></i> Execute Plan Generation
+                    <div class="d-flex gap-2 mt-3">
+                        <button type="submit" class="btn btn-success" id="executeBtn">
+                            <i class="bi bi-play-circle me-1"></i>Execute
                         </button>
-                        <a asp-action="Index" asp-controller="Home" class="btn btn-secondary">Cancel</a>
+                        <a asp-controller="Home" asp-action="Index" class="btn btn-secondary">Cancel</a>
                     </div>
 
-                    <div id="loadingSpinner" class="mt-3" style="display: none;">
-                        <div class="spinner-border text-primary" role="status">
-                            <span class="visually-hidden">Executing...</span>
+                    <div id="loadingSpinner" class="mt-3" style="display:none;">
+                        <div class="d-flex align-items-center gap-2">
+                            <div class="spinner-border spinner-border-sm text-primary"></div>
+                            <span>Processing... <span id="elapsed">0</span>s elapsed</span>
                         </div>
-                        <span class="ms-2">Processing plan generation, please wait...</span>
                     </div>
                 </form>
+                <hr class="my-2">
+                <form asp-action="ResetTrf" method="post" class="d-inline" onsubmit="return confirm('This will DELETE all Transfer In Plan data (TRF_IN_PLAN). Continue?');">
+                    <button type="submit" class="btn btn-outline-danger btn-sm"><i class="bi bi-trash me-1"></i>Reset Transfer In Plan</button>
+                    <small class="text-muted ms-2">Clears all TRF_IN_PLAN rows</small>
+                </form>
+            </div>
+        </div>
 
-                @if (ViewBag.RowsInserted != null)
-                {
-                    <div class="alert alert-success mt-3">
-                        <h5>Execution Completed Successfully!</h5>
-                        <p><strong>Rows Inserted:</strong> @ViewBag.RowsInserted</p>
-                        <p><strong>Execution Time:</strong> @ViewBag.SuccessMessage</p>
+        @* ── LIVE PROGRESS MONITOR ── *@
+        <div class="card shadow-sm border-0 mt-3">
+            <div class="card-header bg-white py-2 d-flex justify-content-between align-items-center">
+                <h6 class="fw-bold mb-0"><i class="bi bi-activity me-2 text-primary"></i>Live Data Status</h6>
+                <button class="btn btn-sm btn-outline-primary py-0" onclick="refreshProgress()"><i class="bi bi-arrow-clockwise"></i> Refresh</button>
+            </div>
+            <div class="card-body py-2">
+                <div class="row g-2 text-center">
+                    <div class="col-3">
+                        <div class="fw-bold fs-5 text-primary" id="trfRows">@(((int)(ViewBag.TrfInRows ?? 0)).ToString("N0"))</div>
+                        <div class="text-muted" style="font-size:0.65rem;text-transform:uppercase;font-weight:700;">TRF IN Rows</div>
                     </div>
-                }
+                    <div class="col-3">
+                        <div class="fw-bold fs-5 text-success" id="storesProcessed">-</div>
+                        <div class="text-muted" style="font-size:0.65rem;text-transform:uppercase;font-weight:700;">Stores Done</div>
+                    </div>
+                    <div class="col-3">
+                        <div class="fw-bold fs-5" style="color:#f39c12;" id="ppRows">@(((int)(ViewBag.PpRows ?? 0)).ToString("N0"))</div>
+                        <div class="text-muted" style="font-size:0.65rem;text-transform:uppercase;font-weight:700;">PP Rows</div>
+                    </div>
+                    <div class="col-3">
+                        <div class="fw-bold fs-5 text-secondary" id="totalStores">@ViewBag.TotalStores</div>
+                        <div class="text-muted" style="font-size:0.65rem;text-transform:uppercase;font-weight:700;">Total Stores</div>
+                    </div>
+                </div>
+                <div class="progress mt-2" style="height:6px;">
+                    <div class="progress-bar bg-primary" id="progressBar" style="width:0%"></div>
+                </div>
+                <div class="text-muted text-center small mt-1" id="progressText">Click Refresh to check progress</div>
+            </div>
+        </div>
+    </div>
+
+    @* ── RIGHT PANEL: FULL RUN ── *@
+    <div class="col-lg-5">
+        <!-- Full Run Card -->
+        <div class="card shadow-sm border-0 border-start border-4 border-danger">
+            <div class="card-header bg-white py-2">
+                <h6 class="fw-bold mb-0 text-danger"><i class="bi bi-rocket-takeoff me-2"></i>Full Run — All @ViewBag.TotalStores Stores</h6>
+            </div>
+            <div class="card-body">
+                <p class="small text-muted mb-3">Runs SP_RUN_ALL_PLANS V3 (bulk) for all @ViewBag.TotalStores stores x @ViewBag.TotalCategories categories x 52 weeks. Truncates old data, then generates Transfer In + Purchase Plan. Takes ~1-2 min.</p>
+
+                <div class="row g-2 mb-3">
+                    <div class="col-6">
+                        <label class="form-label small fw-semibold mb-1">Start Week ID</label>
+                        <input type="number" id="fullStartWeek" class="form-control form-control-sm" value="1" min="1" />
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label small fw-semibold mb-1">End Week ID</label>
+                        <input type="number" id="fullEndWeek" class="form-control form-control-sm" value="52" min="1" />
+                    </div>
+                </div>
+
+                <div class="alert alert-warning py-2 small mb-3" id="fullRunWarning">
+                    <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                    This will <strong>TRUNCATE</strong> all existing TRF_IN_PLAN and PURCHASE_PLAN data before running.
+                </div>
+
+                <button class="btn btn-danger w-100" id="fullRunBtn" onclick="startFullRun()">
+                    <i class="bi bi-play-fill me-1"></i>Start Full Run
+                </button>
+
+                <!-- Job Status Panel -->
+                <div class="mt-3 d-none" id="jobPanel">
+                    <div class="card border-0 bg-light">
+                        <div class="card-body py-2">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <span class="fw-bold small" id="jobPhase">
+                                    <span class="spinner-border spinner-border-sm text-primary me-1"></span> Running...
+                                </span>
+                                <span class="badge bg-primary" id="jobElapsed">0:00</span>
+                            </div>
+                            <div class="small text-muted" id="jobStatus">Starting...</div>
+                            <div class="progress mt-2" style="height:5px;">
+                                <div class="progress-bar progress-bar-striped progress-bar-animated" id="jobProgress" style="width:100%"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Completed Status -->
+                <div class="mt-3 d-none" id="jobDonePanel">
+                    <div class="alert alert-success py-2 small mb-0">
+                        <i class="bi bi-check-circle-fill me-1"></i>
+                        <span id="jobDoneMsg">Completed!</span><br>
+                        <a href="@Url.Action("Output", "Plan")" class="fw-bold">View TRF Output</a> |
+                        <a href="@Url.Action("Output", "PurchasePlan")" class="fw-bold">View PP Output</a>
+                    </div>
+                </div>
+
+                <!-- Error Status -->
+                <div class="mt-3 d-none" id="jobErrorPanel">
+                    <div class="alert alert-danger py-2 small mb-0">
+                        <i class="bi bi-x-circle-fill me-1"></i>
+                        <span id="jobErrorMsg">Error</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Benchmarks -->
+        <div class="card shadow-sm border-0 mt-3">
+            <div class="card-header bg-white py-2"><h6 class="fw-bold mb-0 small"><i class="bi bi-lightning-charge me-1"></i>Performance Benchmarks</h6></div>
+            <div class="card-body py-2">
+                <table class="table table-sm table-bordered mb-0" style="font-size:0.78rem;">
+                    <thead class="table-light"><tr><th>Scenario</th><th>Time</th><th>Output</th></tr></thead>
+                    <tbody>
+                        <tr><td>Single store (1 x 52 wks)</td><td class="text-success fw-bold">~10s</td><td>~19,916 rows</td></tr>
+                        <tr><td>Full run V3 (657 x 52 wks)</td><td class="text-primary fw-bold">~1-2 min</td><td>~13M TRF + ~40K PP</td></tr>
+                    </tbody>
+                </table>
+                <div class="small text-muted mt-2">
+                    <strong>Phase 1</strong>: Transfer In Plan (~26 min) |
+                    <strong>Phase 2</strong>: Purchase Plan (~20 sec)
+                </div>
             </div>
         </div>
     </div>
 </div>
 
 @section Scripts {
-    <script>
-        document.getElementById('executionForm').addEventListener('submit', function () {
-            document.getElementById('loadingSpinner').style.display = 'block';
-            document.getElementById('executeBtn').disabled = true;
+<script>
+    var timer = null;
+    var seconds = 0;
+
+    var lastTrfRows = 0, lastPpRows = 0, staleCount = 0;
+    var autoRefreshTimer = null;
+    var spRunning = false;
+
+    document.getElementById('executionForm').addEventListener('submit', function() {
+        document.getElementById('loadingSpinner').style.display = 'block';
+        document.getElementById('executeBtn').disabled = true;
+        timer = setInterval(function() { seconds++; document.getElementById('elapsed').textContent = seconds; }, 1000);
+    });
+
+    function updateUI(d) {
+        document.getElementById('trfRows').textContent = d.trfRows.toLocaleString();
+        document.getElementById('ppRows').textContent = d.ppRows.toLocaleString();
+        document.getElementById('storesProcessed').textContent = d.storesProcessed.toLocaleString();
+        document.getElementById('totalStores').textContent = d.totalStores.toLocaleString();
+        var pct = d.totalStores > 0 ? Math.round(d.storesProcessed * 100 / d.totalStores) : 0;
+        document.getElementById('progressBar').style.width = pct + '%';
+        var status = d.storesProcessed + ' of ' + d.totalStores + ' stores (' + pct + '%) \u2014 ' + d.trfRows.toLocaleString() + ' TrfIn rows, ' + d.ppRows.toLocaleString() + ' PP rows';
+        if (spRunning) status += ' \u2022 Live';
+        document.getElementById('progressText').textContent = status;
+    }
+
+    function checkProgress() {
+        fetch('@Url.Action("Progress", "Plan")')
+            .then(r => r.json())
+            .then(d => {
+                var rowsChanged = (d.trfRows !== lastTrfRows) || (d.ppRows !== lastPpRows);
+
+                if (rowsChanged) {
+                    staleCount = 0;
+                    if (!spRunning) {
+                        // SP just started running (from SSMS or UI) — switch to fast polling
+                        spRunning = true;
+                        clearInterval(autoRefreshTimer);
+                        autoRefreshTimer = setInterval(checkProgress, 15000);
+                    }
+                } else if (spRunning) {
+                    staleCount++;
+                    if (staleCount >= 4) {
+                        // No change for 60s — SP likely finished, go back to slow polling
+                        spRunning = false;
+                        staleCount = 0;
+                        clearInterval(autoRefreshTimer);
+                        autoRefreshTimer = setInterval(checkProgress, 60000);
+                    }
+                }
+
+                lastTrfRows = d.trfRows;
+                lastPpRows = d.ppRows;
+                updateUI(d);
+            })
+            .catch(() => { document.getElementById('progressText').textContent = 'Error fetching progress'; });
+    }
+
+    // On page load: fetch once, then poll every 60s (slow) to detect if SP starts
+    checkProgress();
+    autoRefreshTimer = setInterval(checkProgress, 60000);
+
+    // ── Full Run Job ──
+    var jobPollTimer = null;
+
+    function startFullRun() {
+        var startW = document.getElementById('fullStartWeek').value || 1;
+        var endW = document.getElementById('fullEndWeek').value || 52;
+
+        if (!confirm('This will TRUNCATE all existing plan data and run SP_RUN_ALL_PLANS for all stores.\n\nStart Week: ' + startW + ', End Week: ' + endW + '\n\nContinue?'))
+            return;
+
+        var btn = document.getElementById('fullRunBtn');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Starting...';
+
+        var token = document.querySelector('input[name="__RequestVerificationToken"]').value;
+
+        fetch('@Url.Action("StartFullRun", "Plan")', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: 'startWeekId=' + startW + '&endWeekId=' + endW + '&__RequestVerificationToken=' + encodeURIComponent(token)
+        })
+        .then(r => r.json())
+        .then(d => {
+            if (d.success) {
+                document.getElementById('jobPanel').classList.remove('d-none');
+                document.getElementById('jobDonePanel').classList.add('d-none');
+                document.getElementById('jobErrorPanel').classList.add('d-none');
+                document.getElementById('fullRunWarning').classList.add('d-none');
+                btn.innerHTML = '<i class="bi bi-hourglass-split me-1"></i>Job Running...';
+                // Start polling job status
+                pollJobStatus();
+                jobPollTimer = setInterval(pollJobStatus, 5000);
+                // Also switch data progress to fast polling
+                spRunning = true;
+                clearInterval(autoRefreshTimer);
+                autoRefreshTimer = setInterval(checkProgress, 15000);
+            } else {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-play-fill me-1"></i>Start Full Run';
+                alert(d.message);
+            }
+        })
+        .catch(err => {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-play-fill me-1"></i>Start Full Run';
+            alert('Error: ' + err.message);
         });
-    </script>
+    }
+
+    function pollJobStatus() {
+        fetch('@Url.Action("JobStatus", "Plan")')
+            .then(r => r.json())
+            .then(d => {
+                var elapsed = d.elapsedSeconds;
+                var min = Math.floor(elapsed / 60);
+                var sec = elapsed % 60;
+                document.getElementById('jobElapsed').textContent = min + ':' + String(sec).padStart(2, '0');
+                document.getElementById('jobStatus').textContent = d.status;
+
+                if (d.phase === 'Cleaning') {
+                    document.getElementById('jobPhase').innerHTML = '<span class="spinner-border spinner-border-sm text-warning me-1"></span> Truncating...';
+                } else if (d.phase === 'Running') {
+                    document.getElementById('jobPhase').innerHTML = '<span class="spinner-border spinner-border-sm text-primary me-1"></span> SP Running...';
+                }
+
+                if (!d.isRunning && d.phase === 'Done') {
+                    clearInterval(jobPollTimer);
+                    document.getElementById('jobPanel').classList.add('d-none');
+                    document.getElementById('jobDonePanel').classList.remove('d-none');
+                    document.getElementById('jobDoneMsg').textContent = d.status;
+                    document.getElementById('fullRunBtn').disabled = false;
+                    document.getElementById('fullRunBtn').innerHTML = '<i class="bi bi-play-fill me-1"></i>Start Full Run';
+                    document.getElementById('fullRunWarning').classList.remove('d-none');
+                    checkProgress(); // Final refresh
+                }
+
+                if (!d.isRunning && d.phase === 'Error') {
+                    clearInterval(jobPollTimer);
+                    document.getElementById('jobPanel').classList.add('d-none');
+                    document.getElementById('jobErrorPanel').classList.remove('d-none');
+                    document.getElementById('jobErrorMsg').textContent = d.status;
+                    document.getElementById('fullRunBtn').disabled = false;
+                    document.getElementById('fullRunBtn').innerHTML = '<i class="bi bi-play-fill me-1"></i>Start Full Run';
+                    document.getElementById('fullRunWarning').classList.remove('d-none');
+                }
+            })
+            .catch(() => {});
+    }
+
+    // Check if a job is already running on page load
+    fetch('@Url.Action("JobStatus", "Plan")')
+        .then(r => r.json())
+        .then(d => {
+            if (d.isRunning) {
+                document.getElementById('fullRunBtn').disabled = true;
+                document.getElementById('fullRunBtn').innerHTML = '<i class="bi bi-hourglass-split me-1"></i>Job Running...';
+                document.getElementById('jobPanel').classList.remove('d-none');
+                document.getElementById('fullRunWarning').classList.add('d-none');
+                pollJobStatus();
+                jobPollTimer = setInterval(pollJobStatus, 5000);
+                spRunning = true;
+                clearInterval(autoRefreshTimer);
+                autoRefreshTimer = setInterval(checkProgress, 15000);
+            } else if (d.phase === 'Done' && d.completedAt) {
+                document.getElementById('jobDonePanel').classList.remove('d-none');
+                document.getElementById('jobDoneMsg').textContent = d.status;
+            }
+        })
+        .catch(() => {});
+
+</script>
 }

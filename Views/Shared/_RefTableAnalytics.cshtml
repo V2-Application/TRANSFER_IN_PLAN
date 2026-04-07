@@ -1,0 +1,39 @@
+@*
+    Shared analytics partial for reference table pages.
+    Pass data via ViewBag: TotalRows, plus 2-3 custom KPIs as Kpi2Label/Kpi2Value/Kpi2Color, Kpi3Label/Kpi3Value/Kpi3Color
+*@
+<div class="row g-2 mb-3">
+    <div class="col-6 col-sm-4 col-lg-3">
+        <div class="card border-0 shadow-sm text-center py-2" style="border-top:3px solid #2980b9 !important;">
+            <div class="fw-bold fs-4" style="color:#2980b9;">@(ViewBag.TotalRows != null ? ((int)ViewBag.TotalRows).ToString("N0") : "0")</div>
+            <div class="text-muted" style="font-size:0.65rem;text-transform:uppercase;font-weight:700;">Total Records</div>
+        </div>
+    </div>
+    @if (ViewBag.Kpi2Label != null)
+    {
+        <div class="col-6 col-sm-4 col-lg-3">
+            <div class="card border-0 shadow-sm text-center py-2" style="border-top:3px solid @(ViewBag.Kpi2Color ?? "#27ae60") !important;">
+                <div class="fw-bold fs-4" style="color:@(ViewBag.Kpi2Color ?? "#27ae60");">@ViewBag.Kpi2Value</div>
+                <div class="text-muted" style="font-size:0.65rem;text-transform:uppercase;font-weight:700;">@ViewBag.Kpi2Label</div>
+            </div>
+        </div>
+    }
+    @if (ViewBag.Kpi3Label != null)
+    {
+        <div class="col-6 col-sm-4 col-lg-3">
+            <div class="card border-0 shadow-sm text-center py-2" style="border-top:3px solid @(ViewBag.Kpi3Color ?? "#8e44ad") !important;">
+                <div class="fw-bold fs-4" style="color:@(ViewBag.Kpi3Color ?? "#8e44ad");">@ViewBag.Kpi3Value</div>
+                <div class="text-muted" style="font-size:0.65rem;text-transform:uppercase;font-weight:700;">@ViewBag.Kpi3Label</div>
+            </div>
+        </div>
+    }
+    @if (ViewBag.Kpi4Label != null)
+    {
+        <div class="col-6 col-sm-4 col-lg-3">
+            <div class="card border-0 shadow-sm text-center py-2" style="border-top:3px solid @(ViewBag.Kpi4Color ?? "#e67e22") !important;">
+                <div class="fw-bold fs-4" style="color:@(ViewBag.Kpi4Color ?? "#e67e22");">@ViewBag.Kpi4Value</div>
+                <div class="text-muted" style="font-size:0.65rem;text-transform:uppercase;font-weight:700;">@ViewBag.Kpi4Label</div>
+            </div>
+        </div>
+    }
+</div>

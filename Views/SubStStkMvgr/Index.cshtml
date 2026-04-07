@@ -1,0 +1,158 @@
+@{ ViewData["Title"] = "Macro MVGR Store Stock";
+   ViewBag.Kpi2Label = "Stores"; ViewBag.Kpi2Value = ViewBag.TotalStores; ViewBag.Kpi2Color = "#27ae60";
+   ViewBag.Kpi3Label = "Categories"; ViewBag.Kpi3Value = ViewBag.TotalCats; ViewBag.Kpi3Color = "#8e44ad";
+   ViewBag.TotalRows = ViewBag.TotalCount; }
+@model IEnumerable<TRANSFER_IN_PLAN.Models.SubStStkMvgr>
+
+<partial name="_RefTableAnalytics" />
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h3><i class="bi bi-archive me-2"></i>Macro MVGR Store Stock</h3>
+    <div class="d-flex gap-2">
+        <a asp-action="ExportCsv" asp-route-stCd="@ViewBag.StCd" asp-route-majCat="@ViewBag.MajCat" class="btn btn-success"><i class="bi bi-download me-1"></i>Export CSV</a>
+        <a asp-action="Create" class="btn btn-primary"><i class="bi bi-plus-circle me-1"></i>Add Record</a>
+    </div>
+</div>
+
+@if (TempData["SuccessMessage"] != null)
+{
+    <div class="alert alert-success alert-dismissible fade show"><i class="bi bi-check-circle-fill me-2"></i>@TempData["SuccessMessage"]<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
+}
+
+<form method="get" class="row g-2 mb-3 align-items-end">
+    <div class="col-md-3">
+        <label class="form-label fw-semibold">Store Code</label>
+        <select name="stCd" class="form-select search-select">
+            <option value="">-- All --</option>
+            @foreach (var s in (ViewBag.StoreCodes as IEnumerable<string> ?? new List<string>())) { <option value="@s" selected="@(ViewBag.StCd == s)">@s</option> }
+        </select>
+    </div>
+    <div class="col-md-3">
+        <label class="form-label fw-semibold">Major Category</label>
+        <select name="majCat" class="form-select search-select">
+            <option value="">-- All --</option>
+            @foreach (var c in (ViewBag.MajCats as IEnumerable<string> ?? new List<string>())) { <option value="@c" selected="@(ViewBag.MajCat == c)">@c</option> }
+        </select>
+    </div>
+    <div class="col-md-3">
+        <label class="form-label fw-semibold">MVGR Matrix</label>
+        <select name="subValue" class="form-select search-select">
+            <option value="">-- All --</option>
+            @foreach (var v in (ViewBag.SubValues as IEnumerable<string> ?? new List<string>())) { <option value="@v" selected="@(ViewBag.SubValue == v)">@v</option> }
+        </select>
+    </div>
+    <div class="col-md-1">
+        <label class="form-label fw-semibold">Rows</label>
+        <select name="pageSize" class="form-select">
+            @foreach (var ps in new[] { 50, 100, 250, 500 }) { <option value="@ps" selected="@(ViewBag.PageSize == ps)">@ps</option> }
+        </select>
+    </div>
+    <div class="col-md-2 d-flex gap-1">
+        <button class="btn btn-primary flex-fill" type="submit"><i class="bi bi-funnel me-1"></i>Filter</button>
+        <a asp-action="Index" class="btn btn-outline-secondary">Clear</a>
+    </div>
+</form>
+
+<div class="card shadow-sm">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover table-bordered mb-0" id="subStStkMvgrTable">
+                <thead class="table-dark">
+                    <tr>
+                        <th>ST CD</th>
+                        <th>MAJ CAT</th>
+                        <th>MVGR Matrix</th>
+                        <th class="text-end">STK QTY</th>
+                        <th>DATE</th>
+                        <th class="text-center">Actions</th>
+                    </tr>
+                    <tr class="filter-row">
+                        <th><input type="text" class="form-control form-control-sm" placeholder="Filter..."></th>
+                        <th><input type="text" class="form-control form-control-sm" placeholder="Filter..."></th>
+                        <th><input type="text" class="form-control form-control-sm" placeholder="Filter..."></th>
+                        <th><input type="text" class="form-control form-control-sm" placeholder="Filter..."></th>
+                        <th><input type="text" class="form-control form-control-sm" placeholder="Filter..."></th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (!Model.Any())
+                    {
+                        <tr><td colspan="6" class="text-center text-muted py-4">No records found.</td></tr>
+                    }
+                    else
+                    {
+                        @foreach (var item in Model)
+                        {
+                            <tr>
+                                <td>@item.StCd</td>
+                                <td>@item.MajCat</td>
+                                <td>@item.SubValue</td>
+                                <td class="text-end">@item.StkQty.ToString("N4")</td>
+                                <td>@item.Date?.ToString("yyyy-MM-dd")</td>
+                                <td class="text-center">
+                                    <a asp-action="Edit" asp-route-id="@item.Id" class="btn btn-sm btn-warning" title="Edit"><i class="bi bi-pencil"></i></a>
+                                    <a asp-action="Delete" asp-route-id="@item.Id" class="btn btn-sm btn-danger" title="Delete"><i class="bi bi-trash"></i></a>
+                                </td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+@{ var totalPages = (int)Math.Ceiling((double)ViewBag.TotalCount / ViewBag.PageSize); }
+@if (totalPages > 1)
+{
+    <nav class="mt-3"><ul class="pagination justify-content-center">
+        @for (int p = 1; p <= totalPages; p++)
+        {
+            <li class="page-item @(p == ViewBag.Page ? "active" : "")">
+                <a class="page-link" asp-action="Index" asp-route-stCd="@ViewBag.StCd" asp-route-majCat="@ViewBag.MajCat" asp-route-subValue="@ViewBag.SubValue" asp-route-page="@p" asp-route-pageSize="@ViewBag.PageSize">@p</a>
+            </li>
+        }
+    </ul></nav>
+}
+
+@section Scripts {
+<style>
+    .filter-row th { background: #f8f9fa; padding: 4px 6px; }
+    #subStStkMvgrTable_wrapper .dt-layout-row:first-child { padding: 12px 12px 4px; }
+    #subStStkMvgrTable_wrapper .dt-layout-row:last-child  { padding: 4px 12px 12px; }
+</style>
+<script>
+$(document).ready(function () {
+    if ($('#subStStkMvgrTable tbody tr td.text-muted').length) return;
+    if ($.fn.DataTable.isDataTable('#subStStkMvgrTable')) {
+        $('#subStStkMvgrTable').DataTable().destroy();
+    }
+    var table = $('#subStStkMvgrTable').DataTable({
+        pageLength: 25,
+        lengthMenu: [[10, 25, 50, 100, -1], [10, 25, 50, 100, 'All']],
+        order: [[0, 'asc'], [1, 'asc']],
+        autoWidth: false,
+        language: {
+            search: '<i class="bi bi-search"></i>',
+            searchPlaceholder: 'Global search...',
+            lengthMenu: 'Show _MENU_ rows',
+            info: 'Showing _START_\u2013_END_ of _TOTAL_ records',
+            infoEmpty: 'No records',
+            zeroRecords: 'No matching records found',
+            paginate: { first: '\u00ab', last: '\u00bb', next: '\u203a', previous: '\u2039' }
+        },
+        columnDefs: [{ orderable: false, targets: -1 }]
+    });
+    table.columns().every(function (i) {
+        var col = this;
+        var input = $($('.filter-row th')[i]).find('input');
+        if (input.length) {
+            input.on('keyup change clear', function () {
+                if (col.search() !== this.value) col.search(this.value).draw();
+            });
+        }
+    });
+});
+</script>
+}

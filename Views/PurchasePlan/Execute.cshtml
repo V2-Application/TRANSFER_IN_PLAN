@@ -15,7 +15,7 @@
                     <div class="row">
                         <div class="col-md-6 mb-3">
                             <label asp-for="StartWeekId" class="form-label">Start Week ID</label>
-                            <select asp-for="StartWeekId" class="form-select" asp-items="@(new SelectList(ViewBag.WeekCalendars, "WeekId", "YearWeek"))" required>
+                            <select asp-for="StartWeekId" class="form-select search-select" asp-items="@(new SelectList(ViewBag.WeekCalendars, "WeekId", "YearWeek"))" required>
                                 <option value="">-- Select Start Week --</option>
                             </select>
                             <span asp-validation-for="StartWeekId" class="text-danger"></span>
@@ -23,7 +23,7 @@
 
                         <div class="col-md-6 mb-3">
                             <label asp-for="EndWeekId" class="form-label">End Week ID</label>
-                            <select asp-for="EndWeekId" class="form-select" asp-items="@(new SelectList(ViewBag.WeekCalendars, "WeekId", "YearWeek"))" required>
+                            <select asp-for="EndWeekId" class="form-select search-select" asp-items="@(new SelectList(ViewBag.WeekCalendars, "WeekId", "YearWeek"))" required>
                                 <option value="">-- Select End Week --</option>
                             </select>
                             <span asp-validation-for="EndWeekId" class="text-danger"></span>
@@ -33,13 +33,19 @@
                     <div class="row">
                         <div class="col-md-6 mb-3">
                             <label asp-for="RdcCode" class="form-label">RDC Code (Optional)</label>
-                            <input asp-for="RdcCode" class="form-control" placeholder="Leave blank for all RDCs" />
+                            <select asp-for="RdcCode" class="form-select search-select">
+                                <option value="">-- All RDCs --</option>
+                                @foreach (var r in (ViewBag.RdcCodes as IEnumerable<string> ?? new List<string>())) { <option value="@r">@r</option> }
+                            </select>
                             <span asp-validation-for="RdcCode" class="text-danger"></span>
                         </div>
 
                         <div class="col-md-6 mb-3">
                             <label asp-for="MajCat" class="form-label">Major Category (Optional)</label>
-                            <input asp-for="MajCat" class="form-control" placeholder="Leave blank for all categories" />
+                            <select asp-for="MajCat" class="form-select search-select">
+                                <option value="">-- All Categories --</option>
+                                @foreach (var c in (ViewBag.MajCats as IEnumerable<string> ?? new List<string>())) { <option value="@c">@c</option> }
+                            </select>
                             <span asp-validation-for="MajCat" class="text-danger"></span>
                         </div>
                     </div>
@@ -71,6 +77,12 @@
                         <p><strong>Execution Time:</strong> @ViewBag.SuccessMessage</p>
                     </div>
                 }
+
+                <hr class="my-2">
+                <form asp-action="ResetPp" method="post" class="d-inline" onsubmit="return confirm('This will DELETE all Purchase Plan data (PURCHASE_PLAN). Continue?');">
+                    <button type="submit" class="btn btn-outline-danger btn-sm"><i class="bi bi-trash me-1"></i>Reset Purchase Plan</button>
+                    <small class="text-muted ms-2">Clears all PURCHASE_PLAN rows</small>
+                </form>
             </div>
         </div>
     </div>

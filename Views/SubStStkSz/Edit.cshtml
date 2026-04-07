@@ -1,0 +1,46 @@
+@{ ViewData["Title"] = "Edit Size Store Stock"; }
+@model TRANSFER_IN_PLAN.Models.SubStStkSz
+
+<div class="row"><div class="col-md-8">
+<div class="card shadow-sm border-0">
+    <div class="card-header bg-white py-2"><h5 class="card-title mb-0"><i class="bi bi-pencil me-2 text-warning"></i>Edit Size Store Stock</h5></div>
+    <div class="card-body">
+        <form asp-action="Edit" method="post">
+            <input type="hidden" asp-for="Id" />
+            <div class="row g-3 mb-3">
+                <div class="col-md-6">
+                    <label asp-for="StCd" class="form-label fw-semibold">Store Code <span class="text-danger">*</span></label>
+                    <input asp-for="StCd" class="form-control" required />
+                    <span asp-validation-for="StCd" class="text-danger"></span>
+                </div>
+                <div class="col-md-6">
+                    <label asp-for="MajCat" class="form-label fw-semibold">Major Category <span class="text-danger">*</span></label>
+                    <input asp-for="MajCat" class="form-control" required />
+                    <span asp-validation-for="MajCat" class="text-danger"></span>
+                </div>
+            </div>
+            <div class="row g-3 mb-3">
+                <div class="col-md-4">
+                    <label asp-for="SubValue" class="form-label fw-semibold">Size</label>
+                    <input asp-for="SubValue" class="form-control" />
+                    <span asp-validation-for="SubValue" class="text-danger"></span>
+                </div>
+                <div class="col-md-4">
+                    <label asp-for="StkQty" class="form-label fw-semibold">Stock Quantity</label>
+                    <input asp-for="StkQty" type="number" step="0.0001" class="form-control" />
+                    <span asp-validation-for="StkQty" class="text-danger"></span>
+                </div>
+                <div class="col-md-4">
+                    <label asp-for="Date" class="form-label fw-semibold">Date</label>
+                    <input asp-for="Date" type="date" class="form-control" />
+                    <span asp-validation-for="Date" class="text-danger"></span>
+                </div>
+            </div>
+            <div class="d-flex gap-2">
+                <button type="submit" class="btn btn-success"><i class="bi bi-check-circle me-1"></i>Update</button>
+                <a asp-action="Index" class="btn btn-secondary">Cancel</a>
+            </div>
+        </form>
+    </div>
+</div>
+</div></div>

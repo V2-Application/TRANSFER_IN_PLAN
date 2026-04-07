@@ -1,0 +1,21 @@
+@{ ViewData["Title"] = "Delete Size Store Stock"; }
+@model TRANSFER_IN_PLAN.Models.SubStStkSz
+
+<div class="row"><div class="col-md-6">
+<div class="card border-danger">
+    <div class="card-header bg-danger text-white"><h5 class="card-title mb-0">Confirm Delete</h5></div>
+    <div class="card-body">
+        <p>Are you sure you want to delete this Size store stock entry?</p>
+        <div class="mb-2"><strong>Store Code:</strong> @Model.StCd</div>
+        <div class="mb-2"><strong>Major Category:</strong> @Model.MajCat</div>
+        <div class="mb-2"><strong>Size:</strong> @Model.SubValue</div>
+        <div class="mb-2"><strong>Stock Qty:</strong> @Model.StkQty.ToString("N4")</div>
+        <div class="mb-3"><strong>Date:</strong> @Model.Date?.ToString("yyyy-MM-dd")</div>
+        <form asp-action="Delete" method="post" class="d-inline">
+            <input type="hidden" asp-for="Id" />
+            <button type="submit" class="btn btn-danger"><i class="bi bi-trash me-1"></i>Delete</button>
+            <a asp-action="Index" class="btn btn-secondary">Cancel</a>
+        </form>
+    </div>
+</div>
+</div></div>

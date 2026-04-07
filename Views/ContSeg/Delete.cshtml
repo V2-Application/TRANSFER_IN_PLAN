@@ -1,0 +1,8 @@
+@{ ViewData["Title"] = "Delete Segment Contribution"; }
+@model TRANSFER_IN_PLAN.Models.ContSeg
+<h3 class="mb-3 text-danger"><i class="bi bi-trash me-2"></i>Delete Segment Contribution</h3>
+<div class="card shadow-sm border-0" style="max-width:500px;"><div class="card-body">
+    <p>Are you sure you want to delete this record?</p>
+    <dl class="row small mb-3"><dt class="col-5">Store Code</dt><dd class="col-7">@Model.StCd</dd><dt class="col-5">Category</dt><dd class="col-7">@Model.MajCatCd</dd><dt class="col-5">Segment</dt><dd class="col-7">@Model.Seg</dd><dt class="col-5">CONT%</dt><dd class="col-7">@Model.ContPct.ToString("N4")</dd></dl>
+    <form asp-action="Delete" method="post"><input type="hidden" asp-for="Id" /><button type="submit" class="btn btn-danger btn-sm"><i class="bi bi-trash me-1"></i>Delete</button> <a asp-action="Index" class="btn btn-outline-secondary btn-sm">Cancel</a></form>
+</div></div>

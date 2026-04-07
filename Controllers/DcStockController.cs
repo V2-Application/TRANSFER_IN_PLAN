@@ -18,16 +18,21 @@ namespace TRANSFER_IN_PLAN.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> Index(string? rdcCd, string? majCat)
+        public async Task<IActionResult> Index(string? rdcCd, string? majCat, int page = 1, int pageSize = 100)
         {
             var query = _context.DcStocks.AsQueryable();
             if (!string.IsNullOrEmpty(rdcCd)) query = query.Where(x => x.RdcCd == rdcCd);
             if (!string.IsNullOrEmpty(majCat)) query = query.Where(x => x.MajCat == majCat);
+            ViewBag.TotalCount = await query.CountAsync();
+            ViewBag.Page = page; ViewBag.PageSize = pageSize;
             ViewBag.RdcCodes = await _context.DcStocks.Select(x => x.RdcCd).Distinct().OrderBy(x => x).ToListAsync();
             ViewBag.Categories = await _context.DcStocks.Select(x => x.MajCat).Distinct().OrderBy(x => x).ToListAsync();
-            ViewBag.RdcCd = rdcCd;
-            ViewBag.MajCat = majCat;
-            var data = await query.OrderBy(x => x.RdcCd).ThenBy(x => x.MajCat).ToListAsync();
+            ViewBag.RdcCd = rdcCd; ViewBag.MajCat = majCat;
+            ViewBag.TotalRows = await _context.DcStocks.CountAsync();
+            ViewBag.TotalRdcs = await _context.DcStocks.Select(x => x.RdcCd).Distinct().CountAsync();
+            ViewBag.TotalCats = await _context.DcStocks.Select(x => x.MajCat).Distinct().CountAsync();
+            var data = await query.OrderBy(x => x.RdcCd).ThenBy(x => x.MajCat)
+                .Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();
             return View(data);
         }
 
@@ -55,8 +60,9 @@ namespace TRANSFER_IN_PLAN.Controllers
         }
 
         [HttpGet]
-        public IActionResult Create()
+        public async Task<IActionResult> Create()
         {
+            await LoadDropdowns();
             return View();
         }
 
@@ -64,7 +70,7 @@ namespace TRANSFER_IN_PLAN.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Create(DcStock model)
         {
-            if (!ModelState.IsValid) return View(model);
+            if (!ModelState.IsValid) { await LoadDropdowns(); return View(model); }
             _context.DcStocks.Add(model);
             await _context.SaveChangesAsync();
             _logger.LogInformation("DcStock created: RdcCd={RdcCd} MajCat={MajCat}", model.RdcCd, model.MajCat);
@@ -77,6 +83,7 @@ namespace TRANSFER_IN_PLAN.Controllers
         {
             var model = await _context.DcStocks.FindAsync(id);
             if (model == null) return NotFound();
+            await LoadDropdowns();
             return View(model);
         }
 
@@ -124,6 +131,11 @@ namespace TRANSFER_IN_PLAN.Controllers
             return RedirectToAction(nameof(Index));
         }
 
+        private async Task LoadDropdowns()
+        {
+            ViewBag.RdcCodes = await _context.StoreMasters.Where(x => x.RdcCd != null).Select(x => new { x.RdcCd, x.RdcNm }).Distinct().OrderBy(x => x.RdcCd).ToListAsync();
+            ViewBag.MajCats = await _context.BinCapacities.Select(x => x.MajCat).Where(x => x != null).Distinct().OrderBy(x => x).ToListAsync();
+        }
         private static string Q(string? s)
         {
             if (string.IsNullOrEmpty(s)) return "";

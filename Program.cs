@@ -14,7 +14,7 @@ builder.Logging.AddDebug();
 // ── Increase upload limits for large Excel files (30k rows) ──
 builder.Services.Configure<FormOptions>(options =>
 {
-    options.MultipartBodyLengthLimit = 100 * 1024 * 1024; // 100 MB
+    options.MultipartBodyLengthLimit = 500 * 1024 * 1024; // 500 MB
     options.ValueLengthLimit         = int.MaxValue;
     options.MultipartHeadersLengthLimit = int.MaxValue;
 });
@@ -22,7 +22,7 @@ builder.Services.Configure<FormOptions>(options =>
 // Kestrel: allow large request bodies
 builder.WebHost.ConfigureKestrel(serverOptions =>
 {
-    serverOptions.Limits.MaxRequestBodySize = 100 * 1024 * 1024; // 100 MB
+    serverOptions.Limits.MaxRequestBodySize = 500 * 1024 * 1024; // 500 MB
     serverOptions.Limits.KeepAliveTimeout   = TimeSpan.FromMinutes(10);
     serverOptions.Limits.RequestHeadersTimeout = TimeSpan.FromMinutes(5);
 });
@@ -36,7 +36,10 @@ builder.Services.AddDbContext<PlanningDbContext>(options =>
     );
 });
 
+builder.Services.AddMemoryCache();
 builder.Services.AddScoped<PlanService>();
+builder.Services.AddSingleton<PlanJobService>();
+builder.Services.AddSingleton<SubLevelJobService>();
 
 // Add session for TempData support
 builder.Services.AddSession(options =>

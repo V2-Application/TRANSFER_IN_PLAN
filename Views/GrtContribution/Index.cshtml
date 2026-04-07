@@ -1,0 +1,100 @@
+@{ ViewData["Title"] = "GRT Contribution"; }
+@model IEnumerable<GrtContribution>
+
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+    <h3 class="mb-0"><i class="bi bi-percent me-2"></i>Master GRT Contribution</h3>
+    <div class="d-flex gap-2">
+        <a asp-action="Create" class="btn btn-primary btn-sm"><i class="bi bi-plus-circle me-1"></i>Add</a>
+        <a asp-action="ExportCsv" asp-route-ssn="@ViewBag.Ssn" class="btn btn-success btn-sm"><i class="bi bi-download me-1"></i>CSV</a>
+    </div>
+</div>
+
+@{ ViewBag.Kpi2Label = "SSN"; ViewBag.Kpi2Value = ViewBag.TotalSsns; ViewBag.Kpi2Color = "#8e44ad";
+   ViewBag.Kpi3Label = ""; ViewBag.Kpi3Value = ""; ViewBag.Kpi3Color = "#27ae60"; }
+<partial name="_RefTableAnalytics" />
+
+@if (TempData["SuccessMessage"] != null) { <div class="alert alert-success alert-dismissible fade show py-2"><i class="bi bi-check-circle me-1"></i>@TempData["SuccessMessage"]<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div> }
+@if (TempData["ErrorMessage"] != null) { <div class="alert alert-danger alert-dismissible fade show py-2"><i class="bi bi-exclamation-circle me-1"></i>@TempData["ErrorMessage"]<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div> }
+
+<div class="card shadow-sm border-0 mb-2">
+    <div class="card-body py-2">
+        <form method="get" class="row g-2 align-items-end">
+            <div class="col-md-3">
+                <label class="form-label small fw-semibold mb-0">SSN</label>
+                <select name="ssn" class="form-select form-select-sm search-select">
+                    <option value="">-- All --</option>
+                    @foreach (var s in (ViewBag.Ssns as IEnumerable<string> ?? new List<string>())) { <option value="@s" selected="@(s == ViewBag.Ssn?.ToString() ? "selected" : null)">@s</option> }
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small fw-semibold mb-0">Page Size</label>
+                <select name="pageSize" class="form-select form-select-sm">
+                    @foreach (var ps in new[] { 50, 100, 250, 500 }) { <option value="@ps" selected="@(ViewBag.PageSize?.ToString() == ps.ToString() ? "selected" : null)">@ps</option> }
+                </select>
+            </div>
+            <div class="col-md-4 d-flex gap-2">
+                <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-search me-1"></i>Filter</button>
+                <a href="@Url.Action("Index")" class="btn btn-outline-secondary btn-sm"><i class="bi bi-x-circle me-1"></i>Clear</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+@if (ViewBag.TotalCount != null)
+{
+    <div class="alert alert-info py-1 small mb-2"><i class="bi bi-info-circle me-1"></i>Showing <strong>@Model.Count()</strong> of <strong>@(((int)ViewBag.TotalCount).ToString("N0"))</strong> records (Page @ViewBag.Page)</div>
+}
+
+<div class="card shadow-sm border-0">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover table-bordered table-sm mb-0 small">
+                <thead class="table-dark">
+                    <tr>
+                        <th class="sticky-col">SSN</th>
+                        @for (int w = 1; w <= 48; w++) { <th class="text-end">W@(w)</th> }
+                        <th class="text-center">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var item in Model)
+                    {
+                        <tr>
+                            <td class="sticky-col fw-semibold text-primary">@item.Ssn</td>
+                            @{ var props = typeof(GrtContribution).GetProperties().Where(p => p.Name.StartsWith("Wk")).OrderBy(p => int.TryParse(p.Name.Replace("Wk",""), out var n) ? n : 0).ToList(); }
+                            @foreach (var p in props) { <td class="text-end">@(((decimal)(p.GetValue(item) ?? 0m)).ToString("N4"))</td> }
+                            <td class="text-center text-nowrap">
+                                <a asp-action="Edit" asp-route-ssn="@item.Ssn" class="btn btn-sm btn-warning py-0"><i class="bi bi-pencil"></i></a>
+                                <a asp-action="Delete" asp-route-ssn="@item.Ssn" class="btn btn-sm btn-danger py-0"><i class="bi bi-trash"></i></a>
+                            </td>
+                        </tr>
+                    }
+                    @if (!Model.Any()) { <tr><td colspan="50" class="text-center text-muted py-3">No data. Use filters or upload data via Bulk Upload.</td></tr> }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+@if (ViewBag.TotalCount != null && ViewBag.PageSize != null)
+{
+    var totalPages = (int)Math.Ceiling((double)(int)ViewBag.TotalCount / (int)ViewBag.PageSize);
+    if (totalPages > 1)
+    {
+        <nav class="mt-2"><ul class="pagination pagination-sm justify-content-center flex-wrap">
+            @for (int p = Math.Max(1, (int)ViewBag.Page - 4); p <= Math.Min(totalPages, (int)ViewBag.Page + 4); p++)
+            {
+                <li class="page-item @(p == (int)ViewBag.Page ? "active" : "")">
+                    <a class="page-link" href="@Url.Action("Index", new { ssn = ViewBag.Ssn, page = p, pageSize = ViewBag.PageSize })">@p</a>
+                </li>
+            }
+        </ul></nav>
+    }
+}
+
+@section Scripts {
+<style>
+    .sticky-col  { position:sticky; left:0; background:#fff; z-index:2; min-width:100px; }
+    thead .sticky-col { background:#212529; z-index:3; }
+</style>
+}

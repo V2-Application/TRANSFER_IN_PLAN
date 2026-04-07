@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
@@ -20,6 +21,7 @@ public class StoreStock
     public string? MajCat { get; set; }
 
     [Column("STK_QTY")]
+    [Precision(18, 4)]
     public decimal? StkQty { get; set; }
 
     [Column("DATE")]

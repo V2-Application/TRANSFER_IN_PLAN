@@ -150,21 +150,25 @@ public class PlanService
                 worksheet.Cells[1, 6].Value = "Hub Name";
                 worksheet.Cells[1, 7].Value = "Area";
                 worksheet.Cells[1, 8].Value = "Major Category";
-                worksheet.Cells[1, 9].Value = "Week Start";
-                worksheet.Cells[1, 10].Value = "Week End";
-                worksheet.Cells[1, 11].Value = "FY Year";
-                worksheet.Cells[1, 12].Value = "FY Week";
-                worksheet.Cells[1, 13].Value = "Transfer In Stock Qty";
-                worksheet.Cells[1, 14].Value = "Transfer In Opt Count";
-                worksheet.Cells[1, 15].Value = "Transfer In Opt MBQ";
-                worksheet.Cells[1, 16].Value = "DC MBQ";
-                worksheet.Cells[1, 17].Value = "Store Close Excess Qty";
-                worksheet.Cells[1, 18].Value = "Store Close Short Qty";
-                worksheet.Cells[1, 19].Value = "Created Date";
-                worksheet.Cells[1, 20].Value = "Created By";
+                worksheet.Cells[1, 9].Value = "SEG";
+                worksheet.Cells[1, 10].Value = "DIV";
+                worksheet.Cells[1, 11].Value = "SUB DIV";
+                worksheet.Cells[1, 12].Value = "MAJ CAT NM";
+                worksheet.Cells[1, 13].Value = "Week Start";
+                worksheet.Cells[1, 14].Value = "Week End";
+                worksheet.Cells[1, 15].Value = "FY Year";
+                worksheet.Cells[1, 16].Value = "FY Week";
+                worksheet.Cells[1, 17].Value = "Transfer In Stock Qty";
+                worksheet.Cells[1, 18].Value = "Transfer In Opt Count";
+                worksheet.Cells[1, 19].Value = "Transfer In Opt MBQ";
+                worksheet.Cells[1, 20].Value = "DC MBQ";
+                worksheet.Cells[1, 21].Value = "Store Close Excess Qty";
+                worksheet.Cells[1, 22].Value = "Store Close Short Qty";
+                worksheet.Cells[1, 23].Value = "Created Date";
+                worksheet.Cells[1, 24].Value = "Created By";
 
                 // Format header
-                var headerRange = worksheet.Cells[1, 1, 1, 20];
+                var headerRange = worksheet.Cells[1, 1, 1, 24];
                 headerRange.Style.Font.Bold = true;
                 headerRange.Style.Fill.PatternType = OfficeOpenXml.Style.ExcelFillStyle.Solid;
                 headerRange.Style.Fill.BackgroundColor.SetColor(System.Drawing.Color.LightBlue);
@@ -181,24 +185,28 @@ public class PlanService
                     worksheet.Cells[row, 6].Value = plan.HubNm;
                     worksheet.Cells[row, 7].Value = plan.Area;
                     worksheet.Cells[row, 8].Value = plan.MajCat;
-                    worksheet.Cells[row, 9].Value = plan.WkStDt?.ToString("yyyy-MM-dd");
-                    worksheet.Cells[row, 10].Value = plan.WkEndDt?.ToString("yyyy-MM-dd");
-                    worksheet.Cells[row, 11].Value = plan.FyYear;
-                    worksheet.Cells[row, 12].Value = plan.FyWeek;
-                    worksheet.Cells[row, 13].Value = plan.TrfInStkQ;
-                    worksheet.Cells[row, 14].Value = plan.TrfInOptCnt;
-                    worksheet.Cells[row, 15].Value = plan.TrfInOptMbq;
-                    worksheet.Cells[row, 16].Value = plan.DcMbq;
-                    worksheet.Cells[row, 17].Value = plan.StClExcessQ;
-                    worksheet.Cells[row, 18].Value = plan.StClShortQ;
-                    worksheet.Cells[row, 19].Value = plan.CreatedDt?.ToString("yyyy-MM-dd HH:mm:ss");
-                    worksheet.Cells[row, 20].Value = plan.CreatedBy;
+                    worksheet.Cells[row, 9].Value = plan.Seg ?? "NA";
+                    worksheet.Cells[row, 10].Value = plan.Div ?? "NA";
+                    worksheet.Cells[row, 11].Value = plan.SubDiv ?? "NA";
+                    worksheet.Cells[row, 12].Value = plan.MajCatNm ?? "NA";
+                    worksheet.Cells[row, 13].Value = plan.WkStDt?.ToString("yyyy-MM-dd");
+                    worksheet.Cells[row, 14].Value = plan.WkEndDt?.ToString("yyyy-MM-dd");
+                    worksheet.Cells[row, 15].Value = plan.FyYear;
+                    worksheet.Cells[row, 16].Value = plan.FyWeek;
+                    worksheet.Cells[row, 17].Value = plan.TrfInStkQ;
+                    worksheet.Cells[row, 18].Value = plan.TrfInOptCnt;
+                    worksheet.Cells[row, 19].Value = plan.TrfInOptMbq;
+                    worksheet.Cells[row, 20].Value = plan.DcMbq;
+                    worksheet.Cells[row, 21].Value = plan.StClExcessQ;
+                    worksheet.Cells[row, 22].Value = plan.StClShortQ;
+                    worksheet.Cells[row, 23].Value = plan.CreatedDt?.ToString("yyyy-MM-dd HH:mm:ss");
+                    worksheet.Cells[row, 24].Value = plan.CreatedBy;
 
                     row++;
                 }
 
                 // Auto-fit columns
-                for (int col = 1; col <= 20; col++)
+                for (int col = 1; col <= 24; col++)
                 {
                     worksheet.Column(col).AutoFit();
                 }
@@ -272,25 +280,32 @@ public class PlanService
                 worksheet.Cells[1, 1].Value = "RDC Code";
                 worksheet.Cells[1, 2].Value = "RDC Name";
                 worksheet.Cells[1, 3].Value = "Major Category";
-                worksheet.Cells[1, 4].Value = "Week";
-                worksheet.Cells[1, 5].Value = "Week Start";
-                worksheet.Cells[1, 6].Value = "Week End";
-                worksheet.Cells[1, 7].Value = "DC Stock Qty";
-                worksheet.Cells[1, 8].Value = "GRT Stock Qty";
-                worksheet.Cells[1, 9].Value = "BGT Purchase Q";
-                worksheet.Cells[1, 10].Value = "POS PO Raised";
-                worksheet.Cells[1, 11].Value = "NEG PO Raised";
-                worksheet.Cells[1, 12].Value = "DC Stock Excess";
-                worksheet.Cells[1, 13].Value = "DC Stock Short";
-                worksheet.Cells[1, 14].Value = "Store Stock Excess";
-                worksheet.Cells[1, 15].Value = "Store Stock Short";
-                worksheet.Cells[1, 16].Value = "CO Stock Excess";
-                worksheet.Cells[1, 17].Value = "CO Stock Short";
-                worksheet.Cells[1, 18].Value = "Created Date";
-                worksheet.Cells[1, 19].Value = "Created By";
+                worksheet.Cells[1, 4].Value = "SEG";
+                worksheet.Cells[1, 5].Value = "DIV";
+                worksheet.Cells[1, 6].Value = "SUB DIV";
+                worksheet.Cells[1, 7].Value = "MAJ CAT NM";
+                worksheet.Cells[1, 8].Value = "Week";
+                worksheet.Cells[1, 9].Value = "Week Start";
+                worksheet.Cells[1, 10].Value = "Week End";
+                worksheet.Cells[1, 11].Value = "DC Stock Qty";
+                worksheet.Cells[1, 12].Value = "GRT Stock Qty";
+                worksheet.Cells[1, 13].Value = "BGT Purchase Q";
+                worksheet.Cells[1, 14].Value = "POS PO Raised";
+                worksheet.Cells[1, 15].Value = "NEG PO Raised";
+                worksheet.Cells[1, 16].Value = "CW2 Trf Out Q";
+                worksheet.Cells[1, 17].Value = "CW3 Trf Out Q";
+                worksheet.Cells[1, 18].Value = "CW4 Trf Out Q";
+                worksheet.Cells[1, 19].Value = "DC Stock Excess";
+                worksheet.Cells[1, 20].Value = "DC Stock Short";
+                worksheet.Cells[1, 21].Value = "Store Stock Excess";
+                worksheet.Cells[1, 22].Value = "Store Stock Short";
+                worksheet.Cells[1, 23].Value = "CO Stock Excess";
+                worksheet.Cells[1, 24].Value = "CO Stock Short";
+                worksheet.Cells[1, 25].Value = "Created Date";
+                worksheet.Cells[1, 26].Value = "Created By";
 
                 // Format header
-                var headerRange = worksheet.Cells[1, 1, 1, 19];
+                var headerRange = worksheet.Cells[1, 1, 1, 26];
                 headerRange.Style.Font.Bold = true;
                 headerRange.Style.Fill.PatternType = OfficeOpenXml.Style.ExcelFillStyle.Solid;
                 headerRange.Style.Fill.BackgroundColor.SetColor(System.Drawing.Color.LightGreen);
@@ -302,28 +317,35 @@ public class PlanService
                     worksheet.Cells[row, 1].Value = plan.RdcCd;
                     worksheet.Cells[row, 2].Value = plan.RdcNm;
                     worksheet.Cells[row, 3].Value = plan.MajCat;
-                    worksheet.Cells[row, 4].Value = $"FY{plan.FyYear} W{plan.FyWeek}";
-                    worksheet.Cells[row, 5].Value = plan.WkStDt?.ToString("yyyy-MM-dd");
-                    worksheet.Cells[row, 6].Value = plan.WkEndDt?.ToString("yyyy-MM-dd");
-                    worksheet.Cells[row, 7].Value = plan.DcStkQ;
-                    worksheet.Cells[row, 8].Value = plan.GrtStkQ;
-                    worksheet.Cells[row, 9].Value = plan.BgtPurQInit;
-                    worksheet.Cells[row, 10].Value = plan.PosPORaised;
-                    worksheet.Cells[row, 11].Value = plan.NegPORaised;
-                    worksheet.Cells[row, 12].Value = plan.DcStkExcessQ;
-                    worksheet.Cells[row, 13].Value = plan.DcStkShortQ;
-                    worksheet.Cells[row, 14].Value = plan.StStkExcessQ;
-                    worksheet.Cells[row, 15].Value = plan.StStkShortQ;
-                    worksheet.Cells[row, 16].Value = plan.CoStkExcessQ;
-                    worksheet.Cells[row, 17].Value = plan.CoStkShortQ;
-                    worksheet.Cells[row, 18].Value = plan.CreatedDt?.ToString("yyyy-MM-dd HH:mm:ss");
-                    worksheet.Cells[row, 19].Value = plan.CreatedBy;
+                    worksheet.Cells[row, 4].Value = plan.Seg ?? "NA";
+                    worksheet.Cells[row, 5].Value = plan.Div ?? "NA";
+                    worksheet.Cells[row, 6].Value = plan.SubDiv ?? "NA";
+                    worksheet.Cells[row, 7].Value = plan.MajCatNm ?? "NA";
+                    worksheet.Cells[row, 8].Value = $"FY{plan.FyYear} W{plan.FyWeek}";
+                    worksheet.Cells[row, 9].Value = plan.WkStDt?.ToString("yyyy-MM-dd");
+                    worksheet.Cells[row, 10].Value = plan.WkEndDt?.ToString("yyyy-MM-dd");
+                    worksheet.Cells[row, 11].Value = plan.DcStkQ;
+                    worksheet.Cells[row, 12].Value = plan.GrtStkQ;
+                    worksheet.Cells[row, 13].Value = plan.BgtPurQInit;
+                    worksheet.Cells[row, 14].Value = plan.PosPORaised;
+                    worksheet.Cells[row, 15].Value = plan.NegPORaised;
+                    worksheet.Cells[row, 16].Value = plan.Cw2TrfOutQ ?? 0;
+                    worksheet.Cells[row, 17].Value = plan.Cw3TrfOutQ ?? 0;
+                    worksheet.Cells[row, 18].Value = plan.Cw4TrfOutQ ?? 0;
+                    worksheet.Cells[row, 19].Value = plan.DcStkExcessQ;
+                    worksheet.Cells[row, 20].Value = plan.DcStkShortQ;
+                    worksheet.Cells[row, 21].Value = plan.StStkExcessQ;
+                    worksheet.Cells[row, 22].Value = plan.StStkShortQ;
+                    worksheet.Cells[row, 23].Value = plan.CoStkExcessQ;
+                    worksheet.Cells[row, 24].Value = plan.CoStkShortQ;
+                    worksheet.Cells[row, 25].Value = plan.CreatedDt?.ToString("yyyy-MM-dd HH:mm:ss");
+                    worksheet.Cells[row, 26].Value = plan.CreatedBy;
 
                     row++;
                 }
 
                 // Auto-fit columns
-                for (int col = 1; col <= 19; col++)
+                for (int col = 1; col <= 26; col++)
                 {
                     worksheet.Column(col).AutoFit();
                 }

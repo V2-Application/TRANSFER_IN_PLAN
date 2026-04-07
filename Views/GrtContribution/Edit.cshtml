@@ -1,0 +1,32 @@
+@{ ViewData["Title"] = "Edit GRT Contribution"; }
+@model GrtContribution
+
+<div class="card shadow-sm border-0">
+    <div class="card-header bg-white py-2"><h5 class="card-title mb-0"><i class="bi bi-pencil me-2 text-warning"></i>Edit GRT Contribution</h5></div>
+    <div class="card-body">
+        <form asp-action="Edit" method="post">
+            <div class="row g-3 mb-3">
+                <div class="col-md-4">
+                    <label asp-for="Ssn" class="form-label fw-semibold">SSN</label>
+                    <input asp-for="Ssn" class="form-control form-control-sm" readonly />
+                </div>
+            </div>
+
+            <h6 class="fw-bold text-muted mb-2"><i class="bi bi-calendar-week me-1"></i>Weekly GRT Contribution (WK 1 - 48)</h6>
+            <div class="row g-2 mb-3">
+                @for (int w = 1; w <= 48; w++)
+                {
+                    <div class="col-6 col-sm-4 col-md-3 col-lg-2">
+                        <label class="form-label small text-muted mb-0">WK @w</label>
+                        <input name="Wk@(w)" type="number" step="0.0001" class="form-control form-control-sm" value="@(typeof(GrtContribution).GetProperty("Wk"+w)?.GetValue(Model))" placeholder="0.0000" />
+                    </div>
+                }
+            </div>
+
+            <div class="d-flex gap-2">
+                <button type="submit" class="btn btn-warning"><i class="bi bi-check-circle me-1"></i>Update</button>
+                <a asp-action="Index" class="btn btn-secondary">Cancel</a>
+            </div>
+        </form>
+    </div>
+</div>

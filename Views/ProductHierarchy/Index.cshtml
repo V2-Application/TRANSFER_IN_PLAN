@@ -1,0 +1,102 @@
+@{ ViewData["Title"] = "Product Hierarchy"; }
+@model IEnumerable<ProductHierarchy>
+
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+    <h3 class="mb-0"><i class="bi bi-diagram-2 me-2"></i>Product Hierarchy</h3>
+    <div class="d-flex gap-2">
+        <a asp-action="Create" class="btn btn-primary btn-sm"><i class="bi bi-plus-circle me-1"></i>Add</a>
+        <a asp-action="ExportCsv" asp-route-seg="@ViewBag.Seg" asp-route-div="@ViewBag.Div" asp-route-subDiv="@ViewBag.SubDiv" asp-route-majCatNm="@ViewBag.MajCatNm" class="btn btn-success btn-sm"><i class="bi bi-download me-1"></i>CSV</a>
+    </div>
+</div>
+
+@{ ViewBag.Kpi2Label = "Segments"; ViewBag.Kpi2Value = ViewBag.TotalSegs; ViewBag.Kpi2Color = "#27ae60";
+   ViewBag.Kpi3Label = "Divisions"; ViewBag.Kpi3Value = ViewBag.TotalDivs; ViewBag.Kpi3Color = "#8e44ad"; }
+<partial name="_RefTableAnalytics" />
+
+@if (TempData["SuccessMessage"] != null) { <div class="alert alert-success alert-dismissible fade show py-2"><i class="bi bi-check-circle me-1"></i>@TempData["SuccessMessage"]<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div> }
+@if (TempData["ErrorMessage"] != null) { <div class="alert alert-danger alert-dismissible fade show py-2"><i class="bi bi-exclamation-circle me-1"></i>@TempData["ErrorMessage"]<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div> }
+
+<div class="card shadow-sm border-0 mb-2">
+    <div class="card-body py-2">
+        <form method="get" class="row g-2 align-items-end">
+            <div class="col-md-2">
+                <label class="form-label small fw-semibold mb-0">Segment</label>
+                <select name="seg" class="form-select form-select-sm search-select">
+                    <option value="">-- All --</option>
+                    @foreach (var s in (ViewBag.Segs as IEnumerable<string> ?? new List<string>())) { <option value="@s" selected="@(s == ViewBag.Seg?.ToString() ? "selected" : null)">@s</option> }
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small fw-semibold mb-0">Division</label>
+                <select name="div" class="form-select form-select-sm search-select">
+                    <option value="">-- All --</option>
+                    @foreach (var d in (ViewBag.Divs as IEnumerable<string> ?? new List<string>())) { <option value="@d" selected="@(d == ViewBag.Div?.ToString() ? "selected" : null)">@d</option> }
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small fw-semibold mb-0">Sub Division</label>
+                <select name="subDiv" class="form-select form-select-sm search-select">
+                    <option value="">-- All --</option>
+                    @foreach (var sd in (ViewBag.SubDivs as IEnumerable<string> ?? new List<string>())) { <option value="@sd" selected="@(sd == ViewBag.SubDiv?.ToString() ? "selected" : null)">@sd</option> }
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small fw-semibold mb-0">Maj Cat Name</label>
+                <select name="majCatNm" class="form-select form-select-sm search-select">
+                    <option value="">-- All --</option>
+                    @foreach (var m in (ViewBag.MajCatNms as IEnumerable<string> ?? new List<string>())) { <option value="@m" selected="@(m == ViewBag.MajCatNm?.ToString() ? "selected" : null)">@m</option> }
+                </select>
+            </div>
+            <div class="col-md-3 d-flex gap-2">
+                <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-search me-1"></i>Filter</button>
+                <a href="@Url.Action("Index")" class="btn btn-outline-secondary btn-sm"><i class="bi bi-x-circle me-1"></i>Clear</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card shadow-sm border-0">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover table-bordered table-sm mb-0" id="phTable">
+                <thead class="table-dark">
+                    <tr>
+                        <th>SEG</th>
+                        <th>DIV</th>
+                        <th>SUB DIV</th>
+                        <th>MAJ CAT NAME</th>
+                        <th>SSN</th>
+                        <th class="text-center">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var item in Model)
+                    {
+                        <tr>
+                            <td><span class="badge bg-primary bg-opacity-10 text-primary">@item.Seg</span></td>
+                            <td>@item.Div</td>
+                            <td>@item.SubDiv</td>
+                            <td class="fw-semibold">@item.MajCatNm</td>
+                            <td><span class="badge bg-secondary">@item.Ssn</span></td>
+                            <td class="text-center text-nowrap">
+                                <a asp-action="Edit" asp-route-id="@item.Id" class="btn btn-sm btn-warning py-0"><i class="bi bi-pencil"></i></a>
+                                <a asp-action="Delete" asp-route-id="@item.Id" class="btn btn-sm btn-danger py-0"><i class="bi bi-trash"></i></a>
+                            </td>
+                        </tr>
+                    }
+                    @if (!Model.Any()) { <tr><td colspan="6" class="text-center text-muted py-3">No data. Use filters or upload data via Bulk Upload.</td></tr> }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+    $(document).ready(function () {
+        if ($.fn.DataTable) {
+            $('#phTable').DataTable({ paging: true, pageLength: 50, order: [[0, 'asc']], lengthMenu: [25, 50, 100, 250] });
+        }
+    });
+</script>
+}

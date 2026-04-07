@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
@@ -42,8 +43,25 @@ public class TrfInPlan
     [StringLength(100)]
     public string? MajCat { get; set; }
 
+    [Column("SEG")]
+    [StringLength(100)]
+    public string? Seg { get; set; }
+
+    [Column("DIV")]
+    [StringLength(100)]
+    public string? Div { get; set; }
+
+    [Column("SUB_DIV")]
+    [StringLength(100)]
+    public string? SubDiv { get; set; }
+
+    [Column("MAJ_CAT_NM")]
+    [StringLength(100)]
+    public string? MajCatNm { get; set; }
+
     [Column("SSN")]
-    public int? Ssn { get; set; }
+    [StringLength(10)]
+    public string? Ssn { get; set; }
 
     [Column("WEEK_ID")]
     public int? WeekId { get; set; }
@@ -61,75 +79,99 @@ public class TrfInPlan
     public int? FyWeek { get; set; }
 
     [Column("S_GRT_STK_Q")]
+    [Precision(18, 4)]
     public decimal? SGrtStkQ { get; set; }
 
     [Column("W_GRT_STK_Q")]
+    [Precision(18, 4)]
     public decimal? WGrtStkQ { get; set; }
 
     [Column("BGT_DISP_CL_Q")]
+    [Precision(18, 4)]
     public decimal? BgtDispClQ { get; set; }
 
     [Column("BGT_DISP_CL_OPT")]
+    [Precision(18, 4)]
     public decimal? BgtDispClOpt { get; set; }
 
     [Column("CM1_SALE_COVER_DAY")]
+    [Precision(18, 4)]
     public decimal? Cm1SaleCoverDay { get; set; }
 
     [Column("CM2_SALE_COVER_DAY")]
+    [Precision(18, 4)]
     public decimal? Cm2SaleCoverDay { get; set; }
 
     [Column("COVER_SALE_QTY")]
+    [Precision(18, 4)]
     public decimal? CoverSaleQty { get; set; }
 
     [Column("BGT_ST_CL_MBQ")]
+    [Precision(18, 4)]
     public decimal? BgtStClMbq { get; set; }
 
     [Column("BGT_DISP_CL_OPT_MBQ")]
+    [Precision(18, 4)]
     public decimal? BgtDispClOptMbq { get; set; }
 
     [Column("BGT_TTL_CF_OP_STK_Q")]
+    [Precision(18, 4)]
     public decimal? BgtTtlCfOpStkQ { get; set; }
 
     [Column("NT_ACT_Q")]
+    [Precision(18, 4)]
     public decimal? NtActQ { get; set; }
 
     [Column("NET_BGT_CF_STK_Q")]
+    [Precision(18, 4)]
     public decimal? NetBgtCfStkQ { get; set; }
 
     [Column("CM_BGT_SALE_Q")]
+    [Precision(18, 4)]
     public decimal? CmBgtSaleQ { get; set; }
 
     [Column("CM1_BGT_SALE_Q")]
+    [Precision(18, 4)]
     public decimal? Cm1BgtSaleQ { get; set; }
 
     [Column("CM2_BGT_SALE_Q")]
+    [Precision(18, 4)]
     public decimal? Cm2BgtSaleQ { get; set; }
 
     [Column("TRF_IN_STK_Q")]
+    [Precision(18, 4)]
     public decimal? TrfInStkQ { get; set; }
 
     [Column("TRF_IN_OPT_CNT")]
+    [Precision(18, 4)]
     public decimal? TrfInOptCnt { get; set; }
 
     [Column("TRF_IN_OPT_MBQ")]
+    [Precision(18, 4)]
     public decimal? TrfInOptMbq { get; set; }
 
     [Column("DC_MBQ")]
+    [Precision(18, 4)]
     public decimal? DcMbq { get; set; }
 
     [Column("BGT_TTL_CF_CL_STK_Q")]
+    [Precision(18, 4)]
     public decimal? BgtTtlCfClStkQ { get; set; }
 
     [Column("BGT_NT_ACT_Q")]
+    [Precision(18, 4)]
     public decimal? BgtNtActQ { get; set; }
 
     [Column("NET_ST_CL_STK_Q")]
+    [Precision(18, 4)]
     public decimal? NetStClStkQ { get; set; }
 
     [Column("ST_CL_EXCESS_Q")]
+    [Precision(18, 4)]
     public decimal? StClExcessQ { get; set; }
 
     [Column("ST_CL_SHORT_Q")]
+    [Precision(18, 4)]
     public decimal? StClShortQ { get; set; }
 
     [Column("CREATED_DT")]

@@ -1,0 +1,227 @@
+/*==============================================================
+  SUB-LEVEL PURCHASE PLAN
+  Same algorithm as SP_GENERATE_PURCHASE_PLAN but at sub-level
+  granularity: RDC_CD + MAJ_CAT + SUB_VALUE + WEEK
+
+  Reads transfer-out from SUB_LEVEL_TRF_PLAN (already generated)
+  Reads DC stock from SUB_DC_STK_{LEVEL}
+  Same cascading calculation logic
+==============================================================*/
+
+USE [planning];
+GO
+
+IF OBJECT_ID('dbo.SP_GENERATE_SUB_LEVEL_PP','P') IS NOT NULL
+    DROP PROCEDURE dbo.SP_GENERATE_SUB_LEVEL_PP;
+GO
+
+CREATE PROCEDURE dbo.SP_GENERATE_SUB_LEVEL_PP
+    @Level          VARCHAR(10),
+    @StartWeekID    INT,
+    @EndWeekID      INT,
+    @RdcCode        VARCHAR(20) = NULL,
+    @MajCat         VARCHAR(50) = NULL
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    DECLARE @DcStockTable VARCHAR(50);
+
+    IF @Level = 'MVGR' SET @DcStockTable = 'SUB_DC_STK_MVGR';
+    ELSE IF @Level = 'SZ' SET @DcStockTable = 'SUB_DC_STK_SZ';
+    ELSE IF @Level = 'SEG' SET @DcStockTable = 'SUB_DC_STK_SEG';
+    ELSE IF @Level = 'VND' SET @DcStockTable = 'SUB_DC_STK_VND';
+    ELSE BEGIN RAISERROR('Invalid @Level', 16, 1); RETURN; END
+
+    -- ═══ STEP 1: Weeks ═══
+    IF OBJECT_ID('tempdb..#Weeks') IS NOT NULL DROP TABLE #Weeks;
+    SELECT WEEK_ID, WEEK_SEQ, FY_WEEK, FY_YEAR, WK_ST_DT, WK_END_DT
+    INTO #Weeks FROM dbo.WEEK_CALENDAR WHERE WEEK_ID BETWEEN @StartWeekID AND @EndWeekID;
+    CREATE UNIQUE CLUSTERED INDEX CX ON #Weeks (WEEK_ID);
+    CREATE UNIQUE INDEX IX_SEQ ON #Weeks (WEEK_SEQ);
+
+    DECLARE @WeekList TABLE (Seq INT IDENTITY(1,1) PRIMARY KEY, WID INT);
+    INSERT INTO @WeekList (WID) SELECT WEEK_ID FROM #Weeks ORDER BY WEEK_ID;
+    DECLARE @TotalWeeks INT = @@ROWCOUNT;
+    DECLARE @FirstWkSeq INT;
+    SELECT @FirstWkSeq = WEEK_SEQ FROM #Weeks WHERE WEEK_ID = (SELECT WID FROM @WeekList WHERE Seq = 1);
+
+    -- Week offset map
+    IF OBJECT_ID('tempdb..#WkMap') IS NOT NULL DROP TABLE #WkMap;
+    SELECT w.WEEK_ID, wP.WEEK_ID AS PREV_WEEK_ID, w1.WEEK_ID AS NEXT1_WEEK_ID,
+           w2.WEEK_ID AS NEXT2_WEEK_ID, w3.WEEK_ID AS NEXT3_WEEK_ID, w4.WEEK_ID AS NEXT4_WEEK_ID
+    INTO #WkMap FROM #Weeks w
+    LEFT JOIN #Weeks wP ON wP.WEEK_SEQ = w.WEEK_SEQ - 1
+    LEFT JOIN #Weeks w1 ON w1.WEEK_SEQ = w.WEEK_SEQ + 1
+    LEFT JOIN #Weeks w2 ON w2.WEEK_SEQ = w.WEEK_SEQ + 2
+    LEFT JOIN #Weeks w3 ON w3.WEEK_SEQ = w.WEEK_SEQ + 3
+    LEFT JOIN #Weeks w4 ON w4.WEEK_SEQ = w.WEEK_SEQ + 4;
+    CREATE UNIQUE CLUSTERED INDEX CX ON #WkMap (WEEK_ID);
+
+    -- ═══ STEP 2: Aggregate from SUB_LEVEL_TRF_PLAN (by RDC + MAJ_CAT + SUB_VALUE) ═══
+    IF OBJECT_ID('tempdb..#TrfAgg') IS NOT NULL DROP TABLE #TrfAgg;
+
+    SELECT
+        sm.RDC_CD, t.MAJ_CAT, t.SUB_VALUE, w.WEEK_ID,
+        SUM(t.CM_BGT_SALE_Q)        AS CW_BGT_SALE_Q,
+        SUM(t.CM1_BGT_SALE_Q)       AS CW1_BGT_SALE_Q,
+        SUM(t.BGT_DISP_CL_Q)        AS BGT_DISP_CL_Q,
+        SUM(t.BGT_ST_CL_MBQ)        AS BGT_ST_CL_MBQ,
+        SUM(t.BGT_TTL_CF_OP_STK_Q)  AS NET_ST_OP_STK_Q,
+        SUM(t.TRF_IN_STK_Q)         AS CW_TRF_OUT_Q,
+        SUM(t.BGT_TTL_CF_CL_STK_Q)  AS NET_BGT_ST_CL_STK_Q,
+        SUM(t.ST_CL_EXCESS_Q)       AS ST_STK_EXCESS_Q,
+        SUM(t.ST_CL_SHORT_Q)        AS ST_STK_SHORT_Q
+    INTO #TrfAgg
+    FROM dbo.SUB_LEVEL_TRF_PLAN t
+    INNER JOIN dbo.MASTER_ST_MASTER sm ON sm.[ST CD] = t.ST_CD
+    INNER JOIN #Weeks w ON w.FY_YEAR = t.FY_YEAR AND w.FY_WEEK = t.FY_WEEK
+    WHERE t.[LEVEL] = @Level
+      AND (@RdcCode IS NULL OR sm.RDC_CD = @RdcCode)
+      AND (@MajCat IS NULL OR t.MAJ_CAT = @MajCat)
+    GROUP BY sm.RDC_CD, t.MAJ_CAT, t.SUB_VALUE, w.WEEK_ID;
+
+    CREATE CLUSTERED INDEX CX ON #TrfAgg (RDC_CD, MAJ_CAT, SUB_VALUE, WEEK_ID);
+
+    -- Transfer out at future weeks
+    IF OBJECT_ID('tempdb..#TrfNext') IS NOT NULL DROP TABLE #TrfNext;
+    SELECT ta.RDC_CD, ta.MAJ_CAT, ta.SUB_VALUE, ta.WEEK_ID,
+           ISNULL(t1.CW_TRF_OUT_Q, 0) AS CW1_TRF_OUT_Q,
+           ISNULL(t2.CW_TRF_OUT_Q, 0) AS CW2_TRF_OUT_Q,
+           ISNULL(t3.CW_TRF_OUT_Q, 0) AS CW3_TRF_OUT_Q,
+           ISNULL(t4.CW_TRF_OUT_Q, 0) AS CW4_TRF_OUT_Q,
+           ISNULL(t1.CW1_BGT_SALE_Q, 0) AS CW2_BGT_SALE_Q,
+           ISNULL(t2.CW1_BGT_SALE_Q, 0) AS CW3_BGT_SALE_Q,
+           ISNULL(t3.CW1_BGT_SALE_Q, 0) AS CW4_BGT_SALE_Q,
+           ISNULL(t4.CW1_BGT_SALE_Q, 0) AS CW5_BGT_SALE_Q
+    INTO #TrfNext FROM #TrfAgg ta
+    LEFT JOIN #WkMap wm ON wm.WEEK_ID = ta.WEEK_ID
+    LEFT JOIN #TrfAgg t1 ON t1.RDC_CD=ta.RDC_CD AND t1.MAJ_CAT=ta.MAJ_CAT AND t1.SUB_VALUE=ta.SUB_VALUE AND t1.WEEK_ID=wm.NEXT1_WEEK_ID
+    LEFT JOIN #TrfAgg t2 ON t2.RDC_CD=ta.RDC_CD AND t2.MAJ_CAT=ta.MAJ_CAT AND t2.SUB_VALUE=ta.SUB_VALUE AND t2.WEEK_ID=wm.NEXT2_WEEK_ID
+    LEFT JOIN #TrfAgg t3 ON t3.RDC_CD=ta.RDC_CD AND t3.MAJ_CAT=ta.MAJ_CAT AND t3.SUB_VALUE=ta.SUB_VALUE AND t3.WEEK_ID=wm.NEXT3_WEEK_ID
+    LEFT JOIN #TrfAgg t4 ON t4.RDC_CD=ta.RDC_CD AND t4.MAJ_CAT=ta.MAJ_CAT AND t4.SUB_VALUE=ta.SUB_VALUE AND t4.WEEK_ID=wm.NEXT4_WEEK_ID;
+    CREATE CLUSTERED INDEX CX ON #TrfNext (RDC_CD, MAJ_CAT, SUB_VALUE, WEEK_ID);
+
+    -- ═══ STEP 3: DC Stock + Reference Data ═══
+    IF OBJECT_ID('tempdb..#DcStk') IS NOT NULL DROP TABLE #DcStk;
+    CREATE TABLE #DcStk (RDC_CD NVARCHAR(50), MAJ_CAT NVARCHAR(100), SUB_VALUE NVARCHAR(200), DC_STK_Q DECIMAL(18,4), GRT_STK_Q DECIMAL(18,4), W_GRT_STK_Q DECIMAL(18,4));
+
+    DECLARE @SQL NVARCHAR(MAX) = N'
+    INSERT INTO #DcStk (RDC_CD, MAJ_CAT, SUB_VALUE, DC_STK_Q, GRT_STK_Q, W_GRT_STK_Q)
+    SELECT RDC_CD, MAJ_CAT, SUB_VALUE, DC_STK_Q, GRT_STK_Q, W_GRT_STK_Q FROM (
+        SELECT RDC_CD, MAJ_CAT, SUB_VALUE, DC_STK_Q, GRT_STK_Q, W_GRT_STK_Q,
+            ROW_NUMBER() OVER (PARTITION BY RDC_CD, MAJ_CAT, SUB_VALUE ORDER BY [DATE] DESC) RN
+        FROM dbo.[' + @DcStockTable + N']
+    ) r WHERE RN = 1';
+    EXEC sp_executesql @SQL;
+    CREATE INDEX IX ON #DcStk (RDC_CD, MAJ_CAT, SUB_VALUE);
+
+    -- ═══ STEP 4: Build #PP calculation table ═══
+    IF OBJECT_ID('tempdb..#PP') IS NOT NULL DROP TABLE #PP;
+
+    SELECT
+        ta.RDC_CD, ta.MAJ_CAT, ta.SUB_VALUE, ww.WEEK_ID, ww.FY_WEEK, ww.FY_YEAR,
+        ISNULL(dc.DC_STK_Q, 0) AS DC_STK_Q,
+        ISNULL(dc.GRT_STK_Q, 0) AS GRT_STK_Q,
+        ISNULL(dc.GRT_STK_Q, 0) AS TTL_STK,
+        ISNULL(dc.GRT_STK_Q, 0) AS OP_STK,
+        CAST(0 AS DECIMAL(18,4)) AS NT_ACT_STK,
+        ISNULL(ta.BGT_DISP_CL_Q, 0) AS BGT_DISP_CL_Q,
+        ISNULL(ta.CW_BGT_SALE_Q, 0) AS CW_BGT_SALE_Q,
+        ISNULL(ta.CW1_BGT_SALE_Q, 0) AS CW1_BGT_SALE_Q,
+        ISNULL(tn.CW2_BGT_SALE_Q, 0) AS CW2_BGT_SALE_Q,
+        ISNULL(tn.CW3_BGT_SALE_Q, 0) AS CW3_BGT_SALE_Q,
+        ISNULL(tn.CW4_BGT_SALE_Q, 0) AS CW4_BGT_SALE_Q,
+        ISNULL(dc.DC_STK_Q, 0) AS BGT_DC_OP_STK_Q,
+        ISNULL(dc.DC_STK_Q, 0) AS BGT_CF_STK_Q,
+        ISNULL(ta.CW_TRF_OUT_Q, 0) AS CW_TRF_OUT_Q,
+        ISNULL(tn.CW1_TRF_OUT_Q, 0) AS CW1_TRF_OUT_Q,
+        ISNULL(tn.CW2_TRF_OUT_Q, 0) AS CW2_TRF_OUT_Q,
+        ISNULL(tn.CW3_TRF_OUT_Q, 0) AS CW3_TRF_OUT_Q,
+        ISNULL(tn.CW4_TRF_OUT_Q, 0) AS CW4_TRF_OUT_Q,
+        CAST(0 AS DECIMAL(18,4)) AS TTL_TRF_OUT_Q,
+        ISNULL(ta.CW1_BGT_SALE_Q,0)+ISNULL(tn.CW2_BGT_SALE_Q,0)+ISNULL(tn.CW3_BGT_SALE_Q,0)+ISNULL(tn.CW4_BGT_SALE_Q,0) AS BGT_DC_MBQ_SALE,
+        CAST(0 AS DECIMAL(18,4)) AS BGT_DC_CL_MBQ,
+        CAST(0 AS DECIMAL(18,4)) AS BGT_DC_CL_STK_Q,
+        CAST(0 AS DECIMAL(18,4)) AS BGT_PUR_Q_INIT,
+        CAST(0 AS DECIMAL(18,4)) AS DC_STK_EXCESS_Q,
+        CAST(0 AS DECIMAL(18,4)) AS DC_STK_SHORT_Q
+    INTO #PP
+    FROM (SELECT DISTINCT RDC_CD, MAJ_CAT, SUB_VALUE FROM #TrfAgg) AS combos
+    CROSS JOIN #Weeks ww
+    LEFT JOIN #TrfAgg ta ON ta.RDC_CD=combos.RDC_CD AND ta.MAJ_CAT=combos.MAJ_CAT AND ta.SUB_VALUE=combos.SUB_VALUE AND ta.WEEK_ID=ww.WEEK_ID
+    LEFT JOIN #TrfNext tn ON tn.RDC_CD=combos.RDC_CD AND tn.MAJ_CAT=combos.MAJ_CAT AND tn.SUB_VALUE=combos.SUB_VALUE AND tn.WEEK_ID=ww.WEEK_ID
+    LEFT JOIN #DcStk dc ON dc.RDC_CD=combos.RDC_CD AND dc.MAJ_CAT=combos.MAJ_CAT AND dc.SUB_VALUE=combos.SUB_VALUE;
+
+    CREATE CLUSTERED INDEX CX ON #PP (RDC_CD, MAJ_CAT, SUB_VALUE, WEEK_ID);
+
+    -- TTL_TRF_OUT_Q
+    UPDATE #PP SET TTL_TRF_OUT_Q = CW_TRF_OUT_Q + CW1_TRF_OUT_Q + CW2_TRF_OUT_Q + CW3_TRF_OUT_Q + CW4_TRF_OUT_Q;
+
+    -- ═══ STEP 5: Week 1 calculations ═══
+    UPDATE #PP SET BGT_DC_CL_MBQ = CASE WHEN (CW1_TRF_OUT_Q+CW2_TRF_OUT_Q+CW3_TRF_OUT_Q+CW4_TRF_OUT_Q) < BGT_DC_MBQ_SALE
+                                        THEN (CW1_TRF_OUT_Q+CW2_TRF_OUT_Q+CW3_TRF_OUT_Q+CW4_TRF_OUT_Q) ELSE BGT_DC_MBQ_SALE END;
+
+    UPDATE #PP SET BGT_PUR_Q_INIT = CASE WHEN TTL_TRF_OUT_Q + BGT_DC_CL_MBQ - BGT_CF_STK_Q > 0
+                                         THEN TTL_TRF_OUT_Q + BGT_DC_CL_MBQ - BGT_CF_STK_Q ELSE 0 END;
+
+    UPDATE #PP SET BGT_DC_CL_STK_Q = CASE WHEN BGT_CF_STK_Q + BGT_PUR_Q_INIT - TTL_TRF_OUT_Q > 0
+                                           THEN BGT_CF_STK_Q + BGT_PUR_Q_INIT - TTL_TRF_OUT_Q ELSE 0 END;
+
+    UPDATE #PP SET
+        DC_STK_EXCESS_Q = CASE WHEN BGT_DC_CL_STK_Q - BGT_DC_CL_MBQ > 0 THEN BGT_DC_CL_STK_Q - BGT_DC_CL_MBQ ELSE 0 END,
+        DC_STK_SHORT_Q = CASE WHEN BGT_DC_CL_MBQ - BGT_DC_CL_STK_Q > 0 THEN BGT_DC_CL_MBQ - BGT_DC_CL_STK_Q ELSE 0 END;
+
+    -- ═══ STEP 6: Chain weeks 2..N ═══
+    DECLARE @i INT = 2, @tw INT, @pw INT;
+    WHILE @i <= @TotalWeeks
+    BEGIN
+        SELECT @tw = WID FROM @WeekList WHERE Seq = @i;
+        SELECT @pw = WID FROM @WeekList WHERE Seq = @i - 1;
+
+        UPDATE c SET
+            c.DC_STK_Q = p.BGT_DC_CL_STK_Q,
+            c.BGT_DC_OP_STK_Q = p.BGT_DC_CL_STK_Q,
+            c.BGT_CF_STK_Q = CASE WHEN p.BGT_DC_CL_STK_Q > 0 THEN p.BGT_DC_CL_STK_Q ELSE 0 END
+        FROM #PP c INNER JOIN #PP p ON p.RDC_CD=c.RDC_CD AND p.MAJ_CAT=c.MAJ_CAT AND p.SUB_VALUE=c.SUB_VALUE AND p.WEEK_ID=@pw
+        WHERE c.WEEK_ID = @tw;
+
+        UPDATE #PP SET BGT_PUR_Q_INIT = CASE WHEN TTL_TRF_OUT_Q + BGT_DC_CL_MBQ - BGT_CF_STK_Q > 0
+                                              THEN TTL_TRF_OUT_Q + BGT_DC_CL_MBQ - BGT_CF_STK_Q ELSE 0 END
+        WHERE WEEK_ID = @tw;
+
+        UPDATE #PP SET BGT_DC_CL_STK_Q = CASE WHEN BGT_CF_STK_Q + BGT_PUR_Q_INIT - TTL_TRF_OUT_Q > 0
+                                                THEN BGT_CF_STK_Q + BGT_PUR_Q_INIT - TTL_TRF_OUT_Q ELSE 0 END
+        WHERE WEEK_ID = @tw;
+
+        UPDATE #PP SET
+            DC_STK_EXCESS_Q = CASE WHEN BGT_DC_CL_STK_Q - BGT_DC_CL_MBQ > 0 THEN BGT_DC_CL_STK_Q - BGT_DC_CL_MBQ ELSE 0 END,
+            DC_STK_SHORT_Q = CASE WHEN BGT_DC_CL_MBQ - BGT_DC_CL_STK_Q > 0 THEN BGT_DC_CL_MBQ - BGT_DC_CL_STK_Q ELSE 0 END
+        WHERE WEEK_ID = @tw;
+
+        SET @i = @i + 1;
+    END
+
+    -- ═══ STEP 7: Delete old + INSERT into SUB_LEVEL_PP_PLAN ═══
+    DELETE FROM dbo.SUB_LEVEL_PP_PLAN WHERE [LEVEL] = @Level;
+
+    INSERT INTO dbo.SUB_LEVEL_PP_PLAN (
+        [LEVEL], [SUB_VALUE], [RDC_CD], [MAJ_CAT], [CONT_PCT], [FY_YEAR], [FY_WEEK],
+        [BGT_DISP_CL_Q], [CW_BGT_SALE_Q], [CW1_BGT_SALE_Q], [CW2_BGT_SALE_Q], [CW3_BGT_SALE_Q], [CW4_BGT_SALE_Q],
+        [BGT_PUR_Q_INIT], [BGT_DC_CL_STK_Q], [BGT_DC_CL_MBQ], [BGT_DC_MBQ_SALE],
+        [DC_STK_EXCESS_Q], [DC_STK_SHORT_Q], [CREATED_DT]
+    )
+    SELECT @Level, SUB_VALUE, RDC_CD, MAJ_CAT, 0, FY_YEAR, FY_WEEK,
+        BGT_DISP_CL_Q, CW_BGT_SALE_Q, CW1_BGT_SALE_Q, CW2_BGT_SALE_Q, CW3_BGT_SALE_Q, CW4_BGT_SALE_Q,
+        BGT_PUR_Q_INIT, BGT_DC_CL_STK_Q, BGT_DC_CL_MBQ, BGT_DC_MBQ_SALE,
+        DC_STK_EXCESS_Q, DC_STK_SHORT_Q, GETDATE()
+    FROM #PP;
+
+    DROP TABLE IF EXISTS #Weeks, #WkMap, #TrfAgg, #TrfNext, #DcStk, #PP;
+
+    SELECT @Level AS [Level], @@ROWCOUNT AS RowsInserted;
+END;
+GO
+
+PRINT '>> SP_GENERATE_SUB_LEVEL_PP created.';
+GO

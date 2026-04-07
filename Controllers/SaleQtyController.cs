@@ -13,14 +13,23 @@ namespace TRANSFER_IN_PLAN.Controllers
         public SaleQtyController(PlanningDbContext context, ILogger<SaleQtyController> logger) { _context = context; _logger = logger; }
 
         [HttpGet]
-        public async Task<IActionResult> Index(string? stCd, string? majCat)
+        public async Task<IActionResult> Index(string? stCd, string? majCat, int page = 1, int pageSize = 100)
         {
             var query = _context.SaleQties.AsQueryable();
             if (!string.IsNullOrEmpty(stCd)) query = query.Where(x => x.StCd == stCd);
             if (!string.IsNullOrEmpty(majCat)) query = query.Where(x => x.MajCat == majCat);
+            ViewBag.TotalCount = await query.CountAsync();
+            ViewBag.Page = page; ViewBag.PageSize = pageSize;
             ViewBag.Categories = await _context.SaleQties.Select(x => x.MajCat).Distinct().OrderBy(x => x).ToListAsync();
+            ViewBag.StoreCodes = await _context.SaleQties.Select(x => x.StCd).Distinct().OrderBy(x => x).ToListAsync();
             ViewBag.StCd = stCd; ViewBag.MajCat = majCat;
-            return View(await query.OrderBy(x => x.StCd).ThenBy(x => x.MajCat).ToListAsync());
+            // Analytics (counts only - no full data load)
+            ViewBag.TotalRows = await _context.SaleQties.CountAsync();
+            ViewBag.TotalStores = await _context.SaleQties.Select(x => x.StCd).Distinct().CountAsync();
+            ViewBag.TotalCats = await _context.SaleQties.Select(x => x.MajCat).Distinct().CountAsync();
+            var data = await query.OrderBy(x => x.StCd).ThenBy(x => x.MajCat)
+                .Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();
+            return View(data);
         }
 
         [HttpGet]
@@ -41,15 +50,20 @@ namespace TRANSFER_IN_PLAN.Controllers
             return File(Encoding.UTF8.GetBytes(sb.ToString()), "text/csv", "SaleQty.csv");
         }
 
-        [HttpGet] public IActionResult Create() => View();
+        [HttpGet] public async Task<IActionResult> Create() { await LoadDropdowns(); return View(); }
         [HttpPost][ValidateAntiForgeryToken]
-        public async Task<IActionResult> Create(SaleQty model) { if (!ModelState.IsValid) return View(model); _context.SaleQties.Add(model); await _context.SaveChangesAsync(); _logger.LogInformation("SaleQty created: StCd={StCd}", model.StCd); TempData["SuccessMessage"] = "Created."; return RedirectToAction(nameof(Index)); }
-        [HttpGet] public async Task<IActionResult> Edit(string stCd, string majCat) { var m = await _context.SaleQties.FirstOrDefaultAsync(x => x.StCd == stCd && x.MajCat == majCat); return m == null ? NotFound() : View(m); }
+        public async Task<IActionResult> Create(SaleQty model) { if (!ModelState.IsValid) { await LoadDropdowns(); return View(model); } _context.SaleQties.Add(model); await _context.SaveChangesAsync(); _logger.LogInformation("SaleQty created: StCd={StCd}", model.StCd); TempData["SuccessMessage"] = "Created."; return RedirectToAction(nameof(Index)); }
+        [HttpGet] public async Task<IActionResult> Edit(string stCd, string majCat) { var m = await _context.SaleQties.FirstOrDefaultAsync(x => x.StCd == stCd && x.MajCat == majCat); if (m == null) return NotFound(); await LoadDropdowns(); return View(m); }
         [HttpPost][ValidateAntiForgeryToken]
         public async Task<IActionResult> Edit(SaleQty model) { if (!ModelState.IsValid) return View(model); try { _context.Update(model); await _context.SaveChangesAsync(); TempData["SuccessMessage"] = "Updated."; } catch (DbUpdateConcurrencyException) { if (!await _context.SaleQties.AnyAsync(x => x.StCd == model.StCd && x.MajCat == model.MajCat)) return NotFound(); throw; } return RedirectToAction(nameof(Index)); }
         [HttpGet] public async Task<IActionResult> Delete(string stCd, string majCat) { var m = await _context.SaleQties.FirstOrDefaultAsync(x => x.StCd == stCd && x.MajCat == majCat); return m == null ? NotFound() : View(m); }
         [HttpPost, ActionName("Delete")][ValidateAntiForgeryToken]
         public async Task<IActionResult> DeleteConfirmed(string stCd, string majCat) { var m = await _context.SaleQties.FirstOrDefaultAsync(x => x.StCd == stCd && x.MajCat == majCat); if (m != null) { _context.SaleQties.Remove(m); await _context.SaveChangesAsync(); TempData["SuccessMessage"] = "Deleted."; } return RedirectToAction(nameof(Index)); }
+        private async Task LoadDropdowns()
+        {
+            ViewBag.StoreCodes = await _context.StoreMasters.Select(x => x.StCd).Where(x => x != null).Distinct().OrderBy(x => x).ToListAsync();
+            ViewBag.MajCats = await _context.BinCapacities.Select(x => x.MajCat).Where(x => x != null).Distinct().OrderBy(x => x).ToListAsync();
+        }
         private static string Q(string? s) { if (string.IsNullOrEmpty(s)) return ""; return "\"" + s.Replace("\"", "\"\"") + "\""; }
     }
 }

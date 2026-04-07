@@ -1,11 +1,33 @@
-@{ ViewData["Title"] = "Bin Capacity Management"; }
+@{ ViewData["Title"] = "Bin Capacity Management";
+    ViewBag.Kpi2Label = "Categories"; ViewBag.Kpi2Value = ViewBag.TotalCategories; ViewBag.Kpi2Color = "#27ae60";
+    ViewBag.Kpi3Label = "Avg Bin Cap"; ViewBag.Kpi3Value = ((decimal)(ViewBag.AvgBinCap ?? 0m)).ToString("N1"); ViewBag.Kpi3Color = "#8e44ad";
+    ViewBag.Kpi4Label = "Avg DC Team"; ViewBag.Kpi4Value = ((decimal)(ViewBag.AvgDcTeam ?? 0m)).ToString("N1"); ViewBag.Kpi4Color = "#e67e22";
+}
 @model IEnumerable<BinCapacity>
+@using System.Text.Json
 
 <div class="d-flex justify-content-between align-items-center mb-3">
     <h3><i class="bi bi-box-seam me-2"></i>Bin Capacity</h3>
     <a asp-action="Create" class="btn btn-primary">
         <i class="bi bi-plus-circle me-1"></i>Add Bin Capacity
     </a>
+</div>
+
+<partial name="_RefTableAnalytics" />
+
+<div class="row g-2 mb-3">
+    <div class="col-12 col-md-6">
+        <div class="card shadow-sm border-0" style="height:220px;">
+            <div class="card-header bg-white border-0 py-2"><h6 class="fw-bold mb-0 small"><i class="bi bi-bar-chart me-1 text-primary"></i>Bin Capacity by Category</h6></div>
+            <div class="card-body pt-0"><canvas id="binChart" style="height:170px;"></canvas></div>
+        </div>
+    </div>
+    <div class="col-12 col-md-6">
+        <div class="card shadow-sm border-0" style="height:220px;">
+            <div class="card-header bg-white border-0 py-2"><h6 class="fw-bold mb-0 small"><i class="bi bi-people me-1" style="color:#e67e22;"></i>DC Team Capacity by Category</h6></div>
+            <div class="card-body pt-0"><canvas id="dcTeamChart" style="height:170px;"></canvas></div>
+        </div>
+    </div>
 </div>
 
 @if (TempData["SuccessMessage"] != null)
@@ -96,5 +118,16 @@ $(document).ready(function () {
         }
     });
 });
+</script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+(function(){
+    var labels = @Html.Raw(JsonSerializer.Serialize(ViewBag.ChartLabels as List<string> ?? new List<string>()));
+    var binCap = @Html.Raw(JsonSerializer.Serialize(ViewBag.ChartBinCap as List<decimal> ?? new List<decimal>()));
+    var dcTeam = @Html.Raw(JsonSerializer.Serialize(ViewBag.ChartDcTeam as List<decimal> ?? new List<decimal>()));
+    var opts = {responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{x:{ticks:{font:{size:10},maxRotation:45}},y:{beginAtZero:true,ticks:{font:{size:10}}}}};
+    new Chart(document.getElementById('binChart'),{type:'bar',data:{labels:labels,datasets:[{label:'Bin Cap',data:binCap,backgroundColor:'rgba(41,128,185,0.75)',borderRadius:4}]},options:opts});
+    new Chart(document.getElementById('dcTeamChart'),{type:'bar',data:{labels:labels,datasets:[{label:'DC Team',data:dcTeam,backgroundColor:'rgba(230,126,34,0.75)',borderRadius:4}]},options:opts});
+})();
 </script>
 }

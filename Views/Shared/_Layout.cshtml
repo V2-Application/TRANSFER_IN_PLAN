@@ -7,6 +7,9 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
     <link href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
 </head>
 <body>
@@ -52,6 +55,29 @@
                     <li><a class="nav-link" asp-controller="StoreStock" asp-action="Index" data-bs-dismiss="offcanvas">Store Stock</a></li>
                     <li><a class="nav-link" asp-controller="DcStock" asp-action="Index" data-bs-dismiss="offcanvas">DC Stock</a></li>
                     <li><a class="nav-link" asp-controller="DelPending" asp-action="Index" data-bs-dismiss="offcanvas">Del Pending</a></li>
+                    <li><a class="nav-link" asp-controller="GrtContribution" asp-action="Index" data-bs-dismiss="offcanvas">GRT Contribution</a></li>
+                    <li><a class="nav-link" asp-controller="ProductHierarchy" asp-action="Index" data-bs-dismiss="offcanvas">Product Hierarchy</a></li>
+                </ul>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link dropdown-toggle" href="#mContMenu" data-bs-toggle="collapse" role="button">
+                    <i class="bi bi-pie-chart"></i> Contribution
+                </a>
+                <ul class="collapse list-unstyled ms-3" id="mContMenu">
+                    <li><a class="nav-link" asp-controller="ContMacroMvgr" asp-action="Index" data-bs-dismiss="offcanvas">Macro MVGR</a></li>
+                    <li><a class="nav-link" asp-controller="ContSz" asp-action="Index" data-bs-dismiss="offcanvas">Size</a></li>
+                    <li><a class="nav-link" asp-controller="ContSeg" asp-action="Index" data-bs-dismiss="offcanvas">Segment</a></li>
+                    <li><a class="nav-link" asp-controller="ContVnd" asp-action="Index" data-bs-dismiss="offcanvas">Vendor</a></li>
+                    <li class="border-top border-white border-opacity-10 mt-1 pt-1 small text-white-50 px-3">Sub Store Stock</li>
+                    <li><a class="nav-link" asp-controller="SubStStkMvgr" asp-action="Index" data-bs-dismiss="offcanvas">St Stk MVGR</a></li>
+                    <li><a class="nav-link" asp-controller="SubStStkSz" asp-action="Index" data-bs-dismiss="offcanvas">St Stk Size</a></li>
+                    <li><a class="nav-link" asp-controller="SubStStkSeg" asp-action="Index" data-bs-dismiss="offcanvas">St Stk Segment</a></li>
+                    <li><a class="nav-link" asp-controller="SubStStkVnd" asp-action="Index" data-bs-dismiss="offcanvas">St Stk Vendor</a></li>
+                    <li class="small text-white-50 px-3">Sub DC Stock</li>
+                    <li><a class="nav-link" asp-controller="SubDcStkMvgr" asp-action="Index" data-bs-dismiss="offcanvas">DC Stk MVGR</a></li>
+                    <li><a class="nav-link" asp-controller="SubDcStkSz" asp-action="Index" data-bs-dismiss="offcanvas">DC Stk Size</a></li>
+                    <li><a class="nav-link" asp-controller="SubDcStkSeg" asp-action="Index" data-bs-dismiss="offcanvas">DC Stk Segment</a></li>
+                    <li><a class="nav-link" asp-controller="SubDcStkVnd" asp-action="Index" data-bs-dismiss="offcanvas">DC Stk Vendor</a></li>
                 </ul>
             </li>
             <li class="nav-item">
@@ -68,7 +94,13 @@
                     <li><a class="nav-link" asp-controller="Plan" asp-action="Output" data-bs-dismiss="offcanvas">View Output</a></li>
                     <li><a class="nav-link" asp-controller="PurchasePlan" asp-action="Execute" data-bs-dismiss="offcanvas">Purchase Plan</a></li>
                     <li><a class="nav-link" asp-controller="PurchasePlan" asp-action="Output" data-bs-dismiss="offcanvas">Purchase Output</a></li>
+                    <li class="border-top border-white border-opacity-10 mt-1 pt-1"><a class="nav-link" asp-controller="SubLevel" asp-action="Execute" data-bs-dismiss="offcanvas">Sub-Level Plans</a></li>
                 </ul>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" asp-controller="Info" asp-action="Index" data-bs-dismiss="offcanvas">
+                    <i class="bi bi-info-circle"></i> App Info & Formulas
+                </a>
             </li>
         </ul>
     </div>
@@ -102,6 +134,29 @@
                     <li><a class="nav-link" asp-controller="StoreStock" asp-action="Index">Store Stock</a></li>
                     <li><a class="nav-link" asp-controller="DcStock" asp-action="Index">DC Stock</a></li>
                     <li><a class="nav-link" asp-controller="DelPending" asp-action="Index">Del Pending</a></li>
+                    <li><a class="nav-link" asp-controller="GrtContribution" asp-action="Index">GRT Contribution</a></li>
+                    <li><a class="nav-link" asp-controller="ProductHierarchy" asp-action="Index">Product Hierarchy</a></li>
+                </ul>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link dropdown-toggle" href="#contMenu" data-bs-toggle="collapse" role="button">
+                    <i class="bi bi-pie-chart"></i> Contribution
+                </a>
+                <ul class="collapse list-unstyled ms-3" id="contMenu">
+                    <li><a class="nav-link" asp-controller="ContMacroMvgr" asp-action="Index">Macro MVGR</a></li>
+                    <li><a class="nav-link" asp-controller="ContSz" asp-action="Index">Size</a></li>
+                    <li><a class="nav-link" asp-controller="ContSeg" asp-action="Index">Segment</a></li>
+                    <li><a class="nav-link" asp-controller="ContVnd" asp-action="Index">Vendor</a></li>
+                    <li class="border-top border-white border-opacity-10 mt-1 pt-1 small text-white-50 px-3">Sub Store Stock</li>
+                    <li><a class="nav-link" asp-controller="SubStStkMvgr" asp-action="Index">St Stk MVGR</a></li>
+                    <li><a class="nav-link" asp-controller="SubStStkSz" asp-action="Index">St Stk Size</a></li>
+                    <li><a class="nav-link" asp-controller="SubStStkSeg" asp-action="Index">St Stk Segment</a></li>
+                    <li><a class="nav-link" asp-controller="SubStStkVnd" asp-action="Index">St Stk Vendor</a></li>
+                    <li class="small text-white-50 px-3">Sub DC Stock</li>
+                    <li><a class="nav-link" asp-controller="SubDcStkMvgr" asp-action="Index">DC Stk MVGR</a></li>
+                    <li><a class="nav-link" asp-controller="SubDcStkSz" asp-action="Index">DC Stk Size</a></li>
+                    <li><a class="nav-link" asp-controller="SubDcStkSeg" asp-action="Index">DC Stk Segment</a></li>
+                    <li><a class="nav-link" asp-controller="SubDcStkVnd" asp-action="Index">DC Stk Vendor</a></li>
                 </ul>
             </li>
             <li class="nav-item">
@@ -118,7 +173,13 @@
                     <li><a class="nav-link" asp-controller="Plan" asp-action="Output">View Output</a></li>
                     <li><a class="nav-link" asp-controller="PurchasePlan" asp-action="Execute">Purchase Plan</a></li>
                     <li><a class="nav-link" asp-controller="PurchasePlan" asp-action="Output">Purchase Output</a></li>
+                    <li class="border-top border-white border-opacity-10 mt-1 pt-1"><a class="nav-link" asp-controller="SubLevel" asp-action="Execute">Sub-Level Plans</a></li>
                 </ul>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" asp-controller="Info" asp-action="Index">
+                    <i class="bi bi-info-circle"></i> App Info & Formulas
+                </a>
             </li>
         </ul>
     </nav>
@@ -164,6 +225,34 @@
 <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
 <script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
 <script src="~/js/site.js" asp-append-version="true"></script>
+<script src="~/js/searchable-dropdown.js" asp-append-version="true"></script>
+<script>
+(function(){
+    // Keep sidebar submenus expanded based on current URL
+    var path = window.location.pathname.toLowerCase();
+    var refTables = ['weekcalendar','storemaster','bincapacity','saleqty','dispqty','storestock','dcstock','delpending','grtcontribution','producthierarchy'];
+    var contPages = ['contmacromvgr','contsz','contseg','contvnd','subststkmvgr','subststksz','subststkseg','subststkvnd','subdcstkmvgr','subdcstksz','subdcstkseg','subdcstkvnd'];
+    var planPages = ['plan/execute','plan/output','purchaseplan/execute','purchaseplan/output','sublevel/execute','sublevel/trfoutput','sublevel/ppoutput'];
+    var isRef = refTables.some(function(t){ return path.indexOf('/'+t) !== -1; });
+    var isCont = contPages.some(function(t){ return path.indexOf('/'+t) !== -1; });
+    var isPlan = planPages.some(function(t){ return path.toLowerCase().indexOf('/'+t.toLowerCase()) !== -1; });
+    // Desktop sidebar
+    if(isRef){ var el=document.getElementById('refTablesMenu'); if(el) el.classList.add('show'); }
+    if(isCont){ var el=document.getElementById('contMenu'); if(el) el.classList.add('show'); }
+    if(isPlan){ var el=document.getElementById('planMenu'); if(el) el.classList.add('show'); }
+    // Mobile sidebar
+    if(isRef){ var el=document.getElementById('mRefTablesMenu'); if(el) el.classList.add('show'); }
+    if(isCont){ var el=document.getElementById('mContMenu'); if(el) el.classList.add('show'); }
+    if(isPlan){ var el=document.getElementById('mPlanMenu'); if(el) el.classList.add('show'); }
+    // Mark active link - match current path or any sub-path (e.g. /SaleQty/Create matches /SaleQty)
+    document.querySelectorAll('.sidebar .nav-link, .sidebar-offcanvas .nav-link').forEach(function(link){
+        var href = link.getAttribute('href');
+        if(!href || href === '#' || href.indexOf('#') !== -1) return;
+        var hrefLow = href.toLowerCase().replace(/\/$/,'');
+        if(path === hrefLow || (hrefLow !== '/' && path.indexOf(hrefLow) === 0)) link.classList.add('active');
+    });
+})();
+</script>
 @await RenderSectionAsync("Scripts", required: false)
 </body>
 </html>

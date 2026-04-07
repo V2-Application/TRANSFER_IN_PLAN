@@ -1,257 +1,219 @@
-@{
-    ViewData["Title"] = "Dashboard";
-}
+@{ ViewData["Title"] = "Dashboard"; }
 @model TRANSFER_IN_PLAN.Models.DashboardViewModel
 @using System.Text.Json
 
+@* ===== HEADER ===== *@
 <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
-    <h5 class="mb-0 fw-bold text-primary">
-        <i class="bi bi-speedometer2 me-2"></i>Analytics Dashboard
-    </h5>
-    <small class="text-muted">
+    <div>
+        <h5 class="mb-0 fw-bold" style="color:#1a3a5c;"><i class="bi bi-speedometer2 me-2"></i>Operations Command Center</h5>
+        <small class="text-muted">Transfer In Plan + Purchase Plan + Sub-Level Analytics</small>
+    </div>
+    <div class="d-flex align-items-center gap-2">
         @if (Model.LastExecutionDate.HasValue)
-        { <span><i class="bi bi-clock me-1"></i>Last Run: @Model.LastExecutionDate.Value.ToString("dd-MMM-yyyy HH:mm")</span> }
+        { <span class="badge bg-success py-1 px-2"><i class="bi bi-check-circle me-1"></i>Last Run: @Model.LastExecutionDate.Value.ToString("dd-MMM-yyyy HH:mm")</span> }
         else
-        { <span class="text-warning"><i class="bi bi-exclamation-circle me-1"></i>No plan executed yet</span> }
-    </small>
-</div>
-
-@* ── KPI Row 1: Transfer In ──────────────────────────────────────────── *@
-<div class="row g-2 g-md-3 mb-2 mb-md-3 kpi-row">
-    <div class="col-6 col-md-3">
-        <div class="card border-0 shadow-sm kpi-card h-100" style="border-left:4px solid #e74c3c !important;">
-            <div class="card-body d-flex align-items-center gap-2 gap-md-3 py-2 py-md-3">
-                <div class="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0" style="width:42px;height:42px;background:#fdecea;">
-                    <i class="bi bi-shop text-danger"></i>
-                </div>
-                <div class="min-w-0">
-                    <div class="text-muted small text-uppercase fw-semibold text-truncate">Total Stores</div>
-                    <div class="fw-bold fs-4 text-dark">@Model.TotalStores.ToString("N0")</div>
-                </div>
-            </div>
-        </div>
-    </div>
-    <div class="col-6 col-md-3">
-        <div class="card border-0 shadow-sm kpi-card h-100" style="border-left:4px solid #27ae60 !important;">
-            <div class="card-body d-flex align-items-center gap-2 gap-md-3 py-2 py-md-3">
-                <div class="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0" style="width:42px;height:42px;background:#eafaf1;">
-                    <i class="bi bi-tags text-success"></i>
-                </div>
-                <div class="min-w-0">
-                    <div class="text-muted small text-uppercase fw-semibold text-truncate">Categories</div>
-                    <div class="fw-bold fs-4 text-dark">@Model.TotalCategories.ToString("N0")</div>
-                </div>
-            </div>
-        </div>
-    </div>
-    <div class="col-6 col-md-3">
-        <div class="card border-0 shadow-sm kpi-card h-100" style="border-left:4px solid #2980b9 !important;">
-            <div class="card-body d-flex align-items-center gap-2 gap-md-3 py-2 py-md-3">
-                <div class="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0" style="width:42px;height:42px;background:#eaf4fb;">
-                    <i class="bi bi-arrow-left-right text-primary"></i>
-                </div>
-                <div class="min-w-0">
-                    <div class="text-muted small text-uppercase fw-semibold text-truncate">TrfIn Qty</div>
-                    <div class="fw-bold fs-4 text-dark">@((Model.TotalTrfInQty/1000).ToString("N1"))K</div>
-                </div>
-            </div>
-        </div>
-    </div>
-    <div class="col-6 col-md-3">
-        <div class="card border-0 shadow-sm kpi-card h-100" style="border-left:4px solid #8e44ad !important;">
-            <div class="card-body d-flex align-items-center gap-2 gap-md-3 py-2 py-md-3">
-                <div class="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0" style="width:42px;height:42px;background:#f5eef8;">
-                    <i class="bi bi-list-check" style="color:#8e44ad;"></i>
-                </div>
-                <div class="min-w-0">
-                    <div class="text-muted small text-uppercase fw-semibold text-truncate">TrfIn Rows</div>
-                    <div class="fw-bold fs-4 text-dark">@((Model.TotalPlanRows/1000).ToString("N0"))K</div>
-                </div>
-            </div>
-        </div>
+        { <span class="badge bg-warning text-dark py-1 px-2"><i class="bi bi-exclamation-circle me-1"></i>No plan executed</span> }
     </div>
 </div>
 
-@* ── KPI Row 2: Purchase Plan ────────────────────────────────────────── *@
-<div class="row g-2 g-md-3 mb-3 mb-md-4 kpi-row">
-    <div class="col-6 col-md-3">
-        <div class="card border-0 shadow-sm kpi-card h-100" style="border-left:4px solid #f39c12 !important;">
-            <div class="card-body d-flex align-items-center gap-2 gap-md-3 py-2 py-md-3">
-                <div class="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0" style="width:42px;height:42px;background:#fef9e7;">
-                    <i class="bi bi-bag-check" style="color:#f39c12;"></i>
-                </div>
-                <div class="min-w-0">
-                    <div class="text-muted small text-uppercase fw-semibold text-truncate">PP Purchase Qty</div>
-                    <div class="fw-bold fs-4 text-dark">@((Model.TotalPurchaseQty/1000).ToString("N1"))K</div>
-                </div>
+@* ===== DRILL-DOWN FILTERS ===== *@
+<div class="card shadow-sm border-0 mb-3">
+    <div class="card-body py-2">
+        <form method="get" class="row g-2 align-items-end">
+            <div class="col-md-3">
+                <label class="form-label small fw-semibold mb-0"><i class="bi bi-building me-1"></i>RDC</label>
+                @{ var selRdcs = (ViewBag.SelRdc as string ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries).ToHashSet(); }
+                <select name="rdcCd" class="form-select form-select-sm multi-select">
+                    <option value="">-- All RDCs --</option>
+                    @foreach (var r in (ViewBag.RdcCodes as IEnumerable<string> ?? new List<string>())) { <option value="@r" selected="@(selRdcs.Contains(r) ? "selected" : null)">@r</option> }
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small fw-semibold mb-0"><i class="bi bi-tags me-1"></i>Category</label>
+                @{ var selCats = (ViewBag.SelMajCat as string ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries).ToHashSet(); }
+                <select name="majCat" class="form-select form-select-sm multi-select">
+                    <option value="">-- All Categories --</option>
+                    @foreach (var c in (ViewBag.MajCats as IEnumerable<string> ?? new List<string>())) { <option value="@c" selected="@(selCats.Contains(c) ? "selected" : null)">@c</option> }
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small fw-semibold mb-0"><i class="bi bi-calendar-week me-1"></i>FY Week</label>
+                @{ var selWeeks = (ViewBag.SelFyWeek as string ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries).ToHashSet(); }
+                <select name="fyWeek" class="form-select form-select-sm multi-select">
+                    <option value="">-- All Weeks --</option>
+                    @foreach (var w in (ViewBag.FyWeeks as IEnumerable<int?> ?? new List<int?>())) { <option value="@w" selected="@(selWeeks.Contains(w?.ToString() ?? "") ? "selected" : null)">W@(w)</option> }
+                </select>
+            </div>
+            <div class="col-md-4 d-flex gap-2">
+                <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-funnel me-1"></i>Drill Down</button>
+                <a href="@Url.Action("Index")" class="btn btn-outline-secondary btn-sm"><i class="bi bi-x-circle me-1"></i>Reset</a>
+                @if (!string.IsNullOrEmpty(ViewBag.SelRdc as string) || !string.IsNullOrEmpty(ViewBag.SelMajCat as string) || !string.IsNullOrEmpty(ViewBag.SelFyWeek as string))
+                {
+                    <span class="badge bg-primary bg-opacity-10 text-primary align-self-center">
+                        <i class="bi bi-funnel-fill me-1"></i>Filtered
+                        @if (!string.IsNullOrEmpty(ViewBag.SelRdc as string)) { <span class="ms-1">RDC: @ViewBag.SelRdc</span> }
+                        @if (!string.IsNullOrEmpty(ViewBag.SelMajCat as string)) { <span class="ms-1">Cat: @ViewBag.SelMajCat</span> }
+                        @if (!string.IsNullOrEmpty(ViewBag.SelFyWeek as string)) { <span class="ms-1">Wk: @ViewBag.SelFyWeek</span> }
+                    </span>
+                }
+            </div>
+        </form>
+    </div>
+</div>
+
+@* ===== SECTION 1: ALERT STRIP ===== *@
+<div class="row g-2 mb-3">
+    <div class="col-6 col-lg-3">
+        <div class="card border-0 shadow-sm" style="border-left:4px solid #e74c3c !important;">
+            <div class="card-body py-2 px-3 d-flex align-items-center gap-2">
+                <div class="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0" style="width:36px;height:36px;background:#fdecea;"><i class="bi bi-exclamation-triangle text-danger"></i></div>
+                <div><div class="text-muted" style="font-size:0.65rem;text-transform:uppercase;font-weight:700;">Critical Short Stores</div><div class="fw-bold fs-5 text-danger">@Model.CriticalShortStores</div></div>
             </div>
         </div>
     </div>
-    <div class="col-6 col-md-3">
-        <div class="card border-0 shadow-sm kpi-card h-100" style="border-left:4px solid #c0392b !important;">
-            <div class="card-body d-flex align-items-center gap-2 gap-md-3 py-2 py-md-3">
-                <div class="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0" style="width:42px;height:42px;background:#fdedec;">
-                    <i class="bi bi-exclamation-triangle text-danger"></i>
-                </div>
-                <div class="min-w-0">
-                    <div class="text-muted small text-uppercase fw-semibold text-truncate">DC Short Qty</div>
-                    <div class="fw-bold fs-4 text-danger">@((Model.TotalDcStkShortQ/1000).ToString("N1"))K</div>
-                </div>
+    <div class="col-6 col-lg-3">
+        <div class="card border-0 shadow-sm" style="border-left:4px solid #f39c12 !important;">
+            <div class="card-body py-2 px-3 d-flex align-items-center gap-2">
+                <div class="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0" style="width:36px;height:36px;background:#fef9e7;"><i class="bi bi-arrow-up-circle" style="color:#f39c12;"></i></div>
+                <div><div class="text-muted" style="font-size:0.65rem;text-transform:uppercase;font-weight:700;">Excess Stores</div><div class="fw-bold fs-5" style="color:#f39c12;">@Model.ExcessStores</div></div>
             </div>
         </div>
     </div>
-    <div class="col-6 col-md-3">
-        <div class="card border-0 shadow-sm kpi-card h-100" style="border-left:4px solid #16a085 !important;">
-            <div class="card-body d-flex align-items-center gap-2 gap-md-3 py-2 py-md-3">
-                <div class="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0" style="width:42px;height:42px;background:#e8f8f5;">
-                    <i class="bi bi-check-circle" style="color:#16a085;"></i>
-                </div>
-                <div class="min-w-0">
-                    <div class="text-muted small text-uppercase fw-semibold text-truncate">DC Excess Qty</div>
-                    <div class="fw-bold fs-4" style="color:#16a085;">@((Model.TotalDcStkExcessQ/1000).ToString("N1"))K</div>
-                </div>
+    <div class="col-6 col-lg-3">
+        <div class="card border-0 shadow-sm" style="border-left:4px solid #c0392b !important;">
+            <div class="card-body py-2 px-3 d-flex align-items-center gap-2">
+                <div class="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0" style="width:36px;height:36px;background:#fdedec;"><i class="bi bi-database-x text-danger"></i></div>
+                <div><div class="text-muted" style="font-size:0.65rem;text-transform:uppercase;font-weight:700;">DC Short (RDC x Cat)</div><div class="fw-bold fs-5 text-danger">@Model.DcShortCategories</div></div>
             </div>
         </div>
     </div>
-    <div class="col-6 col-md-3">
-        <div class="card border-0 shadow-sm kpi-card h-100" style="border-left:4px solid #7f8c8d !important;">
-            <div class="card-body d-flex align-items-center gap-2 gap-md-3 py-2 py-md-3">
-                <div class="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0" style="width:42px;height:42px;background:#f2f3f4;">
-                    <i class="bi bi-bar-chart-fill text-secondary"></i>
-                </div>
-                <div class="min-w-0">
-                    <div class="text-muted small text-uppercase fw-semibold text-truncate">PP Rows</div>
-                    <div class="fw-bold fs-4 text-dark">@((Model.TotalPurchasePlanRows/1000).ToString("N0"))K</div>
-                </div>
+    <div class="col-6 col-lg-3">
+        <div class="card border-0 shadow-sm" style="border-left:4px solid #7f8c8d !important;">
+            <div class="card-body py-2 px-3 d-flex align-items-center gap-2">
+                <div class="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0" style="width:36px;height:36px;background:#f2f3f4;"><i class="bi bi-box-seam text-secondary"></i></div>
+                <div><div class="text-muted" style="font-size:0.65rem;text-transform:uppercase;font-weight:700;">Zero Stock + Demand</div><div class="fw-bold fs-5">@Model.ZeroStockStoreCategories.ToString("N4")</div></div>
             </div>
         </div>
     </div>
 </div>
 
-@* ── Charts Row 1: TrfIn Category + Weekly ──────────────────────────── *@
-<div class="row g-2 g-md-3 mb-2 mb-md-3">
-    <div class="col-12 col-md-6 chart-col">
-        <div class="card shadow-sm border-0 h-100">
-            <div class="card-header bg-white border-0 pt-3 pb-1">
-                <h6 class="fw-bold text-primary mb-0 fs-6"><i class="bi bi-bar-chart me-2"></i>Transfer In by Category (Top 15)</h6>
-            </div>
-            <div class="card-body pt-1 pb-3">
-                <div class="chart-container"><canvas id="catChart"></canvas></div>
-            </div>
-        </div>
-    </div>
-    <div class="col-12 col-md-6 chart-col">
-        <div class="card shadow-sm border-0 h-100">
-            <div class="card-header bg-white border-0 pt-3 pb-1">
-                <h6 class="fw-bold text-success mb-0 fs-6"><i class="bi bi-graph-up me-2"></i>Weekly Transfer In Trend</h6>
-            </div>
-            <div class="card-body pt-1 pb-3">
-                <div class="chart-container"><canvas id="weeklyChart"></canvas></div>
-            </div>
-        </div>
-    </div>
-</div>
-
-@* ── Charts Row 2: PP Category + PP Weekly ──────────────────────────── *@
-<div class="row g-2 g-md-3 mb-2 mb-md-3">
-    <div class="col-12 col-md-6 chart-col">
-        <div class="card shadow-sm border-0 h-100">
-            <div class="card-header bg-white border-0 pt-3 pb-1">
-                <h6 class="fw-bold mb-0 fs-6" style="color:#f39c12;"><i class="bi bi-bar-chart-steps me-2"></i>Purchase Plan – DC Short vs Excess</h6>
-            </div>
-            <div class="card-body pt-1 pb-3">
-                <div class="chart-container"><canvas id="ppCatChart"></canvas></div>
-            </div>
-        </div>
-    </div>
-    <div class="col-12 col-md-6 chart-col">
-        <div class="card shadow-sm border-0 h-100">
-            <div class="card-header bg-white border-0 pt-3 pb-1">
-                <h6 class="fw-bold text-info mb-0 fs-6"><i class="bi bi-graph-up-arrow me-2"></i>Purchase Plan Weekly Trend</h6>
-            </div>
-            <div class="card-body pt-1 pb-3">
-                <div class="chart-container"><canvas id="ppWeeklyChart"></canvas></div>
-            </div>
-        </div>
-    </div>
-</div>
-
-@* ── Charts Row 3: RDC + Short vs Excess ────────────────────────────── *@
-<div class="row g-2 g-md-3 mb-2 mb-md-3">
-    <div class="col-12 col-md-6 chart-col">
-        <div class="card shadow-sm border-0 h-100">
-            <div class="card-header bg-white border-0 pt-3 pb-1">
-                <h6 class="fw-bold mb-0 fs-6" style="color:#8e44ad;"><i class="bi bi-building me-2"></i>RDC-wise Transfer In (Top 15)</h6>
-            </div>
-            <div class="card-body pt-1 pb-3">
-                <div class="chart-container"><canvas id="rdcChart"></canvas></div>
-            </div>
-        </div>
-    </div>
-    <div class="col-12 col-md-6 chart-col">
-        <div class="card shadow-sm border-0 h-100">
-            <div class="card-header bg-white border-0 pt-3 pb-1">
-                <h6 class="fw-bold text-danger mb-0 fs-6"><i class="bi bi-arrow-left-right me-2"></i>Category Short vs Excess (TrfIn)</h6>
-            </div>
-            <div class="card-body pt-1 pb-3">
-                <div class="chart-container"><canvas id="shortExcessChart"></canvas></div>
-            </div>
-        </div>
-    </div>
-</div>
-
-@* ── Tables Row 1: Short / Excess Stores ────────────────────────────── *@
-<div class="row g-2 g-md-3 mb-2 mb-md-3">
-    <div class="col-12 col-md-6">
-        <div class="card shadow-sm border-0">
-            <div class="card-header bg-danger text-white py-2">
-                <h6 class="mb-0 fw-bold fs-6"><i class="bi bi-arrow-down-circle me-2"><div class="d-flex justify-content-between align-items-center">
-                    </i>Top 10 Short Stores (Transfer In)</h6>
-                    <a href="@Url.Action("ExportTrfInCsv", "Home")" class="btn btn-success btn-sm"><i class="bi bi-filetype-csv me-1"></i>Export CSV</a>
+@* ===== SECTION 2: KPI GRID ===== *@
+<div class="row g-2 mb-3">
+    @{ var kpis = new[] {
+        ("bi-shop", "#e74c3c", "#fdecea", "Stores", Model.TotalStores.ToString("N0"), ""),
+        ("bi-tags", "#27ae60", "#eafaf1", "Categories", Model.TotalCategories.ToString("N0"), ""),
+        ("bi-building", "#2980b9", "#eaf4fb", "RDCs", Model.TotalRdcs.ToString("N0"), ""),
+        ("bi-arrow-left-right", "#8e44ad", "#f5eef8", "Transfer In Qty", Model.TotalTrfInQty.ToString("N4"), ""),
+        ("bi-cart-check", "#f39c12", "#fef9e7", "Purchase Qty", Model.TotalPurchaseQty.ToString("N4"), ""),
+        ("bi-graph-down-arrow", "#c0392b", "#fdedec", "DC Short", Model.TotalDcStkShortQ.ToString("N4"), "text-danger"),
+        ("bi-graph-up-arrow", "#16a085", "#e8f8f5", "DC Excess", Model.TotalDcStkExcessQ.ToString("N4"), ""),
+        ("bi-truck", "#d35400", "#fbeee6", "Transfer Out", Model.TotalTrfOutQ.ToString("N4"), ""),
+        ("bi-file-earmark-plus", "#2c3e50", "#ebedef", "PO Raised", Model.TotalPosPO.ToString("N4"), ""),
+        ("bi-clock-history", "#9b59b6", "#f4ecf7", "Del Pending", Model.TotalDelPendQ.ToString("N4"), "")
+    }; }
+    @foreach (var (icon, color, bg, label, value, cls) in kpis)
+    {
+        <div class="col-6 col-sm-4 col-lg-2">
+            <div class="card border-0 shadow-sm h-100 kpi-card" style="border-top:3px solid @color !important;">
+                <div class="card-body py-2 px-2 text-center">
+                    <div class="rounded-circle d-inline-flex align-items-center justify-content-center mb-1" style="width:32px;height:32px;background:@bg;"><i class="bi @icon" style="color:@color;font-size:0.9rem;"></i></div>
+                    <div class="fw-bold fs-5 @cls">@value</div>
+                    <div class="text-muted" style="font-size:0.6rem;text-transform:uppercase;font-weight:700;letter-spacing:0.05em;">@label</div>
                 </div>
             </div>
+        </div>
+    }
+</div>
+
+@* ===== SECTION 3: TRANSFER IN ANALYTICS ===== *@
+<div class="card shadow-sm border-0 mb-3">
+    <div class="card-header bg-white border-0 py-2 d-flex justify-content-between align-items-center">
+        <h6 class="fw-bold mb-0" style="color:#2980b9;"><i class="bi bi-arrow-left-right me-2"></i>Transfer In Analytics</h6>
+        <a href="@Url.Action("ExportTrfInCsv", "Home")" class="btn btn-outline-success btn-sm py-0 px-2"><i class="bi bi-download me-1"></i><span class="d-none d-sm-inline">CSV</span></a>
+    </div>
+    <div class="card-body pt-0">
+        <div class="row g-2 mb-2">
+            <div class="col-12 col-md-6"><div class="chart-container"><canvas id="catChart"></canvas></div></div>
+            <div class="col-12 col-md-6"><div class="chart-container"><canvas id="weeklyChart"></canvas></div></div>
+        </div>
+        <div class="row g-2">
+            <div class="col-12 col-md-6"><div class="chart-container"><canvas id="rdcChart"></canvas></div></div>
+            <div class="col-12 col-md-6"><div class="chart-container"><canvas id="shortExcessChart"></canvas></div></div>
+        </div>
+    </div>
+</div>
+
+@* ===== SECTION 4: PURCHASE PLAN ANALYTICS ===== *@
+<div class="card shadow-sm border-0 mb-3">
+    <div class="card-header bg-white border-0 py-2 d-flex justify-content-between align-items-center">
+        <h6 class="fw-bold mb-0" style="color:#f39c12;"><i class="bi bi-bag-check me-2"></i>Purchase Plan Analytics</h6>
+        <a href="@Url.Action("ExportPpCsv", "Home")" class="btn btn-outline-success btn-sm py-0 px-2"><i class="bi bi-download me-1"></i><span class="d-none d-sm-inline">CSV</span></a>
+    </div>
+    <div class="card-body pt-0">
+        <div class="row g-2">
+            <div class="col-12 col-md-6"><div class="chart-container"><canvas id="ppCatChart"></canvas></div></div>
+            <div class="col-12 col-md-6"><div class="chart-container"><canvas id="ppWeeklyChart"></canvas></div></div>
+        </div>
+    </div>
+</div>
+
+@* ===== SECTION 5: SUB-LEVEL PLANS + DATA HEALTH ===== *@
+<div class="row g-2 mb-3">
+    <div class="col-12 col-lg-5">
+        <div class="card shadow-sm border-0 h-100">
+            <div class="card-header bg-white border-0 py-2"><h6 class="fw-bold mb-0" style="color:#e67e22;"><i class="bi bi-layers me-2"></i>Sub-Level Plans Status</h6></div>
             <div class="card-body p-0">
                 <div class="table-responsive">
-                    <table class="table table-sm table-hover mb-0">
-                        <thead class="table-light"><tr><th>Store</th><th>Name</th><th class="d-none d-sm-table-cell">Category</th><th class="text-end">Qty</th></tr></thead>
+                    <table class="table table-sm table-hover mb-0 small">
+                        <thead class="table-dark"><tr><th>Level</th><th class="text-end">TRF Rows</th><th class="text-end">PP Rows</th><th>Last Run</th></tr></thead>
                         <tbody>
-                        @foreach (var s in Model.TopShortStores)
+                        @foreach (var s in Model.SubLevelStatuses)
                         {
                             <tr>
-                                <td class="fw-semibold text-primary small">@s.StCd</td>
-                                <td class="small">@s.StNm</td>
-                                <td class="d-none d-sm-table-cell"><span class="badge bg-secondary">@s.MajCat</span></td>
-                                <td class="text-end"><span class="badge bg-danger">@s.Quantity.ToString("N2")</span></td>
+                                <td class="fw-semibold">@s.Label</td>
+                                <td class="text-end fw-bold">@s.TrfRows.ToString("N0")</td>
+                                <td class="text-end fw-bold">@s.PpRows.ToString("N0")</td>
+                                <td>@if (!string.IsNullOrEmpty(s.LastRun)) { <span class="badge bg-success">@s.LastRun</span> } else { <span class="badge bg-secondary">Not Run</span> }</td>
                             </tr>
                         }
+                        @if (!Model.SubLevelStatuses.Any()) { <tr><td colspan="4" class="text-center text-muted py-2">No sub-level data</td></tr> }
                         </tbody>
+                        @if (Model.SubLevelStatuses.Any(s => s.TrfRows > 0))
+                        {
+                            <tfoot class="table-light">
+                                <tr class="fw-bold">
+                                    <td>TOTAL</td>
+                                    <td class="text-end">@Model.SubLevelStatuses.Sum(s => s.TrfRows).ToString("N0")</td>
+                                    <td class="text-end">@Model.SubLevelStatuses.Sum(s => s.PpRows).ToString("N0")</td>
+                                    <td></td>
+                                </tr>
+                            </tfoot>
+                        }
                     </table>
                 </div>
             </div>
         </div>
     </div>
-    <div class="col-12 col-md-6">
-        <div class="card shadow-sm border-0">
-            <div class="card-header text-white py-2" style="background:#f39c12;">
-                <h6 class="mb-0 fw-bold fs-6"><i class="bi bi-arrow-up-circle me-2"><div class="d-flex justify-content-between align-items-center">
-                    </i>Top 10 Excess Stores (Transfer In)</h6>
-                    <a href="@Url.Action("ExportTrfInCsv", "Home")" class="btn btn-success btn-sm"><i class="bi bi-filetype-csv me-1"></i>Export CSV</a>
-                </div>
-            </div>
+    <div class="col-12 col-lg-7">
+        <div class="card shadow-sm border-0 h-100">
+            <div class="card-header bg-white border-0 py-2"><h6 class="fw-bold mb-0" style="color:#1a3a5c;"><i class="bi bi-database-check me-2"></i>Reference Data Health</h6></div>
             <div class="card-body p-0">
                 <div class="table-responsive">
-                    <table class="table table-sm table-hover mb-0">
-                        <thead class="table-light"><tr><th>Store</th><th>Name</th><th class="d-none d-sm-table-cell">Category</th><th class="text-end">Qty</th></tr></thead>
+                    <table class="table table-sm table-hover mb-0 small">
+                        <thead class="table-dark"><tr><th>Category</th><th>Table</th><th class="text-end">Rows</th><th class="text-center">Status</th></tr></thead>
                         <tbody>
-                        @foreach (var s in Model.TopExcessStores)
+                        @foreach (var d in Model.DataHealth)
                         {
+                            var badge = d.Rows < 0 ? "bg-secondary" : d.Rows == 0 ? "bg-danger" : "bg-success";
+                            var statusTxt = d.Rows < 0 ? "N/A" : d.Rows == 0 ? "Empty" : "Ready";
                             <tr>
-                                <td class="fw-semibold text-primary small">@s.StCd</td>
-                                <td class="small">@s.StNm</td>
-                                <td class="d-none d-sm-table-cell"><span class="badge bg-secondary">@s.MajCat</span></td>
-                                <td class="text-end"><span class="badge" style="background:#f39c12;">@s.Quantity.ToString("N2")</span></td>
+                                <td><span class="badge bg-light text-dark border">@d.Category</span></td>
+                                <td><i class="bi @d.Icon me-1 text-muted"></i>@d.Table</td>
+                                <td class="text-end fw-bold">@(d.Rows >= 0 ? d.Rows.ToString("N0") : "—")</td>
+                                <td class="text-center"><span class="badge @badge">@statusTxt</span></td>
                             </tr>
                         }
+                        @if (!Model.DataHealth.Any()) { <tr><td colspan="4" class="text-center text-muted py-2">No data</td></tr> }
                         </tbody>
                     </table>
                 </div>
@@ -260,62 +222,156 @@
     </div>
 </div>
 
-@* ── Tables Row 2: DC Short / Excess from PurchasePlan ──────────────── *@
-<div class="row g-2 g-md-3 mb-4">
-    <div class="col-12 col-md-6">
-        <div class="card shadow-sm border-0">
-            <div class="card-header text-white py-2" style="background:#c0392b;">
-                <h6 class="mb-0 fw-bold fs-6"><i class="bi bi-database-x me-2"><div class="d-flex justify-content-between align-items-center">
-                    </i>Top 10 DC Short (Purchase Plan)</h6>
-                    <a href="@Url.Action("ExportPpCsv", "Home")" class="btn btn-success btn-sm"><i class="bi bi-filetype-csv me-1"></i>Export CSV</a>
-                </div>
-            </div>
+@* ===== SECTION 6: RDC INVENTORY HEALTH ===== *@
+<div class="card shadow-sm border-0 mb-3">
+    <div class="card-header bg-white border-0 py-2">
+        <h6 class="fw-bold mb-0" style="color:#1a3a5c;"><i class="bi bi-building me-2"></i>RDC / Warehouse Inventory Position</h6>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-sm table-hover mb-0 small">
+                <thead class="table-dark"><tr><th>RDC</th><th>NAME</th><th class="text-end">DC STOCK</th><th class="text-end">TRF OUT</th><th class="text-end">PURCHASE Q</th><th class="text-end">DC SHORT</th><th class="text-end">DC EXCESS</th><th class="text-center">CATEGORIES</th><th class="text-center">STATUS</th></tr></thead>
+                <tbody>
+                @foreach (var r in Model.RdcInventoryHealth)
+                {
+                    var status = r.DcShort > 0 ? "SHORT" : r.DcExcess > r.DcStock * 0.5m ? "EXCESS" : "OK";
+                    var badgeCls = status == "SHORT" ? "bg-danger" : status == "EXCESS" ? "bg-warning text-dark" : "bg-success";
+                    <tr>
+                        <td class="fw-semibold text-primary">@(r.RdcCd ?? "NA")</td><td>@(r.RdcNm ?? "NA")</td>
+                        <td class="text-end">@r.DcStock.ToString("N4")</td>
+                        <td class="text-end">@r.TrfOut.ToString("N4")</td>
+                        <td class="text-end">@r.PurchaseQty.ToString("N4")</td>
+                        <td class="text-end">@if(r.DcShort > 0){<span class="badge bg-danger">@r.DcShort.ToString("N4")</span>} else {<span>0.0000</span>}</td>
+                        <td class="text-end">@if(r.DcExcess > 0){<span class="badge bg-warning text-dark">@r.DcExcess.ToString("N4")</span>} else {<span>0.0000</span>}</td>
+                        <td class="text-center">@r.CategoryCount</td>
+                        <td class="text-center"><span class="badge @badgeCls">@status</span></td>
+                    </tr>
+                }
+                @if (!Model.RdcInventoryHealth.Any()) { <tr><td colspan="9" class="text-center text-muted py-3">No data</td></tr> }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+@* ===== SECTION 7: RISK CATEGORIES ===== *@
+<div class="row g-2 mb-3">
+    <div class="col-12 col-lg-6">
+        <div class="card shadow-sm border-0 h-100">
+            <div class="card-header bg-white border-0 py-2"><h6 class="fw-bold mb-0 text-danger"><i class="bi bi-shield-exclamation me-2"></i>Top Risk Categories (Company Short)</h6></div>
             <div class="card-body p-0">
                 <div class="table-responsive">
-                    <table class="table table-sm table-hover mb-0">
-                        <thead class="table-light"><tr><th>RDC</th><th class="d-none d-sm-table-cell">RDC Name</th><th>Category</th><th class="text-end">Qty</th></tr></thead>
+                    <table class="table table-sm table-hover mb-0 small">
+                        <thead class="table-light"><tr><th>CATEGORY</th><th class="text-end">CO SHORT</th><th class="text-end">DC SHORT</th><th class="text-end">ST SHORT</th><th class="text-center">RISK</th></tr></thead>
                         <tbody>
-                        @foreach (var d in Model.TopDcShortCategories)
+                        @foreach (var c in Model.TopRiskCategories)
                         {
+                            var riskCls = c.Risk == "CRITICAL" ? "bg-danger" : c.Risk == "AT RISK" ? "bg-warning text-dark" : c.Risk == "EXCESS" ? "bg-info" : "bg-success";
                             <tr>
-                                <td class="fw-semibold text-danger small">@d.RdcCd</td>
-                                <td class="small d-none d-sm-table-cell">@d.RdcNm</td>
-                                <td><span class="badge bg-secondary">@d.MajCat</span></td>
-                                <td class="text-end"><span class="badge bg-danger">@d.Quantity.ToString("N2")</span></td>
+                                <td class="fw-semibold">@(c.MajCat ?? "NA")</td>
+                                <td class="text-end">@c.CoShort.ToString("N4")</td>
+                                <td class="text-end">@c.DcShort.ToString("N4")</td>
+                                <td class="text-end">@c.StShort.ToString("N4")</td>
+                                <td class="text-center"><span class="badge @riskCls">@c.Risk</span></td>
                             </tr>
                         }
+                        @if (!Model.TopRiskCategories.Any()) { <tr><td colspan="5" class="text-center text-muted py-3">No data</td></tr> }
                         </tbody>
                     </table>
                 </div>
             </div>
         </div>
     </div>
-    <div class="col-12 col-md-6">
-        <div class="card shadow-sm border-0">
-            <div class="card-header text-white py-2" style="background:#16a085;">
-                <h6 class="mb-0 fw-bold fs-6"><i class="bi bi-database-check me-2"><div class="d-flex justify-content-between align-items-center">
-                    </i>Top 10 DC Excess (Purchase Plan)</h6>
-                    <a href="@Url.Action("ExportPpCsv", "Home")" class="btn btn-success btn-sm"><i class="bi bi-filetype-csv me-1"></i>Export CSV</a>
-                </div>
-            </div>
+    <div class="col-12 col-lg-6">
+        <div class="card shadow-sm border-0 h-100">
+            <div class="card-header bg-white border-0 py-2"><h6 class="fw-bold mb-0" style="color:#2980b9;"><i class="bi bi-bar-chart-steps me-2"></i>RDC Transfer In vs Sale (Top 10)</h6></div>
             <div class="card-body p-0">
                 <div class="table-responsive">
-                    <table class="table table-sm table-hover mb-0">
-                        <thead class="table-light"><tr><th>RDC</th><th class="d-none d-sm-table-cell">RDC Name</th><th>Category</th><th class="text-end">Qty</th></tr></thead>
+                    <table class="table table-sm table-hover mb-0 small">
+                        <thead class="table-light"><tr><th>RDC</th><th>NAME</th><th class="text-end">TRANSFER IN</th><th class="text-end">SALE QTY</th><th class="text-center">STORES</th></tr></thead>
                         <tbody>
-                        @foreach (var d in Model.TopDcExcessCategories)
+                        @foreach (var r in Model.RdcSummary)
                         {
                             <tr>
-                                <td class="fw-semibold small" style="color:#16a085;">@d.RdcCd</td>
-                                <td class="small d-none d-sm-table-cell">@d.RdcNm</td>
-                                <td><span class="badge bg-secondary">@d.MajCat</span></td>
-                                <td class="text-end"><span class="badge" style="background:#16a085;">@d.Quantity.ToString("N2")</span></td>
+                                <td class="fw-semibold text-primary">@(r.RdcCd ?? "NA")</td><td>@(r.RdcNm ?? "NA")</td>
+                                <td class="text-end">@r.TotalTrfInQty.ToString("N4")</td>
+                                <td class="text-end">@r.TotalSaleQty.ToString("N4")</td>
+                                <td class="text-center"><span class="badge bg-secondary">@r.StoreCount</span></td>
                             </tr>
                         }
+                        @if (!Model.RdcSummary.Any()) { <tr><td colspan="5" class="text-center text-muted py-3">No data</td></tr> }
                         </tbody>
                     </table>
                 </div>
             </div>
+        </div>
+    </div>
+</div>
+
+@* ===== SECTION 8: TOP SHORT/EXCESS TABLES ===== *@
+<div class="row g-2 mb-3">
+    <div class="col-12 col-md-6">
+        <div class="card shadow-sm border-0 h-100">
+            <div class="card-header bg-danger text-white py-2 d-flex justify-content-between align-items-center">
+                <h6 class="mb-0 fw-bold" style="font-size:0.85rem;"><i class="bi bi-arrow-down-circle me-2"></i>Top 10 Short Stores</h6>
+                <a href="@Url.Action("ExportTrfInCsv","Home")" class="btn btn-light btn-sm py-0 px-2"><i class="bi bi-download text-success"></i></a>
+            </div>
+            <div class="card-body p-0"><div class="table-responsive"><table class="table table-sm table-hover mb-0 small">
+                <thead class="table-light"><tr><th>STORE</th><th>NAME</th><th class="d-none d-sm-table-cell">CATEGORY</th><th class="text-end">QTY</th></tr></thead>
+                <tbody>
+                @foreach (var s in Model.TopShortStores) { <tr><td class="fw-semibold text-primary">@(s.StCd ?? "NA")</td><td class="text-truncate" style="max-width:100px;">@(s.StNm ?? "NA")</td><td class="d-none d-sm-table-cell"><span class="badge bg-secondary">@(s.MajCat ?? "NA")</span></td><td class="text-end"><span class="badge bg-danger">@s.Quantity.ToString("N4")</span></td></tr> }
+                @if (!Model.TopShortStores.Any()) { <tr><td colspan="4" class="text-center text-muted py-3">No data</td></tr> }
+                </tbody>
+            </table></div></div>
+        </div>
+    </div>
+    <div class="col-12 col-md-6">
+        <div class="card shadow-sm border-0 h-100">
+            <div class="card-header text-white py-2 d-flex justify-content-between align-items-center" style="background:#f39c12;">
+                <h6 class="mb-0 fw-bold" style="font-size:0.85rem;"><i class="bi bi-arrow-up-circle me-2"></i>Top 10 Excess Stores</h6>
+                <a href="@Url.Action("ExportTrfInCsv","Home")" class="btn btn-light btn-sm py-0 px-2"><i class="bi bi-download text-success"></i></a>
+            </div>
+            <div class="card-body p-0"><div class="table-responsive"><table class="table table-sm table-hover mb-0 small">
+                <thead class="table-light"><tr><th>STORE</th><th>NAME</th><th class="d-none d-sm-table-cell">CATEGORY</th><th class="text-end">QTY</th></tr></thead>
+                <tbody>
+                @foreach (var s in Model.TopExcessStores) { <tr><td class="fw-semibold text-primary">@(s.StCd ?? "NA")</td><td class="text-truncate" style="max-width:100px;">@(s.StNm ?? "NA")</td><td class="d-none d-sm-table-cell"><span class="badge bg-secondary">@(s.MajCat ?? "NA")</span></td><td class="text-end"><span class="badge" style="background:#f39c12;">@s.Quantity.ToString("N4")</span></td></tr> }
+                @if (!Model.TopExcessStores.Any()) { <tr><td colspan="4" class="text-center text-muted py-3">No data</td></tr> }
+                </tbody>
+            </table></div></div>
+        </div>
+    </div>
+</div>
+
+@* ===== SECTION 9: DC SHORT/EXCESS TABLES ===== *@
+<div class="row g-2 mb-4">
+    <div class="col-12 col-md-6">
+        <div class="card shadow-sm border-0 h-100">
+            <div class="card-header text-white py-2 d-flex justify-content-between align-items-center" style="background:#c0392b;">
+                <h6 class="mb-0 fw-bold" style="font-size:0.85rem;"><i class="bi bi-database-x me-2"></i>Top 10 DC Short (Purchase Plan)</h6>
+                <a href="@Url.Action("ExportPpCsv","Home")" class="btn btn-light btn-sm py-0 px-2"><i class="bi bi-download text-success"></i></a>
+            </div>
+            <div class="card-body p-0"><div class="table-responsive"><table class="table table-sm table-hover mb-0 small">
+                <thead class="table-light"><tr><th>RDC</th><th class="d-none d-sm-table-cell">NAME</th><th>CATEGORY</th><th class="text-end">QTY</th></tr></thead>
+                <tbody>
+                @foreach (var d in Model.TopDcShortCategories) { <tr><td class="fw-semibold text-danger">@(d.RdcCd ?? "NA")</td><td class="d-none d-sm-table-cell text-truncate" style="max-width:100px;">@(d.RdcNm ?? "NA")</td><td><span class="badge bg-secondary">@(d.MajCat ?? "NA")</span></td><td class="text-end"><span class="badge bg-danger">@d.Quantity.ToString("N4")</span></td></tr> }
+                @if (!Model.TopDcShortCategories.Any()) { <tr><td colspan="4" class="text-center text-muted py-3">No data</td></tr> }
+                </tbody>
+            </table></div></div>
+        </div>
+    </div>
+    <div class="col-12 col-md-6">
+        <div class="card shadow-sm border-0 h-100">
+            <div class="card-header text-white py-2 d-flex justify-content-between align-items-center" style="background:#16a085;">
+                <h6 class="mb-0 fw-bold" style="font-size:0.85rem;"><i class="bi bi-database-check me-2"></i>Top 10 DC Excess (Purchase Plan)</h6>
+                <a href="@Url.Action("ExportPpCsv","Home")" class="btn btn-light btn-sm py-0 px-2"><i class="bi bi-download text-success"></i></a>
+            </div>
+            <div class="card-body p-0"><div class="table-responsive"><table class="table table-sm table-hover mb-0 small">
+                <thead class="table-light"><tr><th>RDC</th><th class="d-none d-sm-table-cell">NAME</th><th>CATEGORY</th><th class="text-end">QTY</th></tr></thead>
+                <tbody>
+                @foreach (var d in Model.TopDcExcessCategories) { <tr><td class="fw-semibold" style="color:#16a085;">@(d.RdcCd ?? "NA")</td><td class="d-none d-sm-table-cell text-truncate" style="max-width:100px;">@(d.RdcNm ?? "NA")</td><td><span class="badge bg-secondary">@(d.MajCat ?? "NA")</span></td><td class="text-end"><span class="badge" style="background:#16a085;">@d.Quantity.ToString("N4")</span></td></tr> }
+                @if (!Model.TopDcExcessCategories.Any()) { <tr><td colspan="4" class="text-center text-muted py-3">No data</td></tr> }
+                </tbody>
+            </table></div></div>
         </div>
     </div>
 </div>
@@ -327,99 +383,67 @@
     Chart.defaults.font.family = "'Segoe UI', system-ui, sans-serif";
     Chart.defaults.font.size = 11;
     const isMobile = window.innerWidth < 768;
-    const COLORS = ['#2980b9','#27ae60','#e74c3c','#f39c12','#8e44ad','#16a085',
-                    '#c0392b','#2c3e50','#d35400','#1abc9c','#e67e22','#3498db',
-                    '#9b59b6','#1e8bc3','#2ecc71'];
-
-    const chartOpts = {
-        responsive: true,
-        maintainAspectRatio: true,
-        plugins: { legend: { position: 'top', labels: { boxWidth: 12, font: { size: 11 } } } },
-        scales: { y: { beginAtZero: true, ticks: { font: { size: 10 } } },
-                  x: { ticks: { font: { size: 10 }, maxRotation: 45 } } }
-    };
+    const COLORS = ['#2980b9','#27ae60','#e74c3c','#f39c12','#8e44ad','#16a085','#c0392b','#2c3e50','#d35400','#1abc9c','#e67e22','#3498db','#9b59b6','#1e8bc3','#2ecc71'];
+    const opts = (legend) => ({
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: legend, position:'top', labels:{ boxWidth:10, font:{size:10}, padding:8 } }, tooltip:{ bodyFont:{size:11} } },
+        scales: { y:{ beginAtZero:true, ticks:{font:{size:9}, maxTicksLimit:6}, grid:{color:'#f1f5f9'} }, x:{ ticks:{font:{size:9}, maxRotation:isMobile?60:45, maxTicksLimit:isMobile?6:15}, grid:{display:false} } }
+    });
 
     // 1. TrfIn by Category
     new Chart(document.getElementById('catChart'), {
-        type: 'bar',
-        data: {
-            labels: @Html.Raw(JsonSerializer.Serialize(Model.CategorySummary.Select(c=>c.MajCat).ToList())),
-            datasets: [{ label:'TrfIn Qty',
-                data: @Html.Raw(JsonSerializer.Serialize(Model.CategorySummary.Select(c=>c.TotalTrfInQty).ToList())),
-                backgroundColor: COLORS, borderRadius: 4 }]
-        },
-        options: { ...chartOpts, plugins: { legend: { display: false } } }
+        type:'bar', data:{ labels:@Html.Raw(JsonSerializer.Serialize(Model.CategorySummary.Select(c=>c.MajCat).ToList())),
+        datasets:[
+            {label:'Transfer In', data:@Html.Raw(JsonSerializer.Serialize(Model.CategorySummary.Select(c=>c.TotalTrfInQty).ToList())), backgroundColor:'rgba(41,128,185,0.8)', borderRadius:3},
+            {label:'Sale', data:@Html.Raw(JsonSerializer.Serialize(Model.CategorySummary.Select(c=>c.TotalSaleQ).ToList())), backgroundColor:'rgba(39,174,96,0.6)', borderRadius:3}
+        ]}, options:opts(true)
     });
 
-    // 2. TrfIn Weekly
+    // 2. Weekly TrfIn + Sale Trend
     new Chart(document.getElementById('weeklyChart'), {
-        type: 'line',
-        data: {
-            labels: @Html.Raw(JsonSerializer.Serialize(Model.WeeklySummary.Select(w=>"FY"+w.FyYear+"W"+w.FyWeek).ToList())),
-            datasets: [{ label:'TrfIn Qty', fill:true,
-                data: @Html.Raw(JsonSerializer.Serialize(Model.WeeklySummary.Select(w=>w.TotalTrfInQty).ToList())),
-                borderColor:'#2980b9', backgroundColor:'rgba(41,128,185,0.1)', tension:0.35, pointRadius:2 }]
-        },
-        options: chartOpts
+        type:'line', data:{ labels:@Html.Raw(JsonSerializer.Serialize(Model.WeeklySummary.Select(w=>"W"+w.FyWeek).ToList())),
+        datasets:[
+            {label:'Transfer In', data:@Html.Raw(JsonSerializer.Serialize(Model.WeeklySummary.Select(w=>w.TotalTrfInQty).ToList())), borderColor:'#2980b9', backgroundColor:'rgba(41,128,185,0.08)', fill:true, tension:0.35, pointRadius:2},
+            {label:'Sale', data:@Html.Raw(JsonSerializer.Serialize(Model.WeeklySummary.Select(w=>w.TotalSaleQty).ToList())), borderColor:'#27ae60', backgroundColor:'transparent', fill:false, tension:0.35, pointRadius:2, borderDash:[4,3]},
+            {label:'Closing Stk', data:@Html.Raw(JsonSerializer.Serialize(Model.WeeklySummary.Select(w=>w.TotalClStk).ToList())), borderColor:'#8e44ad', backgroundColor:'transparent', fill:false, tension:0.35, pointRadius:1, borderDash:[2,2]}
+        ]}, options:opts(true)
     });
 
-    // 3. PP Category grouped bar
-    new Chart(document.getElementById('ppCatChart'), {
-        type: 'bar',
-        data: {
-            labels: @Html.Raw(JsonSerializer.Serialize(Model.PpCategorySummary.Select(c=>c.MajCat).ToList())),
-            datasets: [
-                { label:'DC Short',    data: @Html.Raw(JsonSerializer.Serialize(Model.PpCategorySummary.Select(c=>c.DcStkShortQ).ToList())),  backgroundColor:'rgba(192,57,43,0.8)',  borderRadius:3 },
-                { label:'DC Excess',   data: @Html.Raw(JsonSerializer.Serialize(Model.PpCategorySummary.Select(c=>c.DcStkExcessQ).ToList())), backgroundColor:'rgba(22,160,133,0.8)', borderRadius:3 },
-                { label:'Bgt Purchase',data: @Html.Raw(JsonSerializer.Serialize(Model.PpCategorySummary.Select(c=>c.BgtPurQ).ToList())),      backgroundColor:'rgba(243,156,18,0.6)',  borderRadius:3 }
-            ]
-        },
-        options: chartOpts
-    });
-
-    // 4. PP Weekly multi-line
-    new Chart(document.getElementById('ppWeeklyChart'), {
-        type: 'line',
-        data: {
-            labels: @Html.Raw(JsonSerializer.Serialize(Model.PpWeeklySummary.Select(w=>"FY"+w.FyYear+"W"+w.FyWeek).ToList())),
-            datasets: [
-                { label:'Bgt Purchase', fill:true,
-                  data: @Html.Raw(JsonSerializer.Serialize(Model.PpWeeklySummary.Select(w=>w.BgtPurQ).ToList())),
-                  borderColor:'#f39c12', backgroundColor:'rgba(243,156,18,0.1)', tension:0.35, pointRadius:2 },
-                { label:'DC Short', fill:false,
-                  data: @Html.Raw(JsonSerializer.Serialize(Model.PpWeeklySummary.Select(w=>w.DcStkShortQ).ToList())),
-                  borderColor:'#e74c3c', backgroundColor:'transparent', tension:0.35, pointRadius:2, borderDash:[5,3] },
-                { label:'DC Excess', fill:false,
-                  data: @Html.Raw(JsonSerializer.Serialize(Model.PpWeeklySummary.Select(w=>w.DcStkExcessQ).ToList())),
-                  borderColor:'#16a085', backgroundColor:'transparent', tension:0.35, pointRadius:2, borderDash:[5,3] }
-            ]
-        },
-        options: chartOpts
-    });
-
-    // 5. RDC horizontal bar
+    // 3. RDC horizontal bar
     new Chart(document.getElementById('rdcChart'), {
-        type: 'bar',
-        data: {
-            labels: @Html.Raw(JsonSerializer.Serialize(Model.RdcSummary.Select(r=>r.RdcCd+(r.RdcNm!=null?" - "+r.RdcNm.Substring(0,Math.Min(r.RdcNm.Length,10)):"")).ToList())),
-            datasets: [{ label:'TrfIn Qty',
-                data: @Html.Raw(JsonSerializer.Serialize(Model.RdcSummary.Select(r=>r.TotalTrfInQty).ToList())),
-                backgroundColor:'rgba(142,68,173,0.75)', borderRadius:3 }]
-        },
-        options: { ...chartOpts, indexAxis:'y', plugins:{ legend:{ display:false } } }
+        type:'bar', data:{ labels:@Html.Raw(JsonSerializer.Serialize(Model.RdcSummary.Select(r=>(r.RdcCd??"")+" "+(r.RdcNm!=null&&r.RdcNm.Length>8?r.RdcNm.Substring(0,8):r.RdcNm??"")).ToList())),
+        datasets:[{label:'TrfIn Qty', data:@Html.Raw(JsonSerializer.Serialize(Model.RdcSummary.Select(r=>r.TotalTrfInQty).ToList())), backgroundColor:'rgba(142,68,173,0.75)', borderRadius:3}]
+        }, options:{...opts(false), indexAxis:'y'}
     });
 
-    // 6. Short vs Excess by category
+    // 4. Category Short vs Excess
     new Chart(document.getElementById('shortExcessChart'), {
-        type: 'bar',
-        data: {
-            labels: @Html.Raw(JsonSerializer.Serialize(Model.CategorySummary.Select(c=>c.MajCat).ToList())),
-            datasets: [
-                { label:'Short Qty',  data: @Html.Raw(JsonSerializer.Serialize(Model.CategorySummary.Select(c=>c.TotalShortQ).ToList())),  backgroundColor:'rgba(231,76,60,0.8)',  borderRadius:3 },
-                { label:'Excess Qty', data: @Html.Raw(JsonSerializer.Serialize(Model.CategorySummary.Select(c=>c.TotalExcessQ).ToList())), backgroundColor:'rgba(243,156,18,0.8)', borderRadius:3 }
-            ]
-        },
-        options: chartOpts
+        type:'bar', data:{ labels:@Html.Raw(JsonSerializer.Serialize(Model.CategorySummary.Select(c=>c.MajCat).ToList())),
+        datasets:[
+            {label:'Short', data:@Html.Raw(JsonSerializer.Serialize(Model.CategorySummary.Select(c=>c.TotalShortQ).ToList())), backgroundColor:'rgba(231,76,60,0.8)', borderRadius:3},
+            {label:'Excess', data:@Html.Raw(JsonSerializer.Serialize(Model.CategorySummary.Select(c=>c.TotalExcessQ).ToList())), backgroundColor:'rgba(243,156,18,0.8)', borderRadius:3}
+        ]}, options:opts(true)
+    });
+
+    // 5. PP Category
+    new Chart(document.getElementById('ppCatChart'), {
+        type:'bar', data:{ labels:@Html.Raw(JsonSerializer.Serialize(Model.PpCategorySummary.Select(c=>c.MajCat).ToList())),
+        datasets:[
+            {label:'Purchase', data:@Html.Raw(JsonSerializer.Serialize(Model.PpCategorySummary.Select(c=>c.BgtPurQ).ToList())), backgroundColor:'rgba(243,156,18,0.7)', borderRadius:3},
+            {label:'DC Short', data:@Html.Raw(JsonSerializer.Serialize(Model.PpCategorySummary.Select(c=>c.DcStkShortQ).ToList())), backgroundColor:'rgba(192,57,43,0.8)', borderRadius:3},
+            {label:'DC Excess', data:@Html.Raw(JsonSerializer.Serialize(Model.PpCategorySummary.Select(c=>c.DcStkExcessQ).ToList())), backgroundColor:'rgba(22,160,133,0.7)', borderRadius:3}
+        ]}, options:opts(true)
+    });
+
+    // 6. PP Weekly
+    new Chart(document.getElementById('ppWeeklyChart'), {
+        type:'line', data:{ labels:@Html.Raw(JsonSerializer.Serialize(Model.PpWeeklySummary.Select(w=>"W"+w.FyWeek).ToList())),
+        datasets:[
+            {label:'Purchase', data:@Html.Raw(JsonSerializer.Serialize(Model.PpWeeklySummary.Select(w=>w.BgtPurQ).ToList())), borderColor:'#f39c12', backgroundColor:'rgba(243,156,18,0.08)', fill:true, tension:0.35, pointRadius:2},
+            {label:'TrfOut', data:@Html.Raw(JsonSerializer.Serialize(Model.PpWeeklySummary.Select(w=>w.TrfOutQ).ToList())), borderColor:'#d35400', backgroundColor:'transparent', fill:false, tension:0.35, pointRadius:2},
+            {label:'DC Short', data:@Html.Raw(JsonSerializer.Serialize(Model.PpWeeklySummary.Select(w=>w.DcStkShortQ).ToList())), borderColor:'#e74c3c', backgroundColor:'transparent', fill:false, tension:0.35, pointRadius:1, borderDash:[5,3]},
+            {label:'DC Excess', data:@Html.Raw(JsonSerializer.Serialize(Model.PpWeeklySummary.Select(w=>w.DcStkExcessQ).ToList())), borderColor:'#16a085', backgroundColor:'transparent', fill:false, tension:0.35, pointRadius:1, borderDash:[5,3]}
+        ]}, options:opts(true)
     });
 })();
 </script>

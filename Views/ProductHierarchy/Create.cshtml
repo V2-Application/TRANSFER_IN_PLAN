@@ -1,0 +1,43 @@
+@{ ViewData["Title"] = "Create Product Hierarchy"; }
+@model ProductHierarchy
+
+<div class="card shadow-sm border-0">
+    <div class="card-header bg-white py-2"><h5 class="card-title mb-0"><i class="bi bi-plus-circle me-2 text-success"></i>Add New Product Hierarchy</h5></div>
+    <div class="card-body">
+        <form asp-action="Create" method="post">
+            <div class="row g-3 mb-3">
+                <div class="col-md-4">
+                    <label asp-for="Seg" class="form-label fw-semibold">Segment <span class="text-danger">*</span></label>
+                    <input asp-for="Seg" class="form-control form-control-sm" required placeholder="e.g. APP" />
+                    <span asp-validation-for="Seg" class="text-danger small"></span>
+                </div>
+                <div class="col-md-4">
+                    <label asp-for="Div" class="form-label fw-semibold">Division <span class="text-danger">*</span></label>
+                    <input asp-for="Div" class="form-control form-control-sm" required placeholder="e.g. MENS" />
+                    <span asp-validation-for="Div" class="text-danger small"></span>
+                </div>
+                <div class="col-md-4">
+                    <label asp-for="SubDiv" class="form-label fw-semibold">Sub Division <span class="text-danger">*</span></label>
+                    <input asp-for="SubDiv" class="form-control form-control-sm" required placeholder="e.g. MU" />
+                    <span asp-validation-for="SubDiv" class="text-danger small"></span>
+                </div>
+            </div>
+            <div class="row g-3 mb-3">
+                <div class="col-md-6">
+                    <label asp-for="MajCatNm" class="form-label fw-semibold">Major Category Name <span class="text-danger">*</span></label>
+                    <input asp-for="MajCatNm" class="form-control form-control-sm" required placeholder="e.g. M_PW_SHIRT_FS" />
+                    <span asp-validation-for="MajCatNm" class="text-danger small"></span>
+                </div>
+                <div class="col-md-4">
+                    <label asp-for="Ssn" class="form-label fw-semibold">Season <span class="text-danger">*</span></label>
+                    <input asp-for="Ssn" class="form-control form-control-sm" required placeholder="e.g. A" />
+                    <span asp-validation-for="Ssn" class="text-danger small"></span>
+                </div>
+            </div>
+            <div class="d-flex gap-2">
+                <button type="submit" class="btn btn-success"><i class="bi bi-check-circle me-1"></i>Create</button>
+                <a asp-action="Index" class="btn btn-secondary">Cancel</a>
+            </div>
+        </form>
+    </div>
+</div>

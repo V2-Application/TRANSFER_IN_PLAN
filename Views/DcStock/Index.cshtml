@@ -1,5 +1,9 @@
-@{ ViewData["Title"] = "DC Stock Management"; }
+@{ ViewData["Title"] = "DC Stock Management";
+   ViewBag.Kpi2Label = "RDCs"; ViewBag.Kpi2Value = ViewBag.TotalRdcs; ViewBag.Kpi2Color = "#2980b9";
+   ViewBag.Kpi3Label = "Categories"; ViewBag.Kpi3Value = ViewBag.TotalCats; ViewBag.Kpi3Color = "#8e44ad"; }
 @model IEnumerable<DcStock>
+
+<partial name="_RefTableAnalytics" />
 
 <div class="d-flex justify-content-between align-items-center mb-3">
     <h3><i class="bi bi-building me-2"></i>DC Stock</h3>

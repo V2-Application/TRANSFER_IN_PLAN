@@ -1,0 +1,241 @@
+/*==============================================================
+  SUB-LEVEL TRANSFER IN PLAN
+  Same algorithm as SP_GENERATE_TRF_IN_PLAN but at sub-level
+  granularity: ST_CD + MAJ_CAT + SUB_VALUE + WEEK
+
+  Inputs per level:
+    - Store Stock from SUB_ST_STK_{LEVEL}
+    - Sale Qty from QTY_SALE_QTY × CONT_PCT from contribution
+    - Display Qty from QTY_DISP_QTY × CONT_PCT from contribution
+    - BIN_CAPACITY stays at MAJ_CAT level (same for all sub-values)
+
+  @Level: MVGR, SZ, SEG, VND
+==============================================================*/
+
+USE [planning];
+GO
+
+IF OBJECT_ID('dbo.SP_GENERATE_SUB_LEVEL_TRF','P') IS NOT NULL
+    DROP PROCEDURE dbo.SP_GENERATE_SUB_LEVEL_TRF;
+GO
+
+CREATE PROCEDURE dbo.SP_GENERATE_SUB_LEVEL_TRF
+    @Level          VARCHAR(10),
+    @StartWeekID    INT,
+    @EndWeekID      INT,
+    @StoreCode      VARCHAR(20) = NULL,
+    @MajCat         VARCHAR(50) = NULL
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    DECLARE @StockTable VARCHAR(50), @ContTable VARCHAR(50), @ContCol VARCHAR(50);
+    DECLARE @SQL NVARCHAR(MAX);
+
+    -- Map level to tables
+    IF @Level = 'MVGR'
+    BEGIN SET @StockTable = 'SUB_ST_STK_MVGR'; SET @ContTable = 'ST_MAJ_CAT_MACRO_MVGR_PLAN'; SET @ContCol = 'DISP_MVGR_MATRIX'; END
+    ELSE IF @Level = 'SZ'
+    BEGIN SET @StockTable = 'SUB_ST_STK_SZ'; SET @ContTable = 'ST_MAJ_CAT_SZ_PLAN'; SET @ContCol = 'SZ'; END
+    ELSE IF @Level = 'SEG'
+    BEGIN SET @StockTable = 'SUB_ST_STK_SEG'; SET @ContTable = 'ST_MAJ_CAT_SEG_PLAN'; SET @ContCol = 'SEG'; END
+    ELSE IF @Level = 'VND'
+    BEGIN SET @StockTable = 'SUB_ST_STK_VND'; SET @ContTable = 'ST_MAJ_CAT_VND_PLAN'; SET @ContCol = 'M_VND_CD'; END
+    ELSE BEGIN RAISERROR('Invalid @Level', 16, 1); RETURN; END
+
+    -- ═══ STEP 1: Weeks ═══
+    IF OBJECT_ID('tempdb..#Weeks') IS NOT NULL DROP TABLE #Weeks;
+    SELECT W.WEEK_ID, W.WEEK_SEQ, W.FY_WEEK, W.FY_YEAR, W.WK_ST_DT, W.WK_END_DT,
+           'WK-' + CAST(W.FY_WEEK AS VARCHAR) AS WK_COL_NAME
+    INTO #Weeks FROM dbo.WEEK_CALENDAR W WHERE W.WEEK_ID BETWEEN @StartWeekID AND @EndWeekID;
+    CREATE UNIQUE CLUSTERED INDEX CX ON #Weeks (WEEK_ID);
+    CREATE UNIQUE INDEX IX_SEQ ON #Weeks (WEEK_SEQ);
+
+    DECLARE @WeekList TABLE (Seq INT IDENTITY(1,1) PRIMARY KEY, WID INT);
+    INSERT INTO @WeekList (WID) SELECT WEEK_ID FROM #Weeks ORDER BY WEEK_ID;
+    DECLARE @TotalWeeks INT = @@ROWCOUNT;
+    DECLARE @FirstWk INT = (SELECT WID FROM @WeekList WHERE Seq = 1);
+
+    -- ═══ STEP 2: Store × Category × SubValue combos ═══
+    IF OBJECT_ID('tempdb..#SC') IS NOT NULL DROP TABLE #SC;
+    CREATE TABLE #SC (
+        ST_CD NVARCHAR(50), ST_NM NVARCHAR(255),
+        RDC_CD NVARCHAR(50), RDC_NM NVARCHAR(255), HUB_CD NVARCHAR(50), HUB_NM NVARCHAR(255), AREA NVARCHAR(100),
+        MAJ_CAT NVARCHAR(100), SUB_VALUE NVARCHAR(200),
+        CONT_PCT DECIMAL(18,4),
+        BIN_CAP DECIMAL(18,4),
+        SEG NVARCHAR(100), DIV NVARCHAR(100), SUB_DIV NVARCHAR(100), MAJ_CAT_NM NVARCHAR(200), SSN NVARCHAR(50)
+    );
+
+    SET @SQL = N'
+    INSERT INTO #SC (ST_CD, ST_NM, RDC_CD, RDC_NM, HUB_CD, HUB_NM, AREA, MAJ_CAT, SUB_VALUE, CONT_PCT, BIN_CAP, SEG, DIV, SUB_DIV, MAJ_CAT_NM, SSN)
+    SELECT
+        SM.[ST CD], SM.[ST NM],
+        SM.[RDC_CD], SM.[RDC_NM], SM.[HUB_CD], SM.[HUB_NM], SM.[AREA],
+        C.[MAJ_CAT_CD], C.[' + @ContCol + N'],
+        C.[CONT_PCT],
+        ISNULL(BC.[BIN CAP], 0),
+        ISNULL(BM.SEG, ''NA''), ISNULL(BM.DIV, ''NA''),
+        ISNULL(BM.SUB_DIV, ''NA''), ISNULL(BM.MAJ_CAT_NM, ''NA''),
+        ISNULL(BM.SSN, ''NA'')
+    FROM dbo.[' + @ContTable + N'] C
+    INNER JOIN dbo.MASTER_ST_MASTER SM ON SM.[ST CD] = C.[ST_CD]
+    LEFT JOIN dbo.MASTER_BIN_CAPACITY BC ON BC.[MAJ-CAT] = C.[MAJ_CAT_CD]
+    OUTER APPLY (
+        SELECT TOP 1 BM.SEG, BM.DIV, BM.SUB_DIV, BM.MAJ_CAT_NM, BM.SSN
+        FROM dbo.MASTER_PRODUCT_HIERARCHY BM WHERE BM.MAJ_CAT_NM = C.[MAJ_CAT_CD]
+    ) BM
+    WHERE (@StoreCode IS NULL OR SM.[ST CD] = @StoreCode)
+      AND (@MajCat IS NULL OR C.[MAJ_CAT_CD] = @MajCat)';
+    EXEC sp_executesql @SQL, N'@StoreCode VARCHAR(20), @MajCat VARCHAR(50)', @StoreCode, @MajCat;
+    CREATE INDEX IX ON #SC (ST_CD, MAJ_CAT, SUB_VALUE);
+
+    -- ═══ STEP 3: Sale × CONT_PCT, Display × CONT_PCT, Stock ═══
+    IF OBJECT_ID('tempdb..#SQ') IS NOT NULL DROP TABLE #SQ;
+    SELECT u.[ST-CD] AS ST_CD, u.[MAJ-CAT] AS MAJ_CAT, sc.SUB_VALUE,
+           u.WK_NAME, u.SALE_QTY * sc.CONT_PCT AS SALE_QTY
+    INTO #SQ
+    FROM dbo.QTY_SALE_QTY sq
+    UNPIVOT (SALE_QTY FOR WK_NAME IN (
+        [WK-1],[WK-2],[WK-3],[WK-4],[WK-5],[WK-6],[WK-7],[WK-8],[WK-9],[WK-10],[WK-11],[WK-12],
+        [WK-13],[WK-14],[WK-15],[WK-16],[WK-17],[WK-18],[WK-19],[WK-20],[WK-21],[WK-22],[WK-23],[WK-24],
+        [WK-25],[WK-26],[WK-27],[WK-28],[WK-29],[WK-30],[WK-31],[WK-32],[WK-33],[WK-34],[WK-35],[WK-36],
+        [WK-37],[WK-38],[WK-39],[WK-40],[WK-41],[WK-42],[WK-43],[WK-44],[WK-45],[WK-46],[WK-47],[WK-48]
+    )) u
+    INNER JOIN #SC sc ON sc.ST_CD = u.[ST-CD] AND sc.MAJ_CAT = u.[MAJ-CAT];
+    CREATE INDEX IX ON #SQ (ST_CD, MAJ_CAT, SUB_VALUE, WK_NAME);
+
+    IF OBJECT_ID('tempdb..#DQ') IS NOT NULL DROP TABLE #DQ;
+    SELECT u.[ST-CD] AS ST_CD, u.[MAJ-CAT] AS MAJ_CAT, sc.SUB_VALUE,
+           u.WK_NAME, u.DISP_QTY * sc.CONT_PCT AS DISP_QTY
+    INTO #DQ
+    FROM dbo.QTY_DISP_QTY dq
+    UNPIVOT (DISP_QTY FOR WK_NAME IN (
+        [WK-1],[WK-2],[WK-3],[WK-4],[WK-5],[WK-6],[WK-7],[WK-8],[WK-9],[WK-10],[WK-11],[WK-12],
+        [WK-13],[WK-14],[WK-15],[WK-16],[WK-17],[WK-18],[WK-19],[WK-20],[WK-21],[WK-22],[WK-23],[WK-24],
+        [WK-25],[WK-26],[WK-27],[WK-28],[WK-29],[WK-30],[WK-31],[WK-32],[WK-33],[WK-34],[WK-35],[WK-36],
+        [WK-37],[WK-38],[WK-39],[WK-40],[WK-41],[WK-42],[WK-43],[WK-44],[WK-45],[WK-46],[WK-47],[WK-48]
+    )) u
+    INNER JOIN #SC sc ON sc.ST_CD = u.[ST-CD] AND sc.MAJ_CAT = u.[MAJ-CAT];
+    CREATE INDEX IX ON #DQ (ST_CD, MAJ_CAT, SUB_VALUE, WK_NAME);
+
+    -- Level-specific store stock
+    IF OBJECT_ID('tempdb..#LS') IS NOT NULL DROP TABLE #LS;
+    CREATE TABLE #LS (ST_CD NVARCHAR(50), MAJ_CAT NVARCHAR(100), SUB_VALUE NVARCHAR(200), STK_QTY DECIMAL(18,4));
+
+    SET @SQL = N'
+    INSERT INTO #LS (ST_CD, MAJ_CAT, SUB_VALUE, STK_QTY)
+    SELECT ST_CD, MAJ_CAT, SUB_VALUE, STK_QTY FROM (
+        SELECT ST_CD, MAJ_CAT, SUB_VALUE, STK_QTY,
+            ROW_NUMBER() OVER (PARTITION BY ST_CD, MAJ_CAT, SUB_VALUE ORDER BY [DATE] DESC) RN
+        FROM dbo.[' + @StockTable + N']
+    ) r WHERE RN = 1';
+    EXEC sp_executesql @SQL;
+    CREATE INDEX IX ON #LS (ST_CD, MAJ_CAT, SUB_VALUE);
+
+    -- ═══ STEP 4: Build chain table (ST_CD + MAJ_CAT + SUB_VALUE + WEEK) ═══
+    IF OBJECT_ID('tempdb..#Chain') IS NOT NULL DROP TABLE #Chain;
+
+    SELECT
+        SC.ST_CD, SC.MAJ_CAT, SC.SUB_VALUE, W.WEEK_ID, SC.SSN,
+        ISNULL(DQ.DISP_QTY, 0) + ISNULL(SQ1.SALE_QTY, 0) AS MBQ,
+        ISNULL(SQ0.SALE_QTY, 0) AS SALE,
+        ISNULL(LS.STK_QTY, 0)   AS OP_STK,
+        CAST(0 AS DECIMAL(18,4)) AS NET_CF,
+        CAST(0 AS DECIMAL(18,4)) AS TRF_IN,
+        CAST(0 AS DECIMAL(18,4)) AS CL_STK
+    INTO #Chain
+    FROM (SELECT DISTINCT ST_CD, MAJ_CAT, SUB_VALUE, SSN FROM #SC) SC
+    CROSS JOIN #Weeks W
+    LEFT JOIN #SQ SQ0 ON SQ0.ST_CD = SC.ST_CD AND SQ0.MAJ_CAT = SC.MAJ_CAT AND SQ0.SUB_VALUE = SC.SUB_VALUE AND SQ0.WK_NAME = W.WK_COL_NAME
+    LEFT JOIN #Weeks W1 ON W1.WEEK_SEQ = W.WEEK_SEQ + 1
+    LEFT JOIN #SQ SQ1 ON SQ1.ST_CD = SC.ST_CD AND SQ1.MAJ_CAT = SC.MAJ_CAT AND SQ1.SUB_VALUE = SC.SUB_VALUE AND SQ1.WK_NAME = W1.WK_COL_NAME
+    LEFT JOIN #DQ DQ ON DQ.ST_CD = SC.ST_CD AND DQ.MAJ_CAT = SC.MAJ_CAT AND DQ.SUB_VALUE = SC.SUB_VALUE AND DQ.WK_NAME = ISNULL(W1.WK_COL_NAME, W.WK_COL_NAME)
+    LEFT JOIN #LS LS ON LS.ST_CD = SC.ST_CD AND LS.MAJ_CAT = SC.MAJ_CAT AND LS.SUB_VALUE = SC.SUB_VALUE;
+
+    CREATE CLUSTERED INDEX CX ON #Chain (ST_CD, MAJ_CAT, SUB_VALUE, WEEK_ID);
+
+    -- ═══ STEP 5: Week 1 calculations ═══
+    UPDATE #Chain SET NET_CF = CASE
+        WHEN OP_STK - ROUND(ROUND(OP_STK * 0.08, 0) * CASE WHEN SSN IN ('S','PS') THEN 1.0 ELSE 0.5 END, 0) > 0
+        THEN OP_STK - ROUND(ROUND(OP_STK * 0.08, 0) * CASE WHEN SSN IN ('S','PS') THEN 1.0 ELSE 0.5 END, 0)
+        ELSE 0 END
+    WHERE WEEK_ID = @FirstWk;
+
+    UPDATE #Chain SET
+        TRF_IN = CASE WHEN MBQ = 0 AND SALE = 0 THEN 0 WHEN MBQ + SALE - NET_CF > 0 THEN MBQ + SALE - NET_CF ELSE 0 END,
+        CL_STK = CASE WHEN MBQ = 0 AND SALE = 0 THEN NET_CF WHEN MBQ + SALE > NET_CF THEN MBQ ELSE CASE WHEN NET_CF - SALE > 0 THEN NET_CF - SALE ELSE 0 END END
+    WHERE WEEK_ID = @FirstWk;
+
+    -- ═══ STEP 6: Chain weeks 2..N ═══
+    DECLARE @i INT = 2, @tw INT, @pw INT;
+    WHILE @i <= @TotalWeeks
+    BEGIN
+        SELECT @tw = WID FROM @WeekList WHERE Seq = @i;
+        SELECT @pw = WID FROM @WeekList WHERE Seq = @i - 1;
+
+        UPDATE c SET
+            c.OP_STK = p.CL_STK,
+            c.NET_CF = CASE
+                WHEN p.CL_STK - ROUND(ROUND(p.CL_STK * 0.08, 0) * CASE WHEN c.SSN IN ('S','PS') THEN 1.0 ELSE 0.5 END, 0) > 0
+                THEN p.CL_STK - ROUND(ROUND(p.CL_STK * 0.08, 0) * CASE WHEN c.SSN IN ('S','PS') THEN 1.0 ELSE 0.5 END, 0)
+                ELSE 0 END
+        FROM #Chain c
+        INNER JOIN #Chain p ON p.ST_CD = c.ST_CD AND p.MAJ_CAT = c.MAJ_CAT AND p.SUB_VALUE = c.SUB_VALUE AND p.WEEK_ID = @pw
+        WHERE c.WEEK_ID = @tw;
+
+        UPDATE #Chain SET
+            TRF_IN = CASE WHEN MBQ = 0 AND SALE = 0 THEN 0 WHEN MBQ + SALE - NET_CF > 0 THEN MBQ + SALE - NET_CF ELSE 0 END,
+            CL_STK = CASE WHEN MBQ = 0 AND SALE = 0 THEN NET_CF WHEN MBQ + SALE > NET_CF THEN MBQ ELSE CASE WHEN NET_CF - SALE > 0 THEN NET_CF - SALE ELSE 0 END END
+        WHERE WEEK_ID = @tw;
+
+        SET @i = @i + 1;
+    END
+
+    -- ═══ STEP 7: Delete old + INSERT into SUB_LEVEL_TRF_PLAN ═══
+    DELETE FROM dbo.SUB_LEVEL_TRF_PLAN WHERE [LEVEL] = @Level;
+
+    INSERT INTO dbo.SUB_LEVEL_TRF_PLAN (
+        [LEVEL], [SUB_VALUE], [ST_CD], [MAJ_CAT], [CONT_PCT], [FY_YEAR], [FY_WEEK],
+        [BGT_DISP_CL_Q], [CM_BGT_SALE_Q], [CM1_BGT_SALE_Q], [CM2_BGT_SALE_Q], [COVER_SALE_QTY],
+        [TRF_IN_STK_Q], [DC_MBQ],
+        [BGT_TTL_CF_OP_STK_Q], [BGT_TTL_CF_CL_STK_Q], [BGT_ST_CL_MBQ],
+        [ST_CL_EXCESS_Q], [ST_CL_SHORT_Q], [CREATED_DT]
+    )
+    SELECT
+        @Level, ch.SUB_VALUE, ch.ST_CD, ch.MAJ_CAT,
+        ISNULL(SC.CONT_PCT, 0), W.FY_YEAR, W.FY_WEEK,
+        ISNULL(DQ.DISP_QTY, 0),
+        ch.SALE,
+        ISNULL(SQ1.SALE_QTY, 0),
+        ISNULL(SQ2.SALE_QTY, 0),
+        ISNULL(SQ1.SALE_QTY, 0),
+        ch.TRF_IN,
+        ISNULL(SQ1.SALE_QTY, 0) + ISNULL(SQN2.SALE_QTY, 0) + ISNULL(SQN3.SALE_QTY, 0) + ISNULL(SQN4.SALE_QTY, 0),
+        ch.OP_STK, ch.CL_STK, ch.MBQ,
+        CASE WHEN ch.CL_STK - ch.MBQ > 0 THEN ch.CL_STK - ch.MBQ ELSE 0 END,
+        CASE WHEN ch.MBQ - ch.CL_STK > 0 THEN ch.MBQ - ch.CL_STK ELSE 0 END,
+        GETDATE()
+    FROM #Chain ch
+    INNER JOIN #SC SC ON SC.ST_CD = ch.ST_CD AND SC.MAJ_CAT = ch.MAJ_CAT AND SC.SUB_VALUE = ch.SUB_VALUE
+    INNER JOIN #Weeks W ON W.WEEK_ID = ch.WEEK_ID
+    LEFT JOIN #Weeks W1 ON W1.WEEK_SEQ = W.WEEK_SEQ + 1
+    LEFT JOIN #SQ SQ1 ON SQ1.ST_CD = ch.ST_CD AND SQ1.MAJ_CAT = ch.MAJ_CAT AND SQ1.SUB_VALUE = ch.SUB_VALUE AND SQ1.WK_NAME = W1.WK_COL_NAME
+    LEFT JOIN #Weeks W2 ON W2.WEEK_SEQ = W.WEEK_SEQ + 8
+    LEFT JOIN #SQ SQ2 ON SQ2.ST_CD = ch.ST_CD AND SQ2.MAJ_CAT = ch.MAJ_CAT AND SQ2.SUB_VALUE = ch.SUB_VALUE AND SQ2.WK_NAME = W2.WK_COL_NAME
+    LEFT JOIN #Weeks WN2 ON WN2.WEEK_SEQ = W.WEEK_SEQ + 2
+    LEFT JOIN #SQ SQN2 ON SQN2.ST_CD = ch.ST_CD AND SQN2.MAJ_CAT = ch.MAJ_CAT AND SQN2.SUB_VALUE = ch.SUB_VALUE AND SQN2.WK_NAME = WN2.WK_COL_NAME
+    LEFT JOIN #Weeks WN3 ON WN3.WEEK_SEQ = W.WEEK_SEQ + 3
+    LEFT JOIN #SQ SQN3 ON SQN3.ST_CD = ch.ST_CD AND SQN3.MAJ_CAT = ch.MAJ_CAT AND SQN3.SUB_VALUE = ch.SUB_VALUE AND SQN3.WK_NAME = WN3.WK_COL_NAME
+    LEFT JOIN #Weeks WN4 ON WN4.WEEK_SEQ = W.WEEK_SEQ + 4
+    LEFT JOIN #SQ SQN4 ON SQN4.ST_CD = ch.ST_CD AND SQN4.MAJ_CAT = ch.MAJ_CAT AND SQN4.SUB_VALUE = ch.SUB_VALUE AND SQN4.WK_NAME = WN4.WK_COL_NAME
+    LEFT JOIN #DQ DQ ON DQ.ST_CD = ch.ST_CD AND DQ.MAJ_CAT = ch.MAJ_CAT AND DQ.SUB_VALUE = ch.SUB_VALUE AND DQ.WK_NAME = ISNULL(W1.WK_COL_NAME, W.WK_COL_NAME);
+
+    DROP TABLE IF EXISTS #Weeks, #SC, #SQ, #DQ, #LS, #Chain;
+
+    SELECT @Level AS [Level], @@ROWCOUNT AS RowsInserted;
+END;
+GO
+
+PRINT '>> SP_GENERATE_SUB_LEVEL_TRF created.';
+GO

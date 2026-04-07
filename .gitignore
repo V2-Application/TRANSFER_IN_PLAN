@@ -166,3 +166,6 @@ publish/
 
 # Generated files
 GeneratedCode/
+
+# Claude Code local memory
+.claude/

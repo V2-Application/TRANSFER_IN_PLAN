@@ -20,6 +20,20 @@ public class PlanningDbContext : DbContext
     public DbSet<TrfInPlan> TrfInPlans { get; set; }
     public DbSet<PurchasePlan> PurchasePlans { get; set; }
     public DbSet<DelPending> DelPendings { get; set; }
+    public DbSet<GrtContribution> GrtContributions { get; set; }
+    public DbSet<ProductHierarchy> ProductHierarchies { get; set; }
+    public DbSet<ContMacroMvgr> ContMacroMvgrs { get; set; }
+    public DbSet<ContSz> ContSzs { get; set; }
+    public DbSet<ContSeg> ContSegs { get; set; }
+    public DbSet<ContVnd> ContVnds { get; set; }
+    public DbSet<SubStStkMvgr> SubStStkMvgrs { get; set; }
+    public DbSet<SubStStkSz> SubStStkSzs { get; set; }
+    public DbSet<SubStStkSeg> SubStStkSegs { get; set; }
+    public DbSet<SubStStkVnd> SubStStkVnds { get; set; }
+    public DbSet<SubDcStkMvgr> SubDcStkMvgrs { get; set; }
+    public DbSet<SubDcStkSz> SubDcStkSzs { get; set; }
+    public DbSet<SubDcStkSeg> SubDcStkSegs { get; set; }
+    public DbSet<SubDcStkVnd> SubDcStkVnds { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -63,5 +77,47 @@ public class PlanningDbContext : DbContext
 
         modelBuilder.Entity<DelPending>()
             .ToTable("QTY_DEL_PENDING", schema: "dbo");
+
+        modelBuilder.Entity<GrtContribution>()
+            .ToTable("MASTER_GRT_CONTRIBUTION", schema: "dbo");
+
+        modelBuilder.Entity<ProductHierarchy>()
+            .ToTable("MASTER_PRODUCT_HIERARCHY", schema: "dbo");
+
+        modelBuilder.Entity<ContMacroMvgr>()
+            .ToTable("ST_MAJ_CAT_MACRO_MVGR_PLAN", schema: "dbo");
+
+        modelBuilder.Entity<ContSz>()
+            .ToTable("ST_MAJ_CAT_SZ_PLAN", schema: "dbo");
+
+        modelBuilder.Entity<ContSeg>()
+            .ToTable("ST_MAJ_CAT_SEG_PLAN", schema: "dbo");
+
+        modelBuilder.Entity<ContVnd>()
+            .ToTable("ST_MAJ_CAT_VND_PLAN", schema: "dbo");
+
+        modelBuilder.Entity<SubStStkMvgr>()
+            .ToTable("SUB_ST_STK_MVGR", schema: "dbo");
+
+        modelBuilder.Entity<SubStStkSz>()
+            .ToTable("SUB_ST_STK_SZ", schema: "dbo");
+
+        modelBuilder.Entity<SubStStkSeg>()
+            .ToTable("SUB_ST_STK_SEG", schema: "dbo");
+
+        modelBuilder.Entity<SubStStkVnd>()
+            .ToTable("SUB_ST_STK_VND", schema: "dbo");
+
+        modelBuilder.Entity<SubDcStkMvgr>()
+            .ToTable("SUB_DC_STK_MVGR", schema: "dbo");
+
+        modelBuilder.Entity<SubDcStkSz>()
+            .ToTable("SUB_DC_STK_SZ", schema: "dbo");
+
+        modelBuilder.Entity<SubDcStkSeg>()
+            .ToTable("SUB_DC_STK_SEG", schema: "dbo");
+
+        modelBuilder.Entity<SubDcStkVnd>()
+            .ToTable("SUB_DC_STK_VND", schema: "dbo");
     }
 }

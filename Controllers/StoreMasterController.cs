@@ -32,6 +32,30 @@ namespace TRANSFER_IN_PLAN.Controllers
             ViewBag.Area = area;
             ViewBag.ActiveOnly = activeOnly;
             var data = await query.OrderBy(x => x.StCd).ToListAsync();
+
+            // Analytics data from ALL stores (not filtered)
+            var allStores = await _context.StoreMasters.ToListAsync();
+            ViewBag.TotalStores = allStores.Count;
+            ViewBag.NewCount = allStores.Count(x => x.Status?.ToUpper() == "NEW");
+            ViewBag.OldCount = allStores.Count(x => x.Status?.ToUpper() == "OLD");
+            ViewBag.UpcCount = allStores.Count(x => x.Status?.ToUpper() == "UPC");
+            ViewBag.RdcCount = allStores.Select(x => x.RdcCd).Distinct().Count();
+            ViewBag.StateCount = allStores.Select(x => x.State).Where(x => !string.IsNullOrEmpty(x)).Distinct().Count();
+
+            // By Status
+            ViewBag.StatusLabels = allStores.GroupBy(x => x.Status?.ToUpper() ?? "NA").Select(g => g.Key).OrderBy(x => x).ToList();
+            ViewBag.StatusCounts = allStores.GroupBy(x => x.Status?.ToUpper() ?? "NA").OrderBy(g => g.Key).Select(g => g.Count()).ToList();
+
+            // By RDC
+            var byRdc = allStores.GroupBy(x => x.RdcCd ?? "NA").OrderBy(g => g.Key).ToList();
+            ViewBag.RdcLabels = byRdc.Select(g => g.Key + (g.First().RdcNm != null ? " " + g.First().RdcNm : "")).ToList();
+            ViewBag.RdcStoreCounts = byRdc.Select(g => g.Count()).ToList();
+
+            // By State
+            var byState = allStores.Where(x => !string.IsNullOrEmpty(x.State)).GroupBy(x => x.State!).OrderByDescending(g => g.Count()).Take(15).ToList();
+            ViewBag.StateLabels = byState.Select(g => g.Key).ToList();
+            ViewBag.StateStoreCounts = byState.Select(g => g.Count()).ToList();
+
             return View(data);
         }
 
@@ -111,15 +135,11 @@ namespace TRANSFER_IN_PLAN.Controllers
         }
 
         [HttpPost]
-        public async Task<IActionResult> ToggleStatus(int id)
+        public async Task<IActionResult> Details(int id)
         {
             var model = await _context.StoreMasters.FindAsync(id);
             if (model == null) return NotFound();
-            model.Status = model.Status == "A" ? "I" : "A";
-            await _context.SaveChangesAsync();
-            _logger.LogInformation("StoreMaster status toggled: Id={Id} NewStatus={Status}", id, model.Status);
-            TempData["SuccessMessage"] = "Store status updated.";
-            return RedirectToAction(nameof(Index));
+            return View("Edit", model);
         }
 
         [HttpGet]

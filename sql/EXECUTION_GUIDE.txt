@@ -1,0 +1,308 @@
+﻿================================================================================
+PURCHASE PLAN SQL SCRIPTS - EXECUTION GUIDE
+================================================================================
+
+LOCATION: /sessions/beautiful-confident-clarke/mnt/Documents/TRF_IN_PLAN_SQL/
+
+FILES CREATED:
+================================================================================
+
+1. 08_CREATE_PURCHASE_PLAN_REF_TABLES.sql (80 lines)
+   Ã¢Â”Â”Ã¢Â”Â€ Creates: QTY_DEL_PENDING table with 2 indexes
+   Ã¢Â”Â”Ã¢Â”Â€ Dependencies: WEEK_CALENDAR, MASTER_ST_MASTER, MASTER_BIN_CAPACITY, 
+                    MASTER_GRT_CONS_percentage, QTY_MSA_AND_GRT, TRF_IN_PLAN
+
+2. 09_CREATE_PURCHASE_PLAN_TABLE.sql (158 lines)
+   Ã¢Â”Â”Ã¢Â”Â€ Creates: PURCHASE_PLAN table (56 columns)
+   Ã¢Â”Â”Ã¢Â”Â€ Includes: 4 performance indexes (RDCÃƒÂ—CATÃƒÂ—WEEK, WEEKÃƒÂ—FY, RDCÃƒÂ—CAT, ALERTS)
+   Ã¢Â”Â”Ã¢Â”Â€ All columns typed as DECIMAL(18,2) for metrics, includes audit columns
+
+3. 10_CREATE_SP_GENERATE_PURCHASE_PLAN.sql (762 lines)
+   Ã¢Â”Â”Ã¢Â”Â€ Creates: SP_GENERATE_PURCHASE_PLAN stored procedure
+   Ã¢Â”Â”Ã¢Â”Â€ Logic: 7-step algorithm with week chaining via cursor
+   Ã¢Â”Â”Ã¢Â”Â€ Parameters: @StartWeekID, @EndWeekID, @RdcCode, @MajCat, @Debug
+
+4. 11_CREATE_PURCHASE_PLAN_VIEWS.sql (410 lines)
+   Ã¢Â”Â”Ã¢Â”Â€ Creates: 5 views for reporting
+      Ã¢Â”ÂœÃ¢Â”Â€ VW_PURCHASE_PLAN_DETAIL (all columns, all rows)
+      Ã¢Â”ÂœÃ¢Â”Â€ VW_PURCHASE_PLAN_SUMMARY (by RDCÃƒÂ—WEEK, sums across categories)
+      Ã¢Â”ÂœÃ¢Â”Â€ VW_PURCHASE_PLAN_ALERTS (alerts only: shortages & POs)
+      Ã¢Â”ÂœÃ¢Â”Â€ VW_PURCHASE_PLAN_CATEGORY_SUMMARY (by MAJ_CATÃƒÂ—WEEK, sums across RDCs)
+      Ã¢Â”Â”Ã¢Â”Â€ VW_WEEK_REFERENCE (helper: week calendar)
+
+5. README_PURCHASE_PLAN.md
+   Ã¢Â”Â”Ã¢Â”Â€ Complete documentation with examples and troubleshooting
+
+================================================================================
+EXECUTION ORDER & COMMANDS
+================================================================================
+
+OPTION A: Execute each file separately (recommended for validation)
+Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€
+
+Step 1: Create Reference Tables
+  sqlcmd -S <SERVER_NAME> -d planning -i 08_CREATE_PURCHASE_PLAN_REF_TABLES.sql
+  
+Step 2: Create PURCHASE_PLAN Table
+  sqlcmd -S <SERVER_NAME> -d planning -i 09_CREATE_PURCHASE_PLAN_TABLE.sql
+  
+Step 3: Create Stored Procedure
+  sqlcmd -S <SERVER_NAME> -d planning -i 10_CREATE_SP_GENERATE_PURCHASE_PLAN.sql
+  
+Step 4: Create Views
+  sqlcmd -S <SERVER_NAME> -d planning -i 11_CREATE_PURCHASE_PLAN_VIEWS.sql
+
+
+OPTION B: Batch execution (Windows batch file)
+Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€
+
+Create file: RUN_PURCHASE_PLAN_SETUP.bat
+
+@echo off
+echo Starting Purchase Plan Setup...
+sqlcmd -S %1 -d planning -i 08_CREATE_PURCHASE_PLAN_REF_TABLES.sql
+if %ERRORLEVEL% NEQ 0 goto error
+sqlcmd -S %1 -d planning -i 09_CREATE_PURCHASE_PLAN_TABLE.sql
+if %ERRORLEVEL% NEQ 0 goto error
+sqlcmd -S %1 -d planning -i 10_CREATE_SP_GENERATE_PURCHASE_PLAN.sql
+if %ERRORLEVEL% NEQ 0 goto error
+sqlcmd -S %1 -d planning -i 11_CREATE_PURCHASE_PLAN_VIEWS.sql
+if %ERRORLEVEL% NEQ 0 goto error
+echo Setup completed successfully!
+goto end
+:error
+echo Error occurred during setup!
+:end
+
+Run with: RUN_PURCHASE_PLAN_SETUP.bat <SERVER_NAME>
+
+
+OPTION C: Bash script (Linux/Mac)
+Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€
+
+#!/bin/bash
+SERVER=$1
+for script in 08_CREATE_PURCHASE_PLAN_REF_TABLES.sql \
+             09_CREATE_PURCHASE_PLAN_TABLE.sql \
+             10_CREATE_SP_GENERATE_PURCHASE_PLAN.sql \
+             11_CREATE_PURCHASE_PLAN_VIEWS.sql; do
+  echo "Executing $script..."
+  sqlcmd -S $SERVER -d planning -i $script || exit 1
+done
+echo "Setup completed successfully!"
+
+Run with: bash run_setup.sh <SERVER_NAME>
+
+================================================================================
+POST-EXECUTION VALIDATION
+================================================================================
+
+Connect to [planning] database and execute:
+
+-- Verify all objects created
+SELECT * FROM sys.tables WHERE name = 'PURCHASE_PLAN';
+SELECT * FROM sys.procedures WHERE name = 'SP_GENERATE_PURCHASE_PLAN';
+SELECT name FROM sys.views WHERE name LIKE 'VW_PURCHASE_PLAN%' 
+  UNION ALL
+SELECT name FROM sys.views WHERE name = 'VW_WEEK_REFERENCE';
+
+-- Verify table structure
+SELECT COUNT(*) AS ColumnCount FROM information_schema.columns 
+WHERE table_name = 'PURCHASE_PLAN';  -- Should return 56
+
+-- Verify indexes
+SELECT * FROM sys.indexes WHERE object_id = OBJECT_ID('PURCHASE_PLAN')
+AND name IS NOT NULL;  -- Should show 5 indexes
+
+-- Test procedure execution (generates sample data)
+EXEC dbo.SP_GENERATE_PURCHASE_PLAN 
+  @StartWeekID = 1, 
+  @EndWeekID = 13, 
+  @Debug = 1;
+
+-- Verify data insertion
+SELECT COUNT(*) AS RowCount FROM dbo.PURCHASE_PLAN;
+
+-- Test views
+SELECT TOP 5 * FROM dbo.VW_PURCHASE_PLAN_DETAIL;
+SELECT TOP 5 * FROM dbo.VW_PURCHASE_PLAN_SUMMARY;
+SELECT TOP 5 * FROM dbo.VW_PURCHASE_PLAN_ALERTS;
+SELECT TOP 5 * FROM dbo.VW_PURCHASE_PLAN_CATEGORY_SUMMARY;
+
+================================================================================
+PROCEDURE USAGE EXAMPLES
+================================================================================
+
+-- Example 1: Full year (all RDCs, all categories)
+EXEC dbo.SP_GENERATE_PURCHASE_PLAN 
+  @StartWeekID = 1, 
+  @EndWeekID = 52;
+
+-- Example 2: First quarter for single RDC
+EXEC dbo.SP_GENERATE_PURCHASE_PLAN 
+  @StartWeekID = 1, 
+  @EndWeekID = 13, 
+  @RdcCode = 'RDC001';
+
+-- Example 3: Category filter
+EXEC dbo.SP_GENERATE_PURCHASE_PLAN 
+  @StartWeekID = 1, 
+  @EndWeekID = 52, 
+  @MajCat = 'DELI';
+
+-- Example 4: Debug mode (shows progress)
+EXEC dbo.SP_GENERATE_PURCHASE_PLAN 
+  @StartWeekID = 1, 
+  @EndWeekID = 13, 
+  @RdcCode = 'RDC001', 
+  @MajCat = 'PRODUCE', 
+  @Debug = 1;
+
+================================================================================
+EXPECTED RESULTS
+================================================================================
+
+Table Grain: RDC_CD ÃƒÂ— MAJ_CAT ÃƒÂ— WEEK_ID
+
+Expected Row Count Calculation:
+  Assume 100 RDCs ÃƒÂ— 50 Categories ÃƒÂ— 52 Weeks = 260,000 rows per full run
+  
+Actual may vary based on your master data dimensions:
+  Use: SELECT COUNT(DISTINCT RDC_CD) FROM MASTER_ST_MASTER
+       SELECT COUNT(DISTINCT [MAJ-CAT]) FROM MASTER_BIN_CAPACITY
+
+Execution Time:
+  Full year (52 weeks): 30-60 seconds
+  Quarter (13 weeks): 8-15 seconds
+  Single RDC (52 weeks): 2-5 seconds
+
+================================================================================
+KEY COLUMN DEFINITIONS (in PURCHASE_PLAN table)
+================================================================================
+
+Identifiers:
+  RDC_CD - Regional Distribution Center code
+  MAJ_CAT - Major Category (from MASTER_BIN_CAPACITY)
+  WEEK_ID - Week identifier (from WEEK_CALENDAR)
+  SSN - Season (Spring/OC/Autumn/Holiday derived from FY_WEEK)
+
+Stock Quantities:
+  DC_STK_Q - DC opening stock (from QTY_MSA_AND_GRT)
+  GRT_STK_Q - GRT opening stock
+  TTL_STK - Total stock available for planning
+  OP_STK - Operating stock (=TTL_STK)
+  NT_ACT_STK - No-touch/seasonal active stock
+
+GRT Consumption:
+  GRT_CONS_PCT - Consumption percentage (from MASTER_GRT_CONS_percentage)
+  GRT_CONS_Q - Calculated GRT consumption quantity
+
+Transfer/Sales:
+  CW_BGT_SALE_Q - Current week budget sales
+  CW1_BGT_SALE_Q - CW+1 budget sales
+  CW2_BGT_SALE_Q - CW+2 budget sales
+  CW3-5_BGT_SALE_Q - CW+3/4/5 budget sales (from future week joins)
+  TTL_TRF_OUT_Q - Total transfer out to stores
+
+Purchase Planning:
+  BGT_PUR_Q_INIT - Initial budget purchase quantity
+  POS_PO_RAISED - Positive PO amount
+  NEG_PO_RAISED - Negative PO amount (returns)
+  PP_NET_BGT_CF_STK_Q - Net confirmed stock available for planning
+
+Alerts:
+  DC_STK_SHORT_Q - DC stock shortage
+  DC_STK_EXCESS_Q - DC stock excess
+  CO_STK_SHORT_Q - Company (ST+DC) stock shortage
+  CO_STK_EXCESS_Q - Company stock excess
+
+Bin Calculations:
+  FRESH_BIN_REQ - Bins required for fresh closing stock
+  GRT_BIN_REQ - Bins required for GRT operating stock
+
+================================================================================
+DEPENDENCIES & PREREQUISITES
+================================================================================
+
+Required Tables (must exist before running):
+  Ã¢ÂœÂ“ WEEK_CALENDAR
+  Ã¢ÂœÂ“ MASTER_ST_MASTER
+  Ã¢ÂœÂ“ MASTER_BIN_CAPACITY
+  Ã¢ÂœÂ“ MASTER_GRT_CONS_percentage
+  Ã¢ÂœÂ“ QTY_MSA_AND_GRT
+  Ã¢ÂœÂ“ TRF_IN_PLAN (must be populated with store-level data first)
+
+Database Requirements:
+  Ã¢ÂœÂ“ [planning] database
+  Ã¢ÂœÂ“ Read access to all reference tables
+  Ã¢ÂœÂ“ Write access to [dbo] schema
+  Ã¢ÂœÂ“ Ability to create tables, procedures, and views
+
+Data Requirements:
+  Ã¢ÂœÂ“ TRF_IN_PLAN populated for your date range
+  Ã¢ÂœÂ“ WEEK_CALENDAR covering your fiscal year
+  Ã¢ÂœÂ“ MASTER_GRT_CONS_percentage with SSN values
+  Ã¢ÂœÂ“ QTY_MSA_AND_GRT with current stock levels
+  Ã¢ÂœÂ“ QTY_DEL_PENDING (created by script 1) populated with pending deliveries
+
+================================================================================
+TROUBLESHOOTING
+================================================================================
+
+Error: "Cannot find table dbo.TRF_IN_PLAN"
+  Ã¢Â†Â’ Ensure TRF_IN_PLAN is populated before running SP_GENERATE_PURCHASE_PLAN
+  Ã¢Â†Â’ Use FULL_TRF_IN_PLAN_SETUP.sql if TRF_IN_PLAN doesn't exist yet
+
+Error: "Invalid column name [MAJ-CAT]"
+  Ã¢Â†Â’ Reference tables have hyphenated column names
+  Ã¢Â†Â’ Ensure MASTER_BIN_CAPACITY has [MAJ-CAT] with square brackets
+  Ã¢Â†Â’ Scripts already handle this with bracketed identifiers
+
+Error: "Syntax error near keyword DECLARE"
+  Ã¢Â†Â’ SQL Server version must be 2012 or later
+  Ã¢Â†Â’ Check that scripts executed successfully without errors
+
+Error: "No rows inserted" after procedure execution
+  Ã¢Â†Â’ Verify TRF_IN_PLAN has data for the WEEK_ID range
+  Ã¢Â†Â’ Check WEEK_CALENDAR contains WEEK_ID values for your range
+  Ã¢Â†Â’ Run with @Debug = 1 to see progress messages
+
+Performance Issue: "Procedure takes too long"
+  Ã¢Â†Â’ Consider running by quarter instead of full year
+  Ã¢Â†Â’ Run procedure with specific @RdcCode to isolate
+  Ã¢Â†Â’ Check QTY_MSA_AND_GRT and QTY_DEL_PENDING have indexed lookups
+
+================================================================================
+MAINTENANCE & UPDATES
+================================================================================
+
+Weekly Updates:
+  EXEC dbo.SP_GENERATE_PURCHASE_PLAN 
+    @StartWeekID = <current_week>, 
+    @EndWeekID = <current_week + 12>;
+
+Refresh All Data:
+  TRUNCATE TABLE dbo.PURCHASE_PLAN;
+  EXEC dbo.SP_GENERATE_PURCHASE_PLAN 
+    @StartWeekID = 1, 
+    @EndWeekID = 52;
+
+Refresh Specific RDC:
+  DELETE FROM dbo.PURCHASE_PLAN WHERE RDC_CD = 'RDC001';
+  EXEC dbo.SP_GENERATE_PURCHASE_PLAN 
+    @StartWeekID = 1, 
+    @EndWeekID = 52, 
+    @RdcCode = 'RDC001';
+
+================================================================================
+Contact/Support
+================================================================================
+
+For issues or questions, refer to README_PURCHASE_PLAN.md for:
+  - Complete algorithm documentation
+  - Column data dictionary
+  - Advanced query examples
+  - Performance tuning tips
+
+Generated: 2026-04-03
+================================================================================
