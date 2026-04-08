@@ -1,117 +1,100 @@
 name: Build and Deploy to .36 IIS
 
-# HOW IT WORKS:
-# 1. Developer NEVER pushes directly to main.
-# 2. Developer pushes to 'staging' branch.
-# 3. build-check.yml builds on GitHub runner (ubuntu-latest).
-#    - If build PASSES -> auto-merges staging to main.
-#    - If build FAILS -> main is NOT touched. Developer fixes & re-pushes staging.
-# 4. Main push (from the merge) triggers THIS workflow.
-# 5. Single job runs entirely on the self-hosted .36 runner:
-#    - dotnet restore -> dotnet publish -> xcopy files -> recycle pool -> health check.
-
 on:
   workflow_dispatch:
-    push:
-        branches:
-              - main
-                  paths:
-                        - 'Controllers/**'
-                              - 'Models/**'
-                                    - 'Views/**'
-                                          - 'Services/**'
-                                                - 'Data/**'
-                                                      - 'wwwroot/**'
-                                                            - '*.cs'
-                                                                  - '*.csproj'
-                                                                        - 'appsettings*.json'
-                                                                              - 'Program.cs'
+  push:
+    branches:
+      - main
+    paths:
+      - 'Controllers/**'
+      - 'Models/**'
+      - 'Views/**'
+      - 'Services/**'
+      - 'Data/**'
+      - 'wwwroot/**'
+      - '*.cs'
+      - '*.csproj'
+      - 'appsettings*.json'
+      - 'Program.cs'
 
-                                                                              jobs:
-                                                                                build-and-deploy:
-                                                                                    runs-on: [self-hosted, iis]
-                                                                                        name: Build and Deploy TRANSFER_IN_PLAN on .36 IIS runner
+jobs:
+  build-and-deploy:
+    runs-on: [self-hosted, iis]
+    name: Build and Deploy TRANSFER_IN_PLAN on .36 IIS runner
 
-                                                                                            steps:
-                                                                                                  - name: Checkout main
-                                                                                                          uses: actions/checkout@v4
-                                                                                                                  with:
-                                                                                                                            ref: main
-                                                                                                                                      fetch-depth: 1
-                                                                                                                                      
-                                                                                                                                            - name: Setup .NET 8
-                                                                                                                                                    uses: actions/setup-dotnet@v4
-                                                                                                                                                            with:
-                                                                                                                                                                      dotnet-version: 8.0.x
-                                                                                                                                                                      
-                                                                                                                                                                            - name: Restore NuGet packages
-                                                                                                                                                                                    shell: cmd
-                                                                                                                                                                                            run: |
-                                                                                                                                                                                                      dotnet restore TRANSFER_IN_PLAN.sln
-                                                                                                                                                                                                                echo Restore exit: %ERRORLEVEL%
-                                                                                                                                                                                                                          if %ERRORLEVEL% neq 0 exit /b %ERRORLEVEL%
-                                                                                                                                                                                                                          
-                                                                                                                                                                                                                                - name: Publish Release build
-                                                                                                                                                                                                                                        shell: cmd
-                                                                                                                                                                                                                                                run: |
-                                                                                                                                                                                                                                                          dotnet publish TRANSFER_IN_PLAN.csproj ^
-                                                                                                                                                                                                                                                                      --configuration Release ^
-                                                                                                                                                                                                                                                                                  --output "%RUNNER_TEMP%\transfer_in_plan_publish" ^
-                                                                                                                                                                                                                                                                                              --no-restore
-                                                                                                                                                                                                                                                                                                        echo Publish exit: %ERRORLEVEL%
-                                                                                                                                                                                                                                                                                                                  if %ERRORLEVEL% neq 0 exit /b %ERRORLEVEL%
-                                                                                                                                                                                                                                                                                                                  
-                                                                                                                                                                                                                                                                                                                        - name: Stop IIS App Pool before deploy
-                                                                                                                                                                                                                                                                                                                                shell: powershell
-                                                                                                                                                                                                                                                                                                                                        run: |
-                                                                                                                                                                                                                                                                                                                                                  $pool = 'TransferInPlanPool'
-                                                                                                                                                                                                                                                                                                                                                            $state = (& C:\Windows\System32\inetsrv\appcmd.exe list apppool $pool /processModel.userName:* 2>&1)
-                                                                                                                                                                                                                                                                                                                                                                      & C:\Windows\System32\inetsrv\appcmd.exe stop apppool /apppool.name:$pool
-                                                                                                                                                                                                                                                                                                                                                                                Start-Sleep 3
-                                                                                                                                                                                                                                                                                                                                                                                          Write-Host "App pool stopped."
-                                                                                                                                                                                                                                                                                                                                                                                          
-                                                                                                                                                                                                                                                                                                                                                                                                - name: Deploy published files to IIS folder
-                                                                                                                                                                                                                                                                                                                                                                                                        shell: powershell
-                                                                                                                                                                                                                                                                                                                                                                                                                run: |
-                                                                                                                                                                                                                                                                                                                                                                                                                          $ErrorActionPreference = 'Stop'
-                                                                                                                                                                                                                                                                                                                                                                                                                                    $src  = "$env:RUNNER_TEMP\transfer_in_plan_publish"
-                                                                                                                                                                                                                                                                                                                                                                                                                                              $dest = 'C:\V2TransferInPlan'
-                                                                                                                                                                                                                                                                                                                                                                                                                                              
-                                                                                                                                                                                                                                                                                                                                                                                                                                                        if (-not (Test-Path $dest)) {
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                    New-Item -ItemType Directory -Path $dest | Out-Null
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                Write-Host "Created destination folder: $dest"
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          }
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    $files = Get-ChildItem -Path $src -Recurse -File
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              $copied = 0
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        foreach ($f in $files) {
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    $rel  = $f.FullName.Substring($src.Length).TrimStart('\')
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                $tgt  = Join-Path $dest $rel
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            $dir  = Split-Path $tgt -Parent
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        if (-not (Test-Path $dir)) { New-Item -ItemType Directory -Path $dir | Out-Null }
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    Copy-Item $f.FullName $tgt -Force
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                $copied++
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          }
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    Write-Host "Total files deployed: $copied"
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              if ($copied -eq 0) { throw "No files found to deploy!" }
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    - name: Start IIS App Pool after deploy
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            shell: powershell
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    run: |
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              & C:\Windows\System32\inetsrv\appcmd.exe start apppool /apppool.name:TransferInPlanPool
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        Start-Sleep 5
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  Write-Host "App pool started."
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        - name: Health check
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                shell: powershell
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        run: |
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  try {
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              $r = Invoke-WebRequest `
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            'http://localhost:8766/' `
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          -Method GET `
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        -UseBasicParsing -TimeoutSec 20
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    Write-Host "Health OK: HTTP $($r.StatusCode)"
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              } catch {
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          Write-Host "Health check (may be normal on first deploy): $_"
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    }
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              exit 0
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 1
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Restore NuGet packages
+        shell: cmd
+        run: |
+          dotnet restore TRANSFER_IN_PLAN.sln
+          echo Restore exit: %ERRORLEVEL%
+          if %ERRORLEVEL% neq 0 exit /b %ERRORLEVEL%
+
+      - name: Publish Release build
+        shell: cmd
+        run: |
+          dotnet publish TRANSFER_IN_PLAN.csproj ^
+            --configuration Release ^
+            --output "%RUNNER_TEMP%\transfer_in_plan_publish" ^
+            --no-restore
+          echo Publish exit: %ERRORLEVEL%
+          if %ERRORLEVEL% neq 0 exit /b %ERRORLEVEL%
+
+      - name: Stop IIS App Pool before deploy
+        shell: powershell
+        run: |
+          & C:\Windows\System32\inetsrv\appcmd.exe stop apppool /apppool.name:TransferInPlanPool
+          Start-Sleep 3
+          Write-Host "App pool stopped."
+
+      - name: Deploy published files to IIS folder
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $src  = "$env:RUNNER_TEMP\transfer_in_plan_publish"
+          $dest = 'C:\V2TransferInPlan'
+          if (-not (Test-Path $dest)) { New-Item -ItemType Directory -Path $dest | Out-Null }
+          $files = Get-ChildItem -Path $src -Recurse -File
+          $copied = 0
+          foreach ($f in $files) {
+            $rel = $f.FullName.Substring($src.Length).TrimStart('\')
+            $tgt = Join-Path $dest $rel
+            $dir = Split-Path $tgt -Parent
+            if (-not (Test-Path $dir)) { New-Item -ItemType Directory -Path $dir | Out-Null }
+            Copy-Item $f.FullName $tgt -Force
+            $copied++
+          }
+          Write-Host "Total files deployed: $copied"
+          if ($copied -eq 0) { throw "No files found to deploy!" }
+
+      - name: Start IIS App Pool after deploy
+        shell: powershell
+        run: |
+          & C:\Windows\System32\inetsrv\appcmd.exe start apppool /apppool.name:TransferInPlanPool
+          Start-Sleep 5
+          Write-Host "App pool started."
+
+      - name: Health check
+        shell: powershell
+        run: |
+          try {
+            $r = Invoke-WebRequest `
+              'http://localhost:8766/' `
+              -Method GET `
+              -UseBasicParsing -TimeoutSec 20
+            Write-Host "Health OK: HTTP $($r.StatusCode)"
+          } catch {
+            Write-Host "Health check (may be normal on first deploy): $_"
+          }
+          exit 0
