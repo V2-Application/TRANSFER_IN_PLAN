@@ -146,15 +146,21 @@ public class PlanController : Controller
         "ST_CL_EXCESS_Q","ST_CL_SHORT_Q"
     };
 
-    // Reduced metrics for pivot CSV (8 key columns instead of 24 → file size drops ~70%)
+    // All 24 metrics in pivot CSV (same as flat CSV)
     private static readonly string[] PivotMetricCols = {
-        "BGT_TTL_CF_OP_STK_Q","CM_BGT_SALE_Q","TRF_IN_STK_Q","DC_MBQ",
-        "BGT_TTL_CF_CL_STK_Q","BGT_ST_CL_MBQ","ST_CL_EXCESS_Q","ST_CL_SHORT_Q"
+        "S_GRT_STK_Q","W_GRT_STK_Q","BGT_DISP_CL_Q","BGT_DISP_CL_OPT",
+        "CM1_SALE_COVER_DAY","CM2_SALE_COVER_DAY","COVER_SALE_QTY",
+        "BGT_ST_CL_MBQ","BGT_DISP_CL_OPT_MBQ",
+        "BGT_TTL_CF_OP_STK_Q","NT_ACT_Q","NET_BGT_CF_STK_Q",
+        "CM_BGT_SALE_Q","CM1_BGT_SALE_Q","CM2_BGT_SALE_Q",
+        "TRF_IN_STK_Q","TRF_IN_OPT_CNT","TRF_IN_OPT_MBQ","DC_MBQ",
+        "BGT_TTL_CF_CL_STK_Q","BGT_NT_ACT_Q","NET_ST_CL_STK_Q",
+        "ST_CL_EXCESS_Q","ST_CL_SHORT_Q"
     };
 
-    // Week-1-only columns in pivot (reference/static data)
+    // Week-1-only columns in pivot (static data — skipped for weeks 2+)
     private static readonly HashSet<string> PivotWeek1Only = new() {
-        "BGT_TTL_CF_OP_STK_Q"
+        "S_GRT_STK_Q","W_GRT_STK_Q","BGT_TTL_CF_OP_STK_Q"
     };
 
     private static readonly string[] IdCols = {

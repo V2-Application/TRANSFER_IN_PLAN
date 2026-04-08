@@ -1,161 +1,1044 @@
-@{ ViewData["Title"] = "Application Info & Formulas"; }
+@{ ViewData["Title"] = "Application Knowledge Base"; }
 
 <style>
-    .info-card { border-left: 4px solid var(--accent); }
+    .info-card { border-left: 4px solid var(--primary); }
     .info-card.trf { border-left-color: #27ae60; }
     .info-card.pp { border-left-color: #8e44ad; }
     .info-card.ref { border-left-color: #e67e22; }
-    .formula-table th { white-space: nowrap; background: #f8f9fa; width: 200px; }
-    .formula-table td { font-family: 'Consolas', 'Courier New', monospace; font-size: 0.82rem; }
+    .info-card.sys { border-left-color: #3498db; }
+    .formula-table th { white-space: nowrap; background: #f8f9fa; width: 220px; color: #1a3a5c; }
+    .formula-table td { font-family: 'Consolas', 'Courier New', monospace; font-size: 0.82rem; color: #1a3a5c; }
     .formula-table tr.changed td { background: #fff3cd; }
     .formula-table tr.changed th { background: #ffeaa7; }
-    .badge-as-is { background: #e74c3c; }
-    .badge-to-be { background: #27ae60; }
-    .badge-new { background: #2980b9; }
-    .badge-unchanged { background: #95a5a6; }
+    .formula-table tr.key-formula td { background: #d4edda; }
+    .formula-table tr.key-formula th { background: #c3e6cb; font-weight: 700; }
+    .badge-chain { background: #e74c3c; color: #fff !important; }
+    .badge-static { background: #95a5a6; color: #fff !important; }
+    .badge-derived { background: #3498db; color: #fff !important; }
+    .badge-input { background: #27ae60; color: #fff !important; }
+    .badge-new { background: #2980b9; color: #fff !important; }
+    .badge-level { background: #e67e22; color: #fff !important; }
     .nav-pills .nav-link { color: #1a3a5c; font-weight: 500; border-radius: 8px; }
-    .nav-pills .nav-link.active { background: var(--accent); color: #fff; }
+    .nav-pills .nav-link.active { background: var(--primary); color: #fff; }
     .section-icon { font-size: 1.1rem; }
-    .ref-table-list li { padding: 4px 0; }
+    .flow-step { border-left: 3px solid var(--primary); padding-left: 16px; margin-bottom: 16px; }
+    .flow-step h6 { margin-bottom: 4px; color: #1a3a5c; }
+    .flow-step .step-num { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 50%; background: var(--primary); color: #fff; font-weight: 700; font-size: 0.85rem; margin-right: 8px; }
+    .algo-block { background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 8px; padding: 16px; margin-bottom: 12px; font-family: 'Consolas', 'Courier New', monospace; font-size: 0.82rem; line-height: 1.7; color: #1a3a5c; }
+    .algo-block .comment { color: #6c757d; font-style: italic; }
+    .algo-block .keyword { color: #8e44ad; font-weight: 600; }
+    .algo-block .formula { color: #c0392b; font-weight: 600; }
+    .arch-table td code { font-size: 0.78rem; }
+    .data-flow-arrow { font-size: 1.5rem; color: var(--primary); text-align: center; }
+    .mini-badge { font-size: 0.65rem; padding: 2px 6px; vertical-align: middle; }
+    .card-header h5, .card-body h6, .card-body p, .card-body li, .card-body td, .card-body th { color: #1a3a5c; }
+    .card-body .text-muted { color: #64748B !important; }
+    .card-body code { color: #c0392b; }
+    .table td, .table th { color: #1a3a5c; }
 </style>
 
-<div class="mb-4">
-    <h3 class="mb-1"><i class="bi bi-info-circle me-2"></i>Application Information & Formulas</h3>
-    <small class="text-muted">Transfer In Plan Management System — Formula Reference & Change Log</small>
+<div class="mb-4 d-flex justify-content-between align-items-start">
+    <div>
+        <h3 class="mb-1"><i class="bi bi-book me-2"></i>Application Knowledge Base</h3>
+        <small class="text-muted">Transfer In Plan Management System — Complete Technical Reference</small>
+    </div>
+    <a href="@Url.Action("DownloadWord", "Info")" class="btn btn-primary btn-sm">
+        <i class="bi bi-file-earmark-word me-1"></i>Download as Word
+    </a>
 </div>
 
 <!-- Tab Navigation -->
 <ul class="nav nav-pills mb-3 flex-wrap" id="infoTabs" role="tablist">
-    <li class="nav-item"><a class="nav-link active" data-bs-toggle="pill" href="#tabOverview"><i class="bi bi-grid-1x2 me-1"></i>Overview</a></li>
-    <li class="nav-item"><a class="nav-link" data-bs-toggle="pill" href="#tabFeatures"><i class="bi bi-gear me-1"></i>System Features</a></li>
-    <li class="nav-item"><a class="nav-link" data-bs-toggle="pill" href="#tabTrfIn"><i class="bi bi-arrow-left-right me-1"></i>Transfer In Plan</a></li>
-    <li class="nav-item"><a class="nav-link" data-bs-toggle="pill" href="#tabPP"><i class="bi bi-bag-check me-1"></i>Purchase Plan</a></li>
+    <li class="nav-item"><a class="nav-link active" data-bs-toggle="pill" href="#tabWorkflow"><i class="bi bi-diagram-3 me-1"></i>Workflow</a></li>
+    <li class="nav-item"><a class="nav-link" data-bs-toggle="pill" href="#tabArch"><i class="bi bi-cpu me-1"></i>Architecture</a></li>
+    <li class="nav-item"><a class="nav-link" data-bs-toggle="pill" href="#tabTrfAlgo"><i class="bi bi-arrow-left-right me-1"></i>TRF Algorithm</a></li>
+    <li class="nav-item"><a class="nav-link" data-bs-toggle="pill" href="#tabPPAlgo"><i class="bi bi-bag-check me-1"></i>PP Algorithm</a></li>
     <li class="nav-item"><a class="nav-link" data-bs-toggle="pill" href="#tabSubLevel"><i class="bi bi-layers me-1"></i>Sub-Level Plans</a></li>
-    <li class="nav-item"><a class="nav-link" data-bs-toggle="pill" href="#tabRef"><i class="bi bi-table me-1"></i>Reference Tables</a></li>
+    <li class="nav-item"><a class="nav-link" data-bs-toggle="pill" href="#tabDatabase"><i class="bi bi-database me-1"></i>Database</a></li>
+    <li class="nav-item"><a class="nav-link" data-bs-toggle="pill" href="#tabFeatures"><i class="bi bi-gear me-1"></i>Features</a></li>
     <li class="nav-item"><a class="nav-link" data-bs-toggle="pill" href="#tabChanges"><i class="bi bi-clock-history me-1"></i>Change Log</a></li>
 </ul>
 
 <div class="tab-content">
 
-<!-- ═══════════════ TAB: OVERVIEW ═══════════════ -->
-<div class="tab-pane fade show active" id="tabOverview">
-    <div class="row g-3">
-        <div class="col-md-6">
-            <div class="card info-card trf shadow-sm">
-                <div class="card-body">
-                    <h5 class="card-title"><i class="bi bi-arrow-left-right me-2 section-icon text-success"></i>Transfer In Plan</h5>
-                    <p class="card-text small text-muted">Store-level weekly plan that calculates how much stock each store needs transferred in from the DC to meet sales demand while maintaining optimal stock levels.</p>
-                    <ul class="small mb-0">
-                        <li>SP: <code>SP_GENERATE_TRF_IN_PLAN</code></li>
-                        <li>Output Table: <code>TRF_IN_PLAN</code></li>
-                        <li>Key Output: <strong>TRF_IN_STK_Q</strong> (Transfer In Quantity)</li>
-                        <li>Granularity: Store + Category + Week</li>
-                    </ul>
+<!-- ╔══════════════════════════════════════════════════════════════════╗ -->
+<!-- ║  TAB 1: APPLICATION WORKFLOW                                     ║ -->
+<!-- ╚══════════════════════════════════════════════════════════════════╝ -->
+<div class="tab-pane fade show active" id="tabWorkflow">
+
+    <!-- What This Application Does -->
+    <div class="card shadow-sm mb-3">
+        <div class="card-header"><h5 class="card-title mb-0"><i class="bi bi-bullseye me-2"></i>What This Application Does</h5></div>
+        <div class="card-body small">
+            <p>This is a <strong>retail supply chain planning system</strong> that answers two fundamental questions every week for every store and every product category:</p>
+            <div class="row g-3 mb-3">
+                <div class="col-md-6">
+                    <div class="card info-card trf h-100"><div class="card-body">
+                        <h6 class="text-success fw-bold"><i class="bi bi-arrow-left-right me-2"></i>Transfer In Plan (TRF)</h6>
+                        <p class="mb-1"><strong>"How much stock should each store receive from the DC this week?"</strong></p>
+                        <ul class="mb-0">
+                            <li>Granularity: <code>Store + Category + Week</code></li>
+                            <li>Key Output: <strong>TRF_IN_STK_Q</strong> (Transfer In Quantity)</li>
+                            <li>Considers: Current stock, shrinkage, weekly sale forecast, display needs, MBQ</li>
+                        </ul>
+                    </div></div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card info-card pp h-100"><div class="card-body">
+                        <h6 style="color:#8e44ad;" class="fw-bold"><i class="bi bi-bag-check me-2"></i>Purchase Plan (PP)</h6>
+                        <p class="mb-1"><strong>"How much stock should each DC purchase from vendors this week?"</strong></p>
+                        <ul class="mb-0">
+                            <li>Granularity: <code>RDC + Category + Week</code></li>
+                            <li>Key Output: <strong>BGT_PUR_Q_INIT</strong> (Purchase Quantity)</li>
+                            <li>Considers: Aggregated store transfers, DC stock, GRT consumption, delivery pending</li>
+                        </ul>
+                    </div></div>
                 </div>
             </div>
+            <div class="alert alert-info py-2 mb-0"><i class="bi bi-layers me-1"></i><strong>Sub-Level Plans</strong> further break these down by 4 dimensions: Macro MVGR, Size, Segment, Vendor — using the same algorithms with contribution percentages and level-specific stock.</div>
         </div>
-        <div class="col-md-6">
-            <div class="card info-card pp shadow-sm">
-                <div class="card-body">
-                    <h5 class="card-title"><i class="bi bi-bag-check me-2 section-icon text-purple"></i>Purchase Plan</h5>
-                    <p class="card-text small text-muted">DC-level weekly plan that calculates purchase requirements based on aggregated transfer-out quantities, DC stock, and closing stock targets.</p>
-                    <ul class="small mb-0">
-                        <li>SP: <code>SP_GENERATE_PURCHASE_PLAN</code></li>
-                        <li>Output Table: <code>PURCHASE_PLAN</code></li>
-                        <li>Key Output: <strong>BGT_PUR_Q_INIT</strong> (Purchase Quantity)</li>
-                        <li>Granularity: RDC + Category + Week</li>
-                    </ul>
+    </div>
+
+    <!-- End-to-End Workflow -->
+    <div class="card shadow-sm mb-3">
+        <div class="card-header"><h5 class="card-title mb-0"><i class="bi bi-signpost-split me-2"></i>End-to-End Workflow (Step-by-Step)</h5></div>
+        <div class="card-body small">
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="flow-step">
+                        <h6><span class="step-num">1</span> Upload Reference Data</h6>
+                        <p class="text-muted mb-1">Via <strong>Bulk Upload</strong> (Excel/CSV) or individual <strong>CRUD</strong> pages.</p>
+                        <code>WEEK_CALENDAR, MASTER_ST_MASTER, MASTER_BIN_CAPACITY, QTY_SALE_QTY, QTY_DISP_QTY, STORE_STOCK, DC_STOCK, DEL_PENDING, MASTER_GRT_CONTRIBUTION, MASTER_PRODUCT_HIERARCHY</code>
+                    </div>
+                    <div class="flow-step">
+                        <h6><span class="step-num">2</span> Execute Transfer In Plan</h6>
+                        <p class="text-muted mb-1">Runs <code>SP_GENERATE_TRF_IN_PLAN</code> for selected store/week range. Or <strong>Full Run</strong> (background) for all 657 stores.</p>
+                        <span class="badge bg-success mini-badge">Output: TRF_IN_PLAN table</span>
+                    </div>
+                    <div class="flow-step">
+                        <h6><span class="step-num">3</span> Execute Purchase Plan</h6>
+                        <p class="text-muted mb-1">Runs <code>SP_GENERATE_PURCHASE_PLAN</code>. <strong>Reads TRF_IN_PLAN output</strong> — aggregates store-level TRF_IN by RDC to get DC transfer-out quantities.</p>
+                        <span class="badge bg-success mini-badge">Output: PURCHASE_PLAN table</span>
+                    </div>
+                    <div class="flow-step">
+                        <h6><span class="step-num">4</span> Review Output & Export</h6>
+                        <p class="text-muted mb-0">View paginated output, apply filters (RDC, Category, Week), export CSV or Pivot CSV.</p>
+                    </div>
                 </div>
-            </div>
-        </div>
-        <div class="col-md-6">
-            <div class="card info-card ref shadow-sm">
-                <div class="card-body">
-                    <h5 class="card-title"><i class="bi bi-table me-2 section-icon text-warning"></i>Reference Tables</h5>
-                    <p class="card-text small text-muted">Input data tables that feed into both plans. Maintained via CRUD screens and Bulk Upload.</p>
-                    <div class="row small">
-                        <div class="col-6">
-                            <ul class="ref-table-list mb-0">
-                                <li>Week Calendar</li>
-                                <li>Store Master</li>
-                                <li>Bin Capacity</li>
-                                <li>Sale Quantity</li>
-                                <li>Display Qty</li>
-                            </ul>
-                        </div>
-                        <div class="col-6">
-                            <ul class="ref-table-list mb-0">
-                                <li>Store Stock</li>
-                                <li>DC Stock</li>
-                                <li>Del Pending</li>
-                                <li>GRT Contribution</li>
-                                <li>Product Hierarchy</li>
-                            </ul>
-                        </div>
+                <div class="col-md-6">
+                    <div class="flow-step" style="border-left-color:#e67e22;">
+                        <h6><span class="step-num" style="background:#e67e22;">5</span> Upload Sub-Level Data</h6>
+                        <p class="text-muted mb-1">Upload contribution tables (MVGR, Size, Segment, Vendor) + sub-level stock tables (4 store + 4 DC).</p>
+                        <code>ST_MAJ_CAT_MACRO_MVGR_PLAN, ST_MAJ_CAT_SZ_PLAN, ST_MAJ_CAT_SEG_PLAN, ST_MAJ_CAT_VND_PLAN, SUB_ST_STK_*, SUB_DC_STK_*</code>
+                    </div>
+                    <div class="flow-step" style="border-left-color:#e67e22;">
+                        <h6><span class="step-num" style="background:#e67e22;">6</span> Execute Sub-Level Plans</h6>
+                        <p class="text-muted mb-1">Per-level or <strong>Full Run</strong> (background, all 4 levels). TRF runs first per level, then PP reads TRF output.</p>
+                        <span class="badge bg-success mini-badge">Output: SUB_LEVEL_TRF_PLAN + SUB_LEVEL_PP_PLAN</span>
+                    </div>
+                    <div class="flow-step" style="border-left-color:#e67e22;">
+                        <h6><span class="step-num" style="background:#e67e22;">7</span> Review Sub-Level Output</h6>
+                        <p class="text-muted mb-0">Per-level output pages with filters, pagination, CSV + Pivot CSV export.</p>
+                    </div>
+                    <div class="flow-step" style="border-left-color:#3498db;">
+                        <h6><span class="step-num" style="background:#3498db;">8</span> Dashboard Monitoring</h6>
+                        <p class="text-muted mb-0">KPIs, charts, alerts, inventory health, short/excess analysis. Auto-refreshed with multi-select drill-down filters.</p>
                     </div>
                 </div>
             </div>
         </div>
-        <div class="col-md-6">
-            <div class="card info-card shadow-sm" style="border-left-color:#e67e22;">
-                <div class="card-body">
-                    <h5 class="card-title"><i class="bi bi-layers me-2 section-icon" style="color:#e67e22;"></i>Sub-Level Plans <span class="badge badge-new ms-1">New</span></h5>
-                    <p class="card-text small text-muted">Runs full TRF + PP algorithm per sub-level using level-specific stock, Sale&times;CONT%, Display&times;CONT%.</p>
-                    <ul class="small mb-0">
-                        <li><strong>Macro MVGR</strong> — ST_CD + MAJ_CAT + DISP_MVGR_MATRIX</li>
-                        <li><strong>Size</strong> — ST_CD + MAJ_CAT + SZ</li>
-                        <li><strong>Segment</strong> — ST_CD + MAJ_CAT + SEG</li>
-                        <li><strong>Vendor</strong> — ST_CD + MAJ_CAT + M_VND_CD</li>
-                        <li>Inputs: <code>SUB_ST_STK_*</code>, <code>SUB_DC_STK_*</code>, Contribution tables</li>
-                        <li>Output: <code>SUB_LEVEL_TRF_PLAN</code>, <code>SUB_LEVEL_PP_PLAN</code></li>
+    </div>
+
+    <!-- Data Flow Diagram -->
+    <div class="card shadow-sm mb-3">
+        <div class="card-header"><h5 class="card-title mb-0"><i class="bi bi-arrow-repeat me-2"></i>Data Flow — How Plans Are Connected</h5></div>
+        <div class="card-body small">
+            <div class="row text-center align-items-center">
+                <div class="col-md-2">
+                    <div class="card bg-light p-2 mb-2"><strong>Reference Data</strong><br><small>10 tables</small></div>
+                    <div class="card bg-light p-2"><strong>Contribution Data</strong><br><small>4 tables + 8 stock</small></div>
+                </div>
+                <div class="col-md-1 data-flow-arrow">&rarr;</div>
+                <div class="col-md-2">
+                    <div class="card p-2 mb-2" style="border:2px solid #27ae60;"><strong class="text-success">TRF SP</strong><br><small>Per Store+Cat+Week</small></div>
+                    <div class="card p-2" style="border:2px solid #e67e22;"><strong style="color:#e67e22;">Sub TRF SP</strong><br><small>Per Store+Cat+SubVal+Week</small></div>
+                </div>
+                <div class="col-md-1 data-flow-arrow">&rarr;</div>
+                <div class="col-md-2">
+                    <div class="card p-2 mb-2" style="border:2px solid #27ae60;background:#d4edda;"><strong>TRF_IN_PLAN</strong><br><small>Store transfers</small></div>
+                    <div class="card p-2" style="border:2px solid #e67e22;background:#ffeaa7;"><strong>SUB_LEVEL_TRF_PLAN</strong><br><small>Sub-level transfers</small></div>
+                </div>
+                <div class="col-md-1 data-flow-arrow">&rarr;</div>
+                <div class="col-md-2">
+                    <div class="card p-2 mb-2" style="border:2px solid #8e44ad;"><strong style="color:#8e44ad;">PP SP</strong><br><small>Reads TRF output</small></div>
+                    <div class="card p-2" style="border:2px solid #e67e22;"><strong style="color:#e67e22;">Sub PP SP</strong><br><small>Reads Sub TRF output</small></div>
+                </div>
+                <div class="col-md-1 data-flow-arrow">&rarr;</div>
+            </div>
+            <div class="alert alert-warning py-2 mt-3 mb-0"><i class="bi bi-exclamation-triangle me-1"></i><strong>Critical Dependency:</strong> Purchase Plan READS from TRF_IN_PLAN output. You must execute Transfer In Plan BEFORE Purchase Plan. Same for sub-level: Sub TRF must run before Sub PP per level.</div>
+        </div>
+    </div>
+
+    <!-- Execution Modes -->
+    <div class="card shadow-sm">
+        <div class="card-header"><h5 class="card-title mb-0"><i class="bi bi-lightning me-2"></i>Execution Modes</h5></div>
+        <div class="card-body p-0 small">
+            <div class="table-responsive">
+                <table class="table table-sm table-bordered mb-0">
+                    <thead class="table-dark"><tr><th>Mode</th><th>Page</th><th>Stored Procedure</th><th>Type</th><th>Description</th></tr></thead>
+                    <tbody>
+                        <tr><td class="fw-bold">Single Store TRF</td><td>Execute Plan</td><td><code>SP_GENERATE_TRF_IN_PLAN</code></td><td>Sync</td><td>TRF for 1 store + week range. ~10s per store.</td></tr>
+                        <tr><td class="fw-bold">Full Run (All Stores)</td><td>Execute Plan</td><td><code>SP_RUN_ALL_PLANS</code></td><td><span class="badge bg-primary">Background</span></td><td>Truncates TRF+PP, bulk runs all ~657 stores. ~1-2 min. PlanJobService singleton.</td></tr>
+                        <tr><td class="fw-bold">Purchase Plan</td><td>Purchase Plan</td><td><code>SP_GENERATE_PURCHASE_PLAN</code></td><td>Sync</td><td>PP for week range + optional RDC/MajCat filter. Reads TRF_IN_PLAN.</td></tr>
+                        <tr><td class="fw-bold">Sub-Level (Per Level)</td><td>Sub-Level Plans</td><td><code>SP_GENERATE_SUB_LEVEL_TRF</code> + <code>PP</code></td><td>Sync</td><td>TRF+PP for selected level(s). Form submit.</td></tr>
+                        <tr><td class="fw-bold">Sub-Level Full Run</td><td>Sub-Level Plans</td><td>Same SPs x 4 levels</td><td><span class="badge bg-primary">Background</span></td><td>All 4 levels sequentially. SubLevelJobService singleton. Live progress tracking.</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ╔══════════════════════════════════════════════════════════════════╗ -->
+<!-- ║  TAB 2: ARCHITECTURE                                            ║ -->
+<!-- ╚══════════════════════════════════════════════════════════════════╝ -->
+<div class="tab-pane fade" id="tabArch">
+
+    <!-- Project Structure -->
+    <div class="card shadow-sm mb-3">
+        <div class="card-header"><h5 class="card-title mb-0"><i class="bi bi-folder2-open me-2"></i>Project Structure</h5></div>
+        <div class="card-body small">
+            <div class="algo-block">
+TRANSFER_IN_PLAN/ <span class="comment">(ASP.NET Core 8.0 MVC)</span><br>
+├── <span class="keyword">Controllers/</span>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">30 controllers (Home, Plan, PurchasePlan, SubLevel, BulkUpload, Info, Error, 22 CRUD, WeekCalendar)</span><br>
+├── <span class="keyword">Models/</span>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">21 model files (EF entities, ViewModels, execution params)</span><br>
+├── <span class="keyword">Views/</span>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">31 folders, ~100 Razor .cshtml views</span><br>
+│&nbsp;&nbsp; ├── Shared/&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">_Layout.cshtml (main layout + sidebar), _ViewImports, _ViewStart, _RefTableAnalytics</span><br>
+│&nbsp;&nbsp; ├── Home/&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">Dashboard (Index.cshtml — KPIs, 6 charts, filters)</span><br>
+│&nbsp;&nbsp; ├── Plan/&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">Execute.cshtml + Output.cshtml</span><br>
+│&nbsp;&nbsp; ├── PurchasePlan/&nbsp;<span class="comment">Execute.cshtml + Output.cshtml</span><br>
+│&nbsp;&nbsp; ├── SubLevel/&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">Execute.cshtml + TrfOutput.cshtml + PpOutput.cshtml</span><br>
+│&nbsp;&nbsp; ├── BulkUpload/&nbsp;&nbsp;&nbsp;<span class="comment">Index.cshtml (22-table upload)</span><br>
+│&nbsp;&nbsp; ├── Info/&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">Index.cshtml (this page)</span><br>
+│&nbsp;&nbsp; └── <span class="comment">22 CRUD folders (Index, Create, Edit, Delete per table)</span><br>
+├── <span class="keyword">Services/</span>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">PlanService.cs, PlanJobService.cs (singleton), SubLevelJobService.cs (singleton)</span><br>
+├── <span class="keyword">Data/</span>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">PlanningDbContext.cs (EF Core DbContext)</span><br>
+├── <span class="keyword">sql/</span>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">25+ SQL scripts (tables, SPs, views, patches, tests)</span><br>
+├── <span class="keyword">wwwroot/css/</span>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">site.css (Design System v2 — CSS variables, Inter font, Indigo/Slate)</span><br>
+├── <span class="keyword">wwwroot/js/</span>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">site.js, searchable-dropdown.js (multi-select)</span><br>
+└── <span class="keyword">Program.cs</span>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">Service registration, middleware, Kestrel config</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Backend Architecture -->
+    <div class="card shadow-sm mb-3">
+        <div class="card-header"><h5 class="card-title mb-0"><i class="bi bi-server me-2"></i>Backend Architecture (ASP.NET Core 8.0)</h5></div>
+        <div class="card-body small">
+            <div class="row">
+                <div class="col-md-4">
+                    <h6 class="fw-bold"><i class="bi bi-code-slash me-1"></i>Controllers (30)</h6>
+                    <table class="table table-sm table-bordered arch-table mb-2">
+                        <tr><td class="fw-bold">HomeController</td><td>Dashboard — KPIs, charts, filters, CSV export</td></tr>
+                        <tr><td class="fw-bold">PlanController</td><td>TRF execution — single store, full run, output, pivot CSV, reset</td></tr>
+                        <tr><td class="fw-bold">PurchasePlanController</td><td>PP execution — filtered run, output, pivot CSV, reset</td></tr>
+                        <tr><td class="fw-bold">SubLevelController</td><td>Sub-level execution — per-level/full run, TRF/PP output, reset, status</td></tr>
+                        <tr><td class="fw-bold">BulkUploadController</td><td>22-table upload — Excel/CSV, replace/append, sample download</td></tr>
+                        <tr><td class="fw-bold">InfoController</td><td>This knowledge base page</td></tr>
+                        <tr><td class="fw-bold">ErrorController</td><td>Global error handling</td></tr>
+                        <tr><td class="fw-bold">22 CRUD Controllers</td><td>One per reference/contribution/stock table (Index, Create, Edit, Delete)</td></tr>
+                    </table>
+                </div>
+                <div class="col-md-4">
+                    <h6 class="fw-bold"><i class="bi bi-gear-fill me-1"></i>Services (3)</h6>
+                    <table class="table table-sm table-bordered arch-table mb-2">
+                        <tr><td class="fw-bold">PlanService</td><td><span class="badge bg-secondary mini-badge">Scoped</span> SP execution helper — builds SqlParameters, calls ExecuteSqlRawAsync, returns row count</td></tr>
+                        <tr><td class="fw-bold">PlanJobService</td><td><span class="badge bg-primary mini-badge">Singleton</span> Background job — runs SP_RUN_ALL_PLANS via Task.Run. Tracks phase/status. Polled every 5s.</td></tr>
+                        <tr><td class="fw-bold">SubLevelJobService</td><td><span class="badge bg-primary mini-badge">Singleton</span> Background job — runs TRF+PP SPs per level sequentially. Tracks CurrentLevel, LevelsCompleted. Polled every 5s.</td></tr>
+                    </table>
+                    <h6 class="fw-bold mt-3"><i class="bi bi-database me-1"></i>Data Layer</h6>
+                    <table class="table table-sm table-bordered arch-table mb-0">
+                        <tr><td class="fw-bold">PlanningDbContext</td><td>EF Core 8 — SqlServer provider. 300s command timeout. DbSets for all 22 reference tables + 4 output tables.</td></tr>
+                        <tr><td class="fw-bold">Connection</td><td><code>appsettings.json → ConnectionStrings:PlanningDatabase</code></td></tr>
+                        <tr><td class="fw-bold">Database</td><td>SQL Server — database name <code>planning</code></td></tr>
+                    </table>
+                </div>
+                <div class="col-md-4">
+                    <h6 class="fw-bold"><i class="bi bi-box me-1"></i>Key Packages</h6>
+                    <table class="table table-sm table-bordered arch-table mb-2">
+                        <tr><td><code>EF Core 8</code></td><td>ORM (SqlServer provider)</td></tr>
+                        <tr><td><code>EPPlus 7</code></td><td>Excel read/write (.xlsx)</td></tr>
+                        <tr><td><code>DocumentFormat.OpenXml</code></td><td>Additional Excel support</td></tr>
+                        <tr><td><code>Newtonsoft.Json</code></td><td>JSON serialization (date format: yyyy-MM-dd)</td></tr>
+                        <tr><td><code>IMemoryCache</code></td><td>Dashboard caching (60s per filter, 5min dropdown lists)</td></tr>
+                    </table>
+                    <h6 class="fw-bold mt-3"><i class="bi bi-sliders me-1"></i>Program.cs Config</h6>
+                    <ul class="mb-0">
+                        <li><strong>Kestrel</strong>: 500 MB max request body, 10-min keep-alive</li>
+                        <li><strong>Forms</strong>: 500 MB upload limit</li>
+                        <li><strong>Session</strong>: 30-min idle timeout</li>
+                        <li><strong>Route</strong>: <code>{controller=Home}/{action=Index}/{id?}</code></li>
+                        <li><strong>URL</strong>: <code>localhost:5005</code></li>
                     </ul>
                 </div>
             </div>
         </div>
-        <div class="col-md-6">
-            <div class="card info-card shadow-sm">
-                <div class="card-body">
-                    <h5 class="card-title"><i class="bi bi-pie-chart me-2 section-icon" style="color:#e67e22;"></i>Contribution Tables <span class="badge badge-new ms-1">New</span></h5>
-                    <p class="card-text small text-muted">Store + Category level contribution % for each sub-level dimension.</p>
-                    <div class="row small">
-                        <div class="col-6">
-                            <ul class="ref-table-list mb-0">
-                                <li>Macro MVGR Contribution</li>
-                                <li>Size Contribution</li>
-                            </ul>
-                        </div>
-                        <div class="col-6">
-                            <ul class="ref-table-list mb-0">
-                                <li>Segment Contribution</li>
-                                <li>Vendor Contribution</li>
-                            </ul>
-                        </div>
-                    </div>
+    </div>
+
+    <!-- Frontend Architecture -->
+    <div class="card shadow-sm mb-3">
+        <div class="card-header"><h5 class="card-title mb-0"><i class="bi bi-palette me-2"></i>Frontend Architecture</h5></div>
+        <div class="card-body small">
+            <div class="row">
+                <div class="col-md-4">
+                    <h6 class="fw-bold">UI Framework & CDN Libraries</h6>
+                    <ul>
+                        <li><strong>Bootstrap 5.3</strong> — Layout, components, responsive grid</li>
+                        <li><strong>Bootstrap Icons</strong> — Icon library (CDN)</li>
+                        <li><strong>Chart.js 4.4</strong> — Dashboard charts (6 charts: bar, line, horizontal bar, stacked)</li>
+                        <li><strong>DataTables 1.13</strong> — Searchable/sortable tables on all CRUD index + output pages</li>
+                        <li><strong>Inter Font</strong> — Google Fonts (preconnect in _Layout.cshtml)</li>
+                    </ul>
+                </div>
+                <div class="col-md-4">
+                    <h6 class="fw-bold">Design System v2 (site.css)</h6>
+                    <ul>
+                        <li><strong>Primary</strong>: <code>#4F46E5</code> (Indigo)</li>
+                        <li><strong>Sidebar</strong>: <code>#0F172A → #1E293B</code> (Dark Slate gradient)</li>
+                        <li><strong>Background</strong>: <code>#F8FAFC</code></li>
+                        <li><strong>Text</strong>: <code>#0F172A</code></li>
+                        <li><strong>CSS Variables</strong>: All tokens in <code>:root</code></li>
+                        <li><strong>Cards</strong>: 12px radius, shadow-sm</li>
+                        <li><strong>Buttons</strong>: 8px radius</li>
+                        <li><strong>Tables</strong>: Dark header, striped rows</li>
+                    </ul>
+                </div>
+                <div class="col-md-4">
+                    <h6 class="fw-bold">Custom JavaScript</h6>
+                    <ul>
+                        <li><strong>searchable-dropdown.js</strong> — Multi-select dropdowns with checkbox, search, "Select All" for dashboard/output filters</li>
+                        <li><strong>site.js</strong> — Global utilities, sidebar toggle</li>
+                        <li><strong>Inline JS</strong> — Chart.js configs, DataTable init, polling intervals, form validation, CSV download triggers</li>
+                    </ul>
+                    <h6 class="fw-bold mt-3">Responsive Design</h6>
+                    <ul class="mb-0">
+                        <li><strong>&lt;768px</strong>: Mobile topbar + offcanvas sidebar</li>
+                        <li><strong>&gt;=768px</strong>: Sticky desktop sidebar with collapse/expand submenus</li>
+                        <li>Active link: Indigo accent bar on left</li>
+                    </ul>
                 </div>
             </div>
         </div>
-        <div class="col-md-6">
-            <div class="card info-card shadow-sm">
-                <div class="card-body">
-                    <h5 class="card-title"><i class="bi bi-diagram-3 me-2 section-icon"></i>Execution Flow</h5>
-                    <p class="card-text small text-muted">How plans are generated end-to-end.</p>
-                    <ol class="small mb-0">
-                        <li>Upload reference data (Bulk Upload / CRUD)</li>
-                        <li>Upload contribution data (MVGR, Size, Segment, Vendor)</li>
-                        <li>Execute <strong>Transfer In Plan</strong> (store-level)</li>
-                        <li>Execute <strong>Purchase Plan</strong> (DC-level, reads Transfer In output)</li>
-                        <li>Upload sub-level stock (4 Store + 4 DC per level)</li>
-                        <li>Execute <strong>Sub-Level Plans</strong> (full algorithm per level)</li>
-                        <li>Review output, export CSV / Pivot CSV</li>
-                        <li><code>SP_RUN_ALL_PLANS_V3</code> runs main plans in sequence for all stores</li>
+    </div>
+
+    <!-- Stored Procedures Architecture -->
+    <div class="card shadow-sm">
+        <div class="card-header"><h5 class="card-title mb-0"><i class="bi bi-file-earmark-code me-2"></i>Stored Procedures (6 Total)</h5></div>
+        <div class="card-body p-0 small">
+            <div class="table-responsive">
+                <table class="table table-sm table-bordered mb-0">
+                    <thead class="table-dark"><tr><th>SP Name</th><th>Purpose</th><th>Parameters</th><th>Reads From</th><th>Writes To</th><th>Called By</th></tr></thead>
+                    <tbody>
+                        <tr>
+                            <td class="fw-bold"><code>SP_GENERATE_TRF_IN_PLAN</code></td>
+                            <td>Store-level transfer in plan</td>
+                            <td>@@StartWeekID, @@EndWeekID, @@StoreCode (optional), @@MajCat (optional)</td>
+                            <td>STORE_STOCK, SALE_QTY, DISP_QTY, BIN_CAPACITY, ST_MASTER, PRODUCT_HIERARCHY</td>
+                            <td>TRF_IN_PLAN</td>
+                            <td>PlanController, PlanService</td>
+                        </tr>
+                        <tr>
+                            <td class="fw-bold"><code>SP_GENERATE_PURCHASE_PLAN</code></td>
+                            <td>DC-level purchase plan</td>
+                            <td>@@StartWeekID, @@EndWeekID, @@RdcCode (optional), @@MajCat (optional)</td>
+                            <td><strong>TRF_IN_PLAN</strong>, DC_STOCK, GRT_CONTRIBUTION, DEL_PENDING, BIN_CAPACITY, PRODUCT_HIERARCHY</td>
+                            <td>PURCHASE_PLAN</td>
+                            <td>PurchasePlanController</td>
+                        </tr>
+                        <tr>
+                            <td class="fw-bold"><code>SP_RUN_ALL_PLANS</code></td>
+                            <td>Full run: truncate + TRF + PP for all stores (bulk)</td>
+                            <td>@@StartWeekID, @@EndWeekID</td>
+                            <td>All reference tables</td>
+                            <td>TRF_IN_PLAN + PURCHASE_PLAN</td>
+                            <td>PlanJobService (background)</td>
+                        </tr>
+                        <tr>
+                            <td class="fw-bold"><code>SP_GENERATE_SUB_LEVEL_TRF</code></td>
+                            <td>Sub-level transfer in per dimension</td>
+                            <td>@@Level, @@StartWeekID, @@EndWeekID, @@StoreCode, @@MajCat</td>
+                            <td>SUB_ST_STK_{level}, Contribution table, SALE_QTY, DISP_QTY, BIN_CAPACITY</td>
+                            <td>SUB_LEVEL_TRF_PLAN</td>
+                            <td>SubLevelController, SubLevelJobService</td>
+                        </tr>
+                        <tr>
+                            <td class="fw-bold"><code>SP_GENERATE_SUB_LEVEL_PP</code></td>
+                            <td>Sub-level purchase plan per dimension</td>
+                            <td>@@Level, @@StartWeekID, @@EndWeekID, @@RdcCode, @@MajCat</td>
+                            <td><strong>SUB_LEVEL_TRF_PLAN</strong>, SUB_DC_STK_{level}</td>
+                            <td>SUB_LEVEL_PP_PLAN</td>
+                            <td>SubLevelController, SubLevelJobService</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ╔══════════════════════════════════════════════════════════════════╗ -->
+<!-- ║  TAB 3: TRANSFER IN PLAN ALGORITHM                              ║ -->
+<!-- ╚══════════════════════════════════════════════════════════════════╝ -->
+<div class="tab-pane fade" id="tabTrfAlgo">
+
+    <!-- Algorithm Overview -->
+    <div class="card shadow-sm mb-3">
+        <div class="card-header bg-success bg-opacity-10"><h5 class="card-title mb-0 text-success"><i class="bi bi-arrow-left-right me-2"></i>Transfer In Plan — Complete Algorithm</h5></div>
+        <div class="card-body small">
+            <p><strong>SP:</strong> <code>SP_GENERATE_TRF_IN_PLAN</code> &nbsp;|&nbsp; <strong>Granularity:</strong> ST_CD + MAJ_CAT + WEEK &nbsp;|&nbsp; <strong>Output Table:</strong> TRF_IN_PLAN</p>
+            <p>The algorithm runs a <strong>week-chaining loop</strong> where each week's closing stock becomes the next week's opening stock. Within each week, it calculates shrinkage, net carry-forward, transfer-in need, and closing stock.</p>
+        </div>
+    </div>
+
+    <!-- Step-by-Step SP Execution -->
+    <div class="card shadow-sm mb-3">
+        <div class="card-header bg-success bg-opacity-10"><h5 class="card-title mb-0 text-success"><i class="bi bi-list-ol me-2"></i>SP Execution Steps (Inside the Stored Procedure)</h5></div>
+        <div class="card-body small">
+            <div class="row">
+                <div class="col-md-6">
+                    <h6 class="fw-bold">Step 1: Build Week Range</h6>
+                    <p class="text-muted">Create <code>#Weeks</code> temp table from <code>WEEK_CALENDAR</code> for @@StartWeekID to @@EndWeekID. Build week offset map (<code>#WkMap</code>) for +1, +2, +3, +4 week lookups.</p>
+
+                    <h6 class="fw-bold">Step 2: Build Store x Category Combinations</h6>
+                    <p class="text-muted">Cross join stores from <code>MASTER_ST_MASTER</code> with categories from <code>MASTER_BIN_CAPACITY</code>. Join <code>MASTER_PRODUCT_HIERARCHY</code> for SSN, SEG, DIV metadata.</p>
+
+                    <h6 class="fw-bold">Step 3: UNPIVOT Sale & Display Quantities</h6>
+                    <p class="text-muted">UNPIVOT <code>QTY_SALE_QTY</code> (48 weekly columns WK-1..WK-48) into rows. Same for <code>QTY_DISP_QTY</code>. Creates temp tables <code>#SC</code> (sale) and <code>#LS</code> (display) with ST_CD, MAJ_CAT, WK_COL, SALE_QTY/DISP_QTY.</p>
+                </div>
+                <div class="col-md-6">
+                    <h6 class="fw-bold">Step 4: Build Chain Table</h6>
+                    <p class="text-muted">10-column lean temp table per ST_CD + MAJ_CAT + WEEK with: MBQ, SALE, OP_STK, NET_CF, TRF_IN, CL_STK + metadata. Week 1 OP_STK from <code>STORE_STOCK</code> (latest by DATE).</p>
+
+                    <h6 class="fw-bold">Step 5: Week 1 Calculations</h6>
+                    <p class="text-muted">Calculate shrinkage, NET_CF, TRF_IN, CL_STK for all store+category combos at once (set-based UPDATE).</p>
+
+                    <h6 class="fw-bold">Step 6: Week 2..N Chaining Loop</h6>
+                    <p class="text-muted">WHILE loop: <code>SET OP_STK = prev week CL_STK</code>, then recalculate NET_CF, TRF_IN, CL_STK. All combos updated per week (set-based, not cursor).</p>
+
+                    <h6 class="fw-bold">Step 7: Build Final Output & INSERT</h6>
+                    <p class="text-muted">Join chain results with all reference data. Calculate derived columns (excess, short, bin options, DC_MBQ). INSERT into TRF_IN_PLAN.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Core Chain Algorithm -->
+    <div class="card shadow-sm mb-3">
+        <div class="card-header bg-success bg-opacity-10"><h5 class="card-title mb-0 text-success"><i class="bi bi-link-45deg me-2"></i>Core Chain Algorithm (The Heart of TRF)</h5></div>
+        <div class="card-body small">
+            <div class="algo-block">
+<span class="comment">-- FOR EACH ST_CD + MAJ_CAT + WEEK:</span><br><br>
+<span class="keyword">WEEK 1:</span><br>
+&nbsp;&nbsp;<span class="formula">OP_STK</span> = STORE_STOCK.STK_QTY <span class="comment">(latest by DATE for this store+category)</span><br>
+&nbsp;&nbsp;<span class="formula">MBQ</span> = DISP_QTY(current week) + SALE_QTY(next week) <span class="comment">(Display + Next Week Sale)</span><br>
+&nbsp;&nbsp;<span class="formula">SALE</span> = SALE_QTY(current week)<br><br>
+
+<span class="keyword">WEEK 2+:</span><br>
+&nbsp;&nbsp;<span class="formula">OP_STK</span> = Previous Week CL_STK <span class="comment">(chained from closing stock)</span><br>
+&nbsp;&nbsp;<span class="formula">MBQ</span> = DISP_QTY(current week) + SALE_QTY(next week)<br>
+&nbsp;&nbsp;<span class="formula">SALE</span> = SALE_QTY(current week)<br><br>
+
+<span class="keyword">ALL WEEKS — Shrinkage Calculation:</span><br>
+&nbsp;&nbsp;Step 1: <span class="formula">base_shrinkage</span> = ROUND(OP_STK * 0.08, 0) <span class="comment">(8% of opening stock, rounded)</span><br>
+&nbsp;&nbsp;Step 2: <span class="formula">SSN_FACTOR</span> = IF SSN IN ('S','PS') THEN <strong>1.0</strong> ELSE <strong>0.5</strong> <span class="comment">(full shrinkage for Summer/Pre-Summer, half for others)</span><br>
+&nbsp;&nbsp;Step 3: <span class="formula">SHRINKAGE</span> = ROUND(base_shrinkage * SSN_FACTOR, 0)<br><br>
+
+<span class="keyword">ALL WEEKS — Net Carry-Forward:</span><br>
+&nbsp;&nbsp;<span class="formula">NET_CF</span> = MAX(OP_STK - SHRINKAGE, 0) <span class="comment">(cannot be negative)</span><br><br>
+
+<span class="keyword">ALL WEEKS — Transfer In Quantity:</span><br>
+&nbsp;&nbsp;IF MBQ = 0 AND SALE = 0 THEN<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="formula">TRF_IN</span> = 0 <span class="comment">(no demand, no transfer needed)</span><br>
+&nbsp;&nbsp;ELSE IF MBQ + SALE - NET_CF > 0 THEN<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="formula">TRF_IN</span> = MBQ + SALE - NET_CF <span class="comment">(shortage = transfer in the gap)</span><br>
+&nbsp;&nbsp;ELSE<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="formula">TRF_IN</span> = 0 <span class="comment">(enough stock on hand)</span><br><br>
+
+<span class="keyword">ALL WEEKS — Closing Stock:</span><br>
+&nbsp;&nbsp;IF MBQ = 0 AND SALE = 0 THEN<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="formula">CL_STK</span> = NET_CF <span class="comment">(no demand, carry everything forward)</span><br>
+&nbsp;&nbsp;ELSE IF MBQ + SALE > NET_CF THEN<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="formula">CL_STK</span> = MBQ <span class="comment">(demand exceeds stock → after transfer, closing = MBQ buffer)</span><br>
+&nbsp;&nbsp;ELSE<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="formula">CL_STK</span> = MAX(NET_CF - SALE, 0) <span class="comment">(enough stock → sell, keep the rest)</span><br>
+            </div>
+            <div class="alert alert-success py-2 mb-0"><i class="bi bi-arrow-repeat me-1"></i><strong>Week Chaining:</strong> CL_STK of Week N becomes OP_STK of Week N+1. This creates a cascading dependency — every week depends on all prior weeks.</div>
+        </div>
+    </div>
+
+    <!-- All TRF Output Columns -->
+    <div class="card shadow-sm mb-3">
+        <div class="card-header bg-success bg-opacity-10"><h5 class="card-title mb-0 text-success"><i class="bi bi-table me-2"></i>All TRF_IN_PLAN Output Columns — Complete Formula Reference</h5></div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-sm table-bordered mb-0 small formula-table">
+                    <thead class="table-dark"><tr><th>Column</th><th>Formula / Source</th><th>Type</th></tr></thead>
+                    <tbody>
+                        <tr><th>ST_CD, ST_NM, RDC_CD, RDC_NM, HUB_CD, HUB_NM, AREA</th><td>From MASTER_ST_MASTER</td><td><span class="badge badge-input">Input</span></td></tr>
+                        <tr><th>MAJ_CAT, SSN, SEG, DIV, SUB_DIV, MAJ_CAT_NM</th><td>From MASTER_BIN_CAPACITY + MASTER_PRODUCT_HIERARCHY</td><td><span class="badge badge-input">Input</span></td></tr>
+                        <tr><th>WEEK_ID, FY_WEEK, FY_YEAR, WK_ST_DT, WK_END_DT</th><td>From WEEK_CALENDAR</td><td><span class="badge badge-input">Input</span></td></tr>
+                        <tr><th>S_GRT_STK_Q</th><td>Always 0</td><td><span class="badge badge-static">Static</span></td></tr>
+                        <tr><th>W_GRT_STK_Q</th><td>IF SSN IN ('W','PW') THEN prev_week_CL_STK ELSE 0</td><td><span class="badge badge-derived">Derived</span></td></tr>
+                        <tr><th>BGT_DISP_CL_Q</th><td>DISP_QTY from QTY_DISP_QTY (unpivoted for current week)</td><td><span class="badge badge-input">Input</span></td></tr>
+                        <tr><th>BGT_DISP_CL_OPT</th><td>ROUND(DISP_QTY * 1000.0 / BIN_CAP, 0)</td><td><span class="badge badge-derived">Derived</span></td></tr>
+                        <tr><th>COVER_SALE_QTY</th><td>Next week sale (SQ1.SALE_QTY)</td><td><span class="badge badge-input">Input</span></td></tr>
+                        <tr class="key-formula"><th>BGT_ST_CL_MBQ</th><td><strong>MBQ = DISP_QTY(current) + SALE_QTY(next week)</strong></td><td><span class="badge badge-derived">Derived</span></td></tr>
+                        <tr><th>BGT_DISP_CL_OPT_MBQ</th><td>ROUND(MBQ * 1000.0 / NULLIF(BGT_DISP_CL_OPT, 0), 0)</td><td><span class="badge badge-derived">Derived</span></td></tr>
+                        <tr class="key-formula"><th>BGT_TTL_CF_OP_STK_Q</th><td><strong>WK1: STORE_STOCK.STK_QTY &nbsp;|&nbsp; WK2+: prev_CL_STK</strong></td><td><span class="badge badge-chain">Chain</span></td></tr>
+                        <tr><th>NT_ACT_Q (Shrinkage)</th><td>ROUND(ROUND(OP_STK * 0.08, 0) * SSN_FACTOR, 0) &nbsp; SSN_FACTOR: S,PS=1.0; others=0.5</td><td><span class="badge badge-derived">Derived</span></td></tr>
+                        <tr class="key-formula"><th>NET_BGT_CF_STK_Q</th><td><strong>MAX(OP_STK - SHRINKAGE, 0)</strong></td><td><span class="badge badge-derived">Derived</span></td></tr>
+                        <tr><th>CM_BGT_SALE_Q</th><td>Current week sale from QTY_SALE_QTY (unpivoted)</td><td><span class="badge badge-input">Input</span></td></tr>
+                        <tr><th>CM1_BGT_SALE_Q</th><td>Next week sale (week+1)</td><td><span class="badge badge-input">Input</span></td></tr>
+                        <tr><th>CM2_BGT_SALE_Q</th><td>Week+2 sale</td><td><span class="badge badge-input">Input</span></td></tr>
+                        <tr class="key-formula"><th>TRF_IN_STK_Q</th><td><strong>IF(MBQ=0 AND SALE=0) 0 ELSE MAX(MBQ + SALE - NET_CF, 0)</strong></td><td><span class="badge badge-chain">Chain</span></td></tr>
+                        <tr><th>TRF_IN_OPT_CNT</th><td>ROUND(TRF_IN * 1000.0 / NULLIF(BGT_DISP_CL_OPT_MBQ, 0), 0)</td><td><span class="badge badge-derived">Derived</span></td></tr>
+                        <tr><th>TRF_IN_OPT_MBQ</th><td>TRF_IN * 1000.0 / NULLIF(TRF_IN_OPT_CNT, 0)</td><td><span class="badge badge-derived">Derived</span></td></tr>
+                        <tr class="key-formula"><th>DC_MBQ</th><td><strong>SQ1 + SQ2 + SQ3 + SQ4 (sum of next 4 weeks sale)</strong></td><td><span class="badge badge-derived">Derived</span></td></tr>
+                        <tr class="key-formula"><th>BGT_TTL_CF_CL_STK_Q</th><td><strong>Closing Stock logic (see algorithm above) — chains to next week</strong></td><td><span class="badge badge-chain">Chain</span></td></tr>
+                        <tr><th>NET_ST_CL_STK_Q</th><td>= CL_STK (same as closing)</td><td><span class="badge badge-derived">Derived</span></td></tr>
+                        <tr><th>ST_CL_EXCESS_Q</th><td>MAX(CL_STK - MBQ, 0)</td><td><span class="badge badge-derived">Derived</span></td></tr>
+                        <tr><th>ST_CL_SHORT_Q</th><td>MAX(MBQ - CL_STK, 0)</td><td><span class="badge badge-derived">Derived</span></td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Data Sources -->
+    <div class="card shadow-sm">
+        <div class="card-header bg-success bg-opacity-10"><h5 class="card-title mb-0 text-success"><i class="bi bi-inbox me-2"></i>Data Sources (What Feeds Into TRF)</h5></div>
+        <div class="card-body p-0 small">
+            <div class="table-responsive">
+                <table class="table table-sm table-bordered mb-0">
+                    <thead class="table-dark"><tr><th>Source Table</th><th>Data Provided</th><th>How It's Used</th></tr></thead>
+                    <tbody>
+                        <tr><td><code>QTY_SALE_QTY</code></td><td>48 weekly sale columns (WK-1..WK-48) per ST_CD + MAJ_CAT</td><td>UNPIVOT to rows → CM_BGT_SALE_Q (current), CM1 (next), CM2 (next+1), SQ1-SQ4 for DC_MBQ</td></tr>
+                        <tr><td><code>QTY_DISP_QTY</code></td><td>48 weekly display columns per ST_CD + MAJ_CAT</td><td>UNPIVOT to rows → BGT_DISP_CL_Q, used in MBQ calculation</td></tr>
+                        <tr><td><code>STORE_STOCK</code></td><td>STK_QTY per ST_CD + MAJ_CAT (with DATE)</td><td>Week 1 OP_STK (latest date, ROW_NUMBER DESC)</td></tr>
+                        <tr><td><code>MASTER_BIN_CAPACITY</code></td><td>MBQ, BIN_CAP, BIN_CAP_DC_TEAM per MAJ_CAT</td><td>MBQ baseline, bin rounding for TRF_IN_OPT calculations</td></tr>
+                        <tr><td><code>MASTER_ST_MASTER</code></td><td>ST_CD, ST_NM, RDC_CD, RDC_NM, HUB, AREA</td><td>Store metadata, RDC mapping for PP aggregation</td></tr>
+                        <tr><td><code>MASTER_PRODUCT_HIERARCHY</code></td><td>SEG, DIV, SUB_DIV, MAJ_CAT_NM, SSN per category</td><td>SSN drives shrinkage factor (S,PS=100%; others=50%)</td></tr>
+                        <tr><td><code>WEEK_CALENDAR</code></td><td>WEEK_ID, FY_WEEK, FY_YEAR, WK_ST_DT, WK_END_DT, WEEK_SEQ</td><td>Week ordering, sequence numbering, date range labels</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ╔══════════════════════════════════════════════════════════════════╗ -->
+<!-- ║  TAB 4: PURCHASE PLAN ALGORITHM                                 ║ -->
+<!-- ╚══════════════════════════════════════════════════════════════════╝ -->
+<div class="tab-pane fade" id="tabPPAlgo">
+
+    <!-- Algorithm Overview -->
+    <div class="card shadow-sm mb-3">
+        <div class="card-header" style="background:#8e44ad20;"><h5 class="card-title mb-0" style="color:#8e44ad;"><i class="bi bi-bag-check me-2"></i>Purchase Plan — Complete Algorithm</h5></div>
+        <div class="card-body small">
+            <p><strong>SP:</strong> <code>SP_GENERATE_PURCHASE_PLAN</code> &nbsp;|&nbsp; <strong>Granularity:</strong> RDC_CD + MAJ_CAT + WEEK &nbsp;|&nbsp; <strong>Output Table:</strong> PURCHASE_PLAN</p>
+            <p>The Purchase Plan <strong>reads from TRF_IN_PLAN output</strong> — it aggregates all store-level TRF_IN_STK_Q by RDC to get how much stock is being transferred out of each DC. It then runs a DC-level week-chaining loop to determine purchase requirements.</p>
+        </div>
+    </div>
+
+    <!-- SP Execution Steps -->
+    <div class="card shadow-sm mb-3">
+        <div class="card-header" style="background:#8e44ad20;"><h5 class="card-title mb-0" style="color:#8e44ad;"><i class="bi bi-list-ol me-2"></i>SP Execution Steps</h5></div>
+        <div class="card-body small">
+            <div class="row">
+                <div class="col-md-6">
+                    <h6 class="fw-bold">Step 1: Build Week Range + Offset Map</h6>
+                    <p class="text-muted">Same as TRF — <code>#Weeks</code> and <code>#WkMap</code> with +1 through +5 week offsets.</p>
+
+                    <h6 class="fw-bold">Step 2: Build RDC x MAJ_CAT Combinations</h6>
+                    <p class="text-muted">Cross join distinct RDC_CD from ST_MASTER with distinct MAJ_CAT from BIN_CAPACITY. Join PRODUCT_HIERARCHY for SSN.</p>
+
+                    <h6 class="fw-bold">Step 3: Aggregate TRF_IN_PLAN by RDC</h6>
+                    <p class="text-muted">GROUP BY RDC_CD, MAJ_CAT, WEEK_ID from <code>TRF_IN_PLAN</code> output. SUMs: TRF_IN_STK_Q → <strong>CW_TRF_OUT_Q</strong>, CM_BGT_SALE_Q, CM1_BGT_SALE_Q, BGT_DISP_CL_Q, BGT_ST_CL_MBQ, etc. Also builds offset tables for CW1-CW4 TRF_OUT and CW2-CW5 SALE.</p>
+                </div>
+                <div class="col-md-6">
+                    <h6 class="fw-bold">Step 4: Load Reference Data</h6>
+                    <p class="text-muted">UNPIVOT <code>MASTER_GRT_CONTRIBUTION</code> (48 WK columns → SSN + WkNum + GrtPct rows). Join DC_STOCK, BIN_CAPACITY, DEL_PENDING for each RDC + MAJ_CAT + WEEK.</p>
+
+                    <h6 class="fw-bold">Step 5: Build #PP Calculation Table</h6>
+                    <p class="text-muted">Full join of all data into one temp table with ~50 columns. Initial values set. TTL_TRF_OUT_Q = CW + CW1 + CW2 + CW3 + CW4.</p>
+
+                    <h6 class="fw-bold">Step 6: Week 1 Calculations + Week 2..N Chaining</h6>
+                    <p class="text-muted">Calculate all derived columns for Week 1 (set-based). Then WHILE loop chains OP_STK, DC_STK, BGT_CF_STK from previous week's closing values. Recalculates GRT_CONS, PP_NET, POS_PO, NEG_PO, BGT_PUR, BGT_DC_CL_STK per week.</p>
+
+                    <h6 class="fw-bold">Step 7: DELETE old + INSERT into PURCHASE_PLAN</h6>
+                    <p class="text-muted">Delete existing rows for this week range + optional RDC/MajCat filter. Insert all calculated rows.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Core PP Algorithm -->
+    <div class="card shadow-sm mb-3">
+        <div class="card-header" style="background:#8e44ad20;"><h5 class="card-title mb-0" style="color:#8e44ad;"><i class="bi bi-link-45deg me-2"></i>Core DC Chain Algorithm</h5></div>
+        <div class="card-body small">
+            <div class="algo-block">
+<span class="comment">-- FOR EACH RDC_CD + MAJ_CAT + WEEK:</span><br><br>
+
+<span class="keyword">WEEK 1 — Opening Values:</span><br>
+&nbsp;&nbsp;<span class="formula">DC_STK_Q</span> = DC_STOCK table (DC stock for this RDC + MAJ_CAT)<br>
+&nbsp;&nbsp;<span class="formula">GRT_STK_Q</span> = DC_STOCK.GRT_STK_Q<br>
+&nbsp;&nbsp;<span class="formula">TTL_STK</span> = GRT_STK_Q <span class="comment">(total stock)</span><br>
+&nbsp;&nbsp;<span class="formula">OP_STK</span> = GRT_STK_Q <span class="comment">(opening GRT stock)</span><br>
+&nbsp;&nbsp;<span class="formula">BGT_DC_OP_STK_Q</span> = DC_STK_Q<br>
+&nbsp;&nbsp;<span class="formula">BGT_CF_STK_Q</span> = DC_STK_Q<br>
+&nbsp;&nbsp;<span class="formula">NT_ACT_STK</span> = IF SSN IN ('S','OC','A') THEN GRT_STK_Q * 0.10 ELSE 0<br><br>
+
+<span class="keyword">WEEK 2+ — Chained Values:</span><br>
+&nbsp;&nbsp;<span class="formula">OP_STK</span> = prev_week.NET_SSNL_CL_STK_Q<br>
+&nbsp;&nbsp;<span class="formula">DC_STK_Q</span> = prev_week.BGT_DC_CL_STK_Q<br>
+&nbsp;&nbsp;<span class="formula">BGT_DC_OP_STK_Q</span> = prev_week.BGT_DC_CL_STK_Q<br>
+&nbsp;&nbsp;<span class="formula">BGT_CF_STK_Q</span> = MAX(prev_week.BGT_DC_CL_STK_Q, 0)<br><br>
+
+<span class="keyword">ALL WEEKS — Transfer Out (from TRF_IN_PLAN):</span><br>
+&nbsp;&nbsp;<span class="formula">CW_TRF_OUT_Q</span> = SUM(TRF_IN_STK_Q) from TRF_IN_PLAN WHERE RDC + MAJ_CAT + current week<br>
+&nbsp;&nbsp;<span class="formula">CW1..CW4_TRF_OUT_Q</span> = same at week offsets +1..+4<br>
+&nbsp;&nbsp;<span class="formula">TTL_TRF_OUT_Q</span> = CW + CW1 + CW2 + CW3 + CW4<br><br>
+
+<span class="keyword">ALL WEEKS — Sale Quantities (from TRF_IN_PLAN aggregation):</span><br>
+&nbsp;&nbsp;<span class="formula">BGT_DC_MBQ_SALE</span> = CW1_BGT_SALE_Q + CW2_BGT_SALE_Q + CW3_BGT_SALE_Q + CW4_BGT_SALE_Q <span class="comment">(next 4 weeks sale)</span><br><br>
+
+<span class="keyword">ALL WEEKS — DC MBQ:</span><br>
+&nbsp;&nbsp;<span class="formula">BGT_DC_CL_MBQ</span> = MIN(CW1_TRF_OUT + CW2_TRF_OUT + CW3_TRF_OUT + CW4_TRF_OUT, BGT_DC_MBQ_SALE)<br><br>
+
+<span class="keyword">ALL WEEKS — GRT Consumption:</span><br>
+&nbsp;&nbsp;IF TTL_TRF_OUT_Q = 0 THEN <span class="formula">GRT_CONS_Q</span> = 0<br>
+&nbsp;&nbsp;ELSE <span class="formula">GRT_CONS_Q</span> = MIN of:<br>
+&nbsp;&nbsp;&nbsp;&nbsp;- TTL_TRF_OUT_Q * 0.30 <span class="comment">(30% of total transfer out)</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;- MAX(OP_STK - NT_ACT_STK, 0)<br>
+&nbsp;&nbsp;&nbsp;&nbsp;- MAX(TTL_TRF_OUT - MAX(BGT_CF_STK - BGT_DC_CL_MBQ, 0), 0)<br>
+&nbsp;&nbsp;&nbsp;&nbsp;- MAX(TTL_STK - NT_ACT_STK, 0) * GRT_CONS_PCT <span class="comment">(from MASTER_GRT_CONTRIBUTION by SSN+Week)</span><br><br>
+
+<span class="keyword">ALL WEEKS — Net & Seasonal:</span><br>
+&nbsp;&nbsp;<span class="formula">PP_NET_BGT_CF_STK_Q</span> = BGT_CF_STK_Q + GRT_CONS_Q + DEL_PEND_Q<br>
+&nbsp;&nbsp;<span class="formula">NET_SSNL_CL_STK_Q</span> = MAX(OP_STK - GRT_CONS_Q, 0)<br><br>
+
+<span class="keyword">ALL WEEKS — Purchase Quantity:</span><br>
+&nbsp;&nbsp;<span class="formula">POS_PO_RAISED</span> = MAX(BGT_DC_CL_MBQ + CW_TRF_OUT_Q - PP_NET_BGT_CF_STK_Q, 0)<br>
+&nbsp;&nbsp;<span class="formula">BGT_PUR_Q_INIT</span> = POS_PO_RAISED <span class="comment">(Purchase Order Quantity)</span><br><br>
+
+<span class="keyword">ALL WEEKS — NEG PO (Excess PO):</span><br>
+&nbsp;&nbsp;<span class="comment">WK-1:</span> <span class="formula">NEG_PO_RAISED</span> = MIN(0, BGT_PUR_Q_INIT - DEL_PEND_Q)<br>
+&nbsp;&nbsp;<span class="comment">WK-2+:</span> <span class="formula">NEG_PO_RAISED</span> = MIN(0, BGT_PUR_Q_INIT - DEL_PEND_Q + prev_NEG_PO_RAISED) <span class="comment">(carry-forward accumulation)</span><br><br>
+
+<span class="keyword">ALL WEEKS — DC Closing Stock:</span><br>
+&nbsp;&nbsp;<span class="formula">BGT_DC_CL_STK_Q</span> = MAX(BGT_PUR_Q_INIT + PP_NET_BGT_CF_STK_Q - CW_TRF_OUT_Q, 0)<br><br>
+
+<span class="keyword">ALL WEEKS — Excess / Short:</span><br>
+&nbsp;&nbsp;<span class="formula">DC_STK_EXCESS_Q</span> = MAX(BGT_DC_CL_STK_Q - BGT_DC_CL_MBQ, 0)<br>
+&nbsp;&nbsp;<span class="formula">DC_STK_SHORT_Q</span> = MAX(BGT_DC_CL_MBQ - BGT_DC_CL_STK_Q, 0)<br>
+&nbsp;&nbsp;<span class="formula">CO_STK_EXCESS_Q</span> = ST_STK_EXCESS_Q + DC_STK_EXCESS_Q<br>
+&nbsp;&nbsp;<span class="formula">CO_STK_SHORT_Q</span> = ST_STK_SHORT_Q + DC_STK_SHORT_Q<br>
+&nbsp;&nbsp;<span class="formula">BGT_CO_CL_STK_Q</span> = NET_BGT_ST_CL_STK_Q + NET_SSNL_CL_STK_Q + BGT_DC_CL_STK_Q<br>
+&nbsp;&nbsp;<span class="formula">FRESH_BIN_REQ</span> = BGT_DC_CL_STK_Q / BIN_CAP<br>
+&nbsp;&nbsp;<span class="formula">GRT_BIN_REQ</span> = OP_STK / BIN_CAP
+            </div>
+        </div>
+    </div>
+
+    <!-- All PP Output Columns -->
+    <div class="card shadow-sm mb-3">
+        <div class="card-header" style="background:#8e44ad20;"><h5 class="card-title mb-0" style="color:#8e44ad;"><i class="bi bi-table me-2"></i>All PURCHASE_PLAN Output Columns</h5></div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-sm table-bordered mb-0 small formula-table">
+                    <thead class="table-dark"><tr><th>Column</th><th>Formula / Source</th><th>Type</th></tr></thead>
+                    <tbody>
+                        <tr><th>RDC_CD, RDC_NM, MAJ_CAT, SSN, SEG, DIV, SUB_DIV, MAJ_CAT_NM</th><td>From ST_MASTER + PRODUCT_HIERARCHY</td><td><span class="badge badge-input">Input</span></td></tr>
+                        <tr><th>WEEK_ID, FY_WEEK, FY_YEAR, WK_ST_DT, WK_END_DT</th><td>From WEEK_CALENDAR</td><td><span class="badge badge-input">Input</span></td></tr>
+                        <tr><th>DC_STK_Q</th><td>WK1: DC_STOCK.DC_STK_Q &nbsp;|&nbsp; WK2+: prev BGT_DC_CL_STK_Q</td><td><span class="badge badge-chain">Chain</span></td></tr>
+                        <tr><th>GRT_STK_Q, S_GRT_STK_Q, W_GRT_STK_Q</th><td>From DC_STOCK table</td><td><span class="badge badge-input">Input</span></td></tr>
+                        <tr><th>BIN_CAP_DC_TEAM, BIN_CAP</th><td>From MASTER_BIN_CAPACITY</td><td><span class="badge badge-input">Input</span></td></tr>
+                        <tr><th>BGT_DISP_CL_Q</th><td>SUM(BGT_DISP_CL_Q) from TRF_IN_PLAN by RDC</td><td><span class="badge badge-derived">Derived</span></td></tr>
+                        <tr><th>CW_BGT_SALE_Q, CW1..CW5_BGT_SALE_Q</th><td>Aggregated from TRF_IN_PLAN at week offsets</td><td><span class="badge badge-derived">Derived</span></td></tr>
+                        <tr><th>BGT_ST_OP_MBQ</th><td>Previous week BGT_ST_CL_MBQ from TRF aggregation</td><td><span class="badge badge-derived">Derived</span></td></tr>
+                        <tr><th>NET_ST_OP_STK_Q</th><td>SUM(BGT_TTL_CF_OP_STK_Q) from TRF by RDC</td><td><span class="badge badge-derived">Derived</span></td></tr>
+                        <tr class="key-formula"><th>BGT_DC_OP_STK_Q</th><td><strong>WK1: DC_STK_Q &nbsp;|&nbsp; WK2+: prev BGT_DC_CL_STK_Q</strong></td><td><span class="badge badge-chain">Chain</span></td></tr>
+                        <tr><th>PP_NT_ACT_Q</th><td>Always 0</td><td><span class="badge badge-static">Static</span></td></tr>
+                        <tr><th>BGT_CF_STK_Q</th><td>WK1: DC_STK_Q &nbsp;|&nbsp; WK2+: MAX(prev BGT_DC_CL_STK_Q, 0)</td><td><span class="badge badge-chain">Chain</span></td></tr>
+                        <tr><th>TTL_STK</th><td>GRT_STK_Q</td><td><span class="badge badge-input">Input</span></td></tr>
+                        <tr class="key-formula"><th>OP_STK</th><td><strong>WK1: GRT_STK_Q &nbsp;|&nbsp; WK2+: prev NET_SSNL_CL_STK_Q</strong></td><td><span class="badge badge-chain">Chain</span></td></tr>
+                        <tr><th>NT_ACT_STK</th><td>IF SSN IN ('S','OC','A') THEN GRT_STK_Q * 0.10 ELSE 0</td><td><span class="badge badge-derived">Derived</span></td></tr>
+                        <tr><th>GRT_CONS_PCT</th><td>Dynamic UNPIVOT from MASTER_GRT_CONTRIBUTION by SSN + Week position</td><td><span class="badge badge-input">Input</span></td></tr>
+                        <tr><th>DEL_PEND_Q</th><td>From DEL_PENDING table (latest by DATE)</td><td><span class="badge badge-input">Input</span></td></tr>
+                        <tr><th>CW_TRF_OUT_Q, CW1..CW4_TRF_OUT_Q</th><td>SUM(TRF_IN_STK_Q) from TRF_IN_PLAN by RDC at week offsets</td><td><span class="badge badge-derived">Derived</span></td></tr>
+                        <tr><th>TTL_TRF_OUT_Q</th><td>CW + CW1 + CW2 + CW3 + CW4 TRF_OUT</td><td><span class="badge badge-derived">Derived</span></td></tr>
+                        <tr><th>BGT_ST_CL_MBQ, NET_BGT_ST_CL_STK_Q</th><td>SUM from TRF_IN_PLAN by RDC</td><td><span class="badge badge-derived">Derived</span></td></tr>
+                        <tr class="key-formula"><th>BGT_DC_MBQ_SALE</th><td><strong>CW1_BGT_SALE + CW2_BGT_SALE + CW3_BGT_SALE + CW4_BGT_SALE</strong></td><td><span class="badge badge-derived">Derived</span></td></tr>
+                        <tr class="key-formula"><th>BGT_DC_CL_MBQ</th><td><strong>MIN(CW1+CW2+CW3+CW4 TRF_OUT, BGT_DC_MBQ_SALE)</strong></td><td><span class="badge badge-derived">Derived</span></td></tr>
+                        <tr><th>GRT_CONS_Q</th><td>MIN(TTL_TRF*0.30, MAX(OP-NT_ACT,0), MAX(TTL_TRF-MAX(CF-MBQ,0),0), MAX(TTL-NT_ACT,0)*PCT)</td><td><span class="badge badge-derived">Derived</span></td></tr>
+                        <tr class="key-formula"><th>PP_NET_BGT_CF_STK_Q</th><td><strong>BGT_CF_STK_Q + GRT_CONS_Q + DEL_PEND_Q</strong></td><td><span class="badge badge-derived">Derived</span></td></tr>
+                        <tr class="key-formula"><th>NET_SSNL_CL_STK_Q</th><td><strong>MAX(OP_STK - GRT_CONS_Q, 0)</strong> — chains to next week OP_STK</td><td><span class="badge badge-chain">Chain</span></td></tr>
+                        <tr class="key-formula"><th>POS_PO_RAISED</th><td><strong>MAX(BGT_DC_CL_MBQ + CW_TRF_OUT_Q - PP_NET_BGT_CF_STK_Q, 0)</strong></td><td><span class="badge badge-derived">Derived</span></td></tr>
+                        <tr class="key-formula"><th>BGT_PUR_Q_INIT</th><td><strong>= POS_PO_RAISED</strong> (purchase order quantity)</td><td><span class="badge badge-derived">Derived</span></td></tr>
+                        <tr class="key-formula"><th>NEG_PO_RAISED</th><td><strong>WK1: MIN(0, PUR-DEL_PEND) &nbsp;|&nbsp; WK2+: MIN(0, PUR-DEL_PEND + prev_NEG)</strong></td><td><span class="badge badge-chain">Chain</span></td></tr>
+                        <tr class="key-formula"><th>BGT_DC_CL_STK_Q</th><td><strong>MAX(BGT_PUR_Q_INIT + PP_NET_BGT_CF_STK_Q - CW_TRF_OUT_Q, 0)</strong> — chains to next week</td><td><span class="badge badge-chain">Chain</span></td></tr>
+                        <tr><th>DC_STK_EXCESS_Q</th><td>MAX(BGT_DC_CL_STK_Q - BGT_DC_CL_MBQ, 0)</td><td><span class="badge badge-derived">Derived</span></td></tr>
+                        <tr><th>DC_STK_SHORT_Q</th><td>MAX(BGT_DC_CL_MBQ - BGT_DC_CL_STK_Q, 0)</td><td><span class="badge badge-derived">Derived</span></td></tr>
+                        <tr><th>ST_STK_EXCESS_Q / ST_STK_SHORT_Q</th><td>SUM from TRF_IN_PLAN</td><td><span class="badge badge-derived">Derived</span></td></tr>
+                        <tr><th>CO_STK_EXCESS_Q / CO_STK_SHORT_Q</th><td>ST_STK + DC_STK excess/short (company total)</td><td><span class="badge badge-derived">Derived</span></td></tr>
+                        <tr><th>BGT_CO_CL_STK_Q</th><td>NET_BGT_ST_CL_STK + NET_SSNL_CL_STK + BGT_DC_CL_STK</td><td><span class="badge badge-derived">Derived</span></td></tr>
+                        <tr><th>FRESH_BIN_REQ</th><td>BGT_DC_CL_STK_Q / BIN_CAP</td><td><span class="badge badge-derived">Derived</span></td></tr>
+                        <tr><th>GRT_BIN_REQ</th><td>OP_STK / BIN_CAP</td><td><span class="badge badge-derived">Derived</span></td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Week Chaining Visualization -->
+    <div class="card shadow-sm">
+        <div class="card-header" style="background:#8e44ad20;"><h5 class="card-title mb-0" style="color:#8e44ad;"><i class="bi bi-diagram-2 me-2"></i>PP Week Chaining — What Flows Forward</h5></div>
+        <div class="card-body small">
+            <div class="algo-block">
+<span class="keyword">WEEK N closing values</span> → <span class="keyword">WEEK N+1 opening values:</span><br><br>
+&nbsp;&nbsp;BGT_DC_CL_STK_Q &nbsp;&nbsp;→ &nbsp;&nbsp;DC_STK_Q, BGT_DC_OP_STK_Q, BGT_CF_STK_Q<br>
+&nbsp;&nbsp;NET_SSNL_CL_STK_Q &nbsp;→ &nbsp;&nbsp;OP_STK <span class="comment">(GRT opening stock)</span><br>
+&nbsp;&nbsp;NEG_PO_RAISED &nbsp;&nbsp;&nbsp;&nbsp;→ &nbsp;&nbsp;added to next week NEG_PO calculation <span class="comment">(carry-forward accumulation)</span><br>
+            </div>
+            <div class="alert alert-info py-2 mb-0"><i class="bi bi-info-circle me-1"></i><strong>Three independent chains:</strong> DC closing stock chain (BGT_DC_CL_STK_Q), GRT closing stock chain (NET_SSNL_CL_STK_Q), and NEG PO accumulation chain (NEG_PO_RAISED). All recalculated per week in sequence.</div>
+        </div>
+    </div>
+</div>
+
+<!-- ╔══════════════════════════════════════════════════════════════════╗ -->
+<!-- ║  TAB 5: SUB-LEVEL PLANS                                         ║ -->
+<!-- ╚══════════════════════════════════════════════════════════════════╝ -->
+<div class="tab-pane fade" id="tabSubLevel">
+
+    <!-- Sub-Level Overview -->
+    <div class="card shadow-sm mb-3">
+        <div class="card-header" style="background:#e67e2220;"><h5 class="card-title mb-0" style="color:#e67e22;"><i class="bi bi-layers me-2"></i>Sub-Level Plans — Overview</h5></div>
+        <div class="card-body small">
+            <p>Sub-level plans run the <strong>exact same algorithm</strong> as main plans but at a finer granularity. Instead of ST_CD + MAJ_CAT + WEEK, they add a <strong>SUB_VALUE</strong> dimension representing one of 4 levels:</p>
+            <div class="row g-3 mb-3">
+                <div class="col-md-3"><div class="card bg-light p-2 text-center"><strong>MVGR</strong><br><small class="text-muted">DISP_MVGR_MATRIX</small><br><code>ST_MAJ_CAT_MACRO_MVGR_PLAN</code></div></div>
+                <div class="col-md-3"><div class="card bg-light p-2 text-center"><strong>Size (SZ)</strong><br><small class="text-muted">SZ</small><br><code>ST_MAJ_CAT_SZ_PLAN</code></div></div>
+                <div class="col-md-3"><div class="card bg-light p-2 text-center"><strong>Segment (SEG)</strong><br><small class="text-muted">SEG</small><br><code>ST_MAJ_CAT_SEG_PLAN</code></div></div>
+                <div class="col-md-3"><div class="card bg-light p-2 text-center"><strong>Vendor (VND)</strong><br><small class="text-muted">M_VND_CD</small><br><code>ST_MAJ_CAT_VND_PLAN</code></div></div>
+            </div>
+            <div class="alert alert-warning py-2 mb-0"><i class="bi bi-exclamation-triangle me-1"></i><strong>Key Difference:</strong> Sub-level plans run <strong>independently</strong> — they do NOT derive from main plan output. They run the full algorithm from scratch using level-specific stock and contribution percentages. Main plan execution is NOT required first (only for sub PP which reads sub TRF).</div>
+        </div>
+    </div>
+
+    <!-- What Changes at Sub-Level -->
+    <div class="card shadow-sm mb-3">
+        <div class="card-header" style="background:#e67e2220;"><h5 class="card-title mb-0" style="color:#e67e22;"><i class="bi bi-arrow-left-right me-2"></i>What Changes vs Main Plan</h5></div>
+        <div class="card-body p-0 small">
+            <div class="table-responsive">
+                <table class="table table-sm table-bordered mb-0">
+                    <thead class="table-dark"><tr><th>Aspect</th><th>Main Plan</th><th>Sub-Level Plan</th></tr></thead>
+                    <tbody>
+                        <tr><td class="fw-bold">Granularity</td><td>ST_CD + MAJ_CAT + WEEK</td><td>ST_CD + MAJ_CAT + <strong>SUB_VALUE</strong> + WEEK</td></tr>
+                        <tr><td class="fw-bold">Sale Qty</td><td>Direct from QTY_SALE_QTY</td><td>SALE_QTY <strong>x CONT_PCT</strong> from contribution table</td></tr>
+                        <tr><td class="fw-bold">Display Qty</td><td>Direct from QTY_DISP_QTY</td><td>DISP_QTY <strong>x CONT_PCT</strong> from contribution table</td></tr>
+                        <tr><td class="fw-bold">Store Stock (TRF)</td><td>From <code>STORE_STOCK</code></td><td>From <code>SUB_ST_STK_{MVGR|SZ|SEG|VND}</code></td></tr>
+                        <tr><td class="fw-bold">DC Stock (PP)</td><td>From <code>DC_STOCK</code></td><td>From <code>SUB_DC_STK_{MVGR|SZ|SEG|VND}</code></td></tr>
+                        <tr><td class="fw-bold">TRF Algorithm</td><td>Same chain logic</td><td><strong>Identical</strong> — shrinkage, NET_CF, TRF_IN, CL_STK</td></tr>
+                        <tr><td class="fw-bold">PP Algorithm</td><td>GRT_CONS uses GRT_CONS_PCT from MASTER_GRT_CONTRIBUTION</td><td>GRT_CONS_Q = 0 (simplified — no GRT_CONS_PCT at sub-level)</td></tr>
+                        <tr><td class="fw-bold">PP reads from</td><td>TRF_IN_PLAN</td><td>SUB_LEVEL_TRF_PLAN (same level)</td></tr>
+                        <tr><td class="fw-bold">Output Tables</td><td>TRF_IN_PLAN, PURCHASE_PLAN</td><td>SUB_LEVEL_TRF_PLAN, SUB_LEVEL_PP_PLAN</td></tr>
+                        <tr><td class="fw-bold">Bin Rounding</td><td>TRF_IN rounded to BIN_CAP multiples (opt calculations)</td><td>No bin rounding (raw TRF_IN quantity)</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sub TRF Algorithm -->
+    <div class="card shadow-sm mb-3">
+        <div class="card-header" style="background:#27ae6020;"><h5 class="card-title mb-0 text-success"><i class="bi bi-calculator me-2"></i>Sub-Level TRF Algorithm (SP_GENERATE_SUB_LEVEL_TRF)</h5></div>
+        <div class="card-body small">
+            <div class="algo-block">
+<span class="keyword">INPUT PREPARATION:</span><br>
+&nbsp;&nbsp;1. Get contribution % from <span class="formula">ST_MAJ_CAT_{LEVEL}_PLAN</span> table (dynamic table name based on @@Level)<br>
+&nbsp;&nbsp;2. UNPIVOT QTY_SALE_QTY (48 WK cols → rows), multiply by <span class="formula">CONT_PCT</span><br>
+&nbsp;&nbsp;3. UNPIVOT QTY_DISP_QTY (48 WK cols → rows), multiply by <span class="formula">CONT_PCT</span><br>
+&nbsp;&nbsp;4. Load store stock from <span class="formula">SUB_ST_STK_{LEVEL}</span> (latest by DATE, per ST_CD + MAJ_CAT + SUB_VALUE)<br><br>
+
+<span class="keyword">CHAIN TABLE (per ST_CD + MAJ_CAT + SUB_VALUE + WEEK):</span><br>
+&nbsp;&nbsp;<span class="formula">MBQ</span> = (DISP_QTY * CONT_PCT) + (SALE_QTY_next_week * CONT_PCT)<br>
+&nbsp;&nbsp;<span class="formula">SALE</span> = SALE_QTY_current_week * CONT_PCT<br>
+&nbsp;&nbsp;<span class="formula">OP_STK</span> = WK1: SUB_ST_STK_{level}.STK_QTY &nbsp;|&nbsp; WK2+: prev CL_STK<br><br>
+
+<span class="keyword">SAME FORMULAS AS MAIN TRF:</span><br>
+&nbsp;&nbsp;<span class="formula">SHRINKAGE</span> = ROUND(ROUND(OP_STK * 0.08, 0) * SSN_FACTOR, 0)<br>
+&nbsp;&nbsp;<span class="formula">NET_CF</span> = MAX(OP_STK - SHRINKAGE, 0)<br>
+&nbsp;&nbsp;<span class="formula">TRF_IN</span> = IF(MBQ=0 AND SALE=0) 0 ELSE MAX(MBQ + SALE - NET_CF, 0)<br>
+&nbsp;&nbsp;<span class="formula">CL_STK</span> = IF(no demand) NET_CF ELSE IF(demand>stock) MBQ ELSE MAX(NET_CF-SALE,0)<br>
+&nbsp;&nbsp;<span class="formula">DC_MBQ</span> = SQ1 + SQ2 + SQ3 + SQ4 (sum of next 4 weeks sale * CONT_PCT)<br><br>
+
+<span class="keyword">OUTPUT → SUB_LEVEL_TRF_PLAN</span> with LEVEL column = @@Level
+            </div>
+
+            <h6 class="fw-bold mt-3">Sub TRF Output Columns</h6>
+            <div class="table-responsive">
+                <table class="table table-sm table-bordered mb-0 formula-table">
+                    <thead class="table-dark"><tr><th>Column</th><th>Formula</th><th>Level-Specific?</th></tr></thead>
+                    <tbody>
+                        <tr class="changed"><th>BGT_DISP_CL_Q</th><td>DISP_QTY (UNPIVOT) x CONT_PCT</td><td><span class="badge bg-success">Yes</span></td></tr>
+                        <tr class="changed"><th>CM_BGT_SALE_Q</th><td>SALE_QTY (UNPIVOT) x CONT_PCT</td><td><span class="badge bg-success">Yes</span></td></tr>
+                        <tr class="changed"><th>CM1_BGT_SALE_Q</th><td>SALE_QTY (week+1) x CONT_PCT</td><td><span class="badge bg-success">Yes</span></td></tr>
+                        <tr class="changed"><th>CM2_BGT_SALE_Q</th><td>SALE_QTY (week+2) x CONT_PCT</td><td><span class="badge bg-success">Yes</span></td></tr>
+                        <tr class="changed"><th>COVER_SALE_QTY</th><td>CM + CM1 + CM2 + CM3 (4 weeks sale x CONT_PCT)</td><td><span class="badge bg-success">Yes</span></td></tr>
+                        <tr class="changed"><th>BGT_TTL_CF_OP_STK_Q</th><td>WK1: SUB_ST_STK_{level} &nbsp;|&nbsp; WK2+: prev CL_STK</td><td><span class="badge bg-success">Yes</span></td></tr>
+                        <tr><th>SHRINKAGE (NT_ACT_Q)</th><td>ROUND(ROUND(OP * 0.08) * SSN_FACTOR) — same formula</td><td><span class="badge bg-warning text-dark">Same</span></td></tr>
+                        <tr><th>NET_BGT_CF_STK_Q</th><td>MAX(OP - SHRINKAGE, 0) — same formula</td><td><span class="badge bg-warning text-dark">Same</span></td></tr>
+                        <tr><th>BGT_ST_CL_MBQ</th><td>MBQ = DISP*CONT + SALE_next*CONT</td><td><span class="badge bg-success">Yes</span></td></tr>
+                        <tr class="key-formula"><th>TRF_IN_STK_Q</th><td><strong>MAX(MBQ + SALE - NET_CF, 0)</strong> — same formula, different inputs</td><td><span class="badge bg-success">Yes</span></td></tr>
+                        <tr class="key-formula"><th>BGT_TTL_CF_CL_STK_Q</th><td><strong>Closing stock — chains to next week</strong></td><td><span class="badge bg-success">Yes</span></td></tr>
+                        <tr><th>ST_CL_EXCESS_Q / ST_CL_SHORT_Q</th><td>MAX(CL-MBQ, 0) / MAX(MBQ-CL, 0)</td><td><span class="badge bg-success">Yes</span></td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sub PP Algorithm -->
+    <div class="card shadow-sm mb-3">
+        <div class="card-header" style="background:#8e44ad20;"><h5 class="card-title mb-0" style="color:#8e44ad;"><i class="bi bi-calculator me-2"></i>Sub-Level PP Algorithm (SP_GENERATE_SUB_LEVEL_PP)</h5></div>
+        <div class="card-body small">
+            <div class="algo-block">
+<span class="keyword">INPUT — Reads from SUB_LEVEL_TRF_PLAN (must run TRF first per level):</span><br>
+&nbsp;&nbsp;Aggregates by RDC_CD + MAJ_CAT + SUB_VALUE + WEEK from SUB_LEVEL_TRF_PLAN WHERE LEVEL = @@Level<br>
+&nbsp;&nbsp;CW_TRF_OUT_Q = SUM(TRF_IN_STK_Q) grouped by RDC<br>
+&nbsp;&nbsp;CW1-CW4 TRF_OUT at week offsets +1..+4<br>
+&nbsp;&nbsp;CW1-CW4 SALE at week offsets<br>
+&nbsp;&nbsp;DC stock from <span class="formula">SUB_DC_STK_{LEVEL}</span> (latest by DATE, per RDC + MAJ_CAT + SUB_VALUE)<br><br>
+
+<span class="keyword">WEEK 1:</span><br>
+&nbsp;&nbsp;<span class="formula">OP_STK</span> = GRT_STK_Q from SUB_DC_STK<br>
+&nbsp;&nbsp;<span class="formula">BGT_DC_OP_STK_Q</span> = DC_STK_Q from SUB_DC_STK<br>
+&nbsp;&nbsp;<span class="formula">GRT_CONS_Q</span> = 0 <span class="comment">(simplified — no GRT_CONS_PCT at sub-level)</span><br>
+&nbsp;&nbsp;<span class="formula">PP_NET_BGT_CF_STK_Q</span> = BGT_CF_STK_Q + GRT_CONS_Q <span class="comment">(no DEL_PEND at sub-level)</span><br>
+&nbsp;&nbsp;<span class="formula">NET_SSNL_CL_STK_Q</span> = MAX(OP_STK - GRT_CONS_Q, 0)<br>
+&nbsp;&nbsp;<span class="formula">POS_PO_RAISED</span> = MAX(BGT_DC_CL_MBQ + CW_TRF_OUT_Q - PP_NET_BGT_CF_STK_Q, 0)<br>
+&nbsp;&nbsp;<span class="formula">BGT_PUR_Q_INIT</span> = POS_PO_RAISED<br>
+&nbsp;&nbsp;<span class="formula">NEG_PO_RAISED</span> = MIN(0, BGT_PUR_Q_INIT - DEL_PEND_Q)<br>
+&nbsp;&nbsp;<span class="formula">BGT_DC_CL_STK_Q</span> = MAX(BGT_PUR_Q_INIT + PP_NET_BGT_CF_STK_Q - CW_TRF_OUT_Q, 0)<br><br>
+
+<span class="keyword">WEEK 2+:</span><br>
+&nbsp;&nbsp;<span class="formula">OP_STK</span> = prev_week.NET_SSNL_CL_STK_Q<br>
+&nbsp;&nbsp;<span class="formula">DC_STK_Q</span> = prev_week.BGT_DC_CL_STK_Q<br>
+&nbsp;&nbsp;<span class="formula">BGT_CF_STK_Q</span> = MAX(prev_week.BGT_DC_CL_STK_Q, 0)<br>
+&nbsp;&nbsp;<span class="formula">NEG_PO_RAISED</span> = MIN(0, BGT_PUR_Q_INIT - DEL_PEND_Q + prev_NEG_PO_RAISED)<br>
+&nbsp;&nbsp;<span class="comment">... all other formulas identical to Week 1</span><br><br>
+
+<span class="keyword">OUTPUT → SUB_LEVEL_PP_PLAN</span> with LEVEL column = @@Level
+            </div>
+        </div>
+    </div>
+
+    <!-- Sub-Level Input Tables -->
+    <div class="card shadow-sm mb-3">
+        <div class="card-header" style="background:#e67e2220;"><h5 class="card-title mb-0" style="color:#e67e22;"><i class="bi bi-inbox me-2"></i>Sub-Level Input Data (18 Tables)</h5></div>
+        <div class="card-body p-0 small">
+            <div class="table-responsive">
+                <table class="table table-sm table-bordered mb-0">
+                    <thead class="table-dark"><tr><th>Category</th><th>SQL Table Name</th><th>Purpose</th><th>Key Columns</th></tr></thead>
+                    <tbody>
+                        <tr class="table-light"><td colspan="4" class="fw-bold">Reference Tables (shared with main plan)</td></tr>
+                        <tr><td>Sale</td><td><code>QTY_SALE_QTY</code></td><td>Weekly sale forecast (48 WK columns) — multiplied by CONT_PCT</td><td>ST_CD, MAJ_CAT, WK_1..WK_48</td></tr>
+                        <tr><td>Display</td><td><code>QTY_DISP_QTY</code></td><td>Display quantity (48 WK columns) — multiplied by CONT_PCT</td><td>ST_CD, MAJ_CAT, WK_1..WK_48</td></tr>
+                        <tr><td>Week</td><td><code>WEEK_CALENDAR</code></td><td>Fiscal week definitions</td><td>WEEK_ID, FY_YEAR, FY_WEEK, WEEK_SEQ</td></tr>
+                        <tr><td>Store</td><td><code>MASTER_ST_MASTER</code></td><td>Store-RDC mapping</td><td>ST_CD, RDC_CD</td></tr>
+                        <tr><td>Bin</td><td><code>MASTER_BIN_CAPACITY</code></td><td>MBQ + bin capacity per category</td><td>MAJ_CAT, MBQ, BIN_CAP</td></tr>
+                        <tr><td>Product</td><td><code>MASTER_PRODUCT_HIERARCHY</code></td><td>SSN for shrinkage factor</td><td>MAJ_CAT_NM, SSN</td></tr>
+                        <tr class="table-light"><td colspan="4" class="fw-bold">Contribution Tables (4 — one per level)</td></tr>
+                        <tr><td>MVGR</td><td><code>ST_MAJ_CAT_MACRO_MVGR_PLAN</code></td><td>MVGR contribution % per store+category</td><td>ST_CD, MAJ_CAT_CD, DISP_MVGR_MATRIX, CONT_PCT</td></tr>
+                        <tr><td>Size</td><td><code>ST_MAJ_CAT_SZ_PLAN</code></td><td>Size contribution %</td><td>ST_CD, MAJ_CAT_CD, SZ, CONT_PCT</td></tr>
+                        <tr><td>Segment</td><td><code>ST_MAJ_CAT_SEG_PLAN</code></td><td>Segment contribution %</td><td>ST_CD, MAJ_CAT_CD, SEG, CONT_PCT</td></tr>
+                        <tr><td>Vendor</td><td><code>ST_MAJ_CAT_VND_PLAN</code></td><td>Vendor contribution %</td><td>ST_CD, MAJ_CAT_CD, M_VND_CD, CONT_PCT</td></tr>
+                        <tr class="table-light"><td colspan="4" class="fw-bold">Store Stock Tables (4 — one per level)</td></tr>
+                        <tr><td>MVGR</td><td><code>SUB_ST_STK_MVGR</code></td><td>Store stock at MVGR level</td><td>ST_CD, MAJ_CAT, SUB_VALUE, STK_QTY, DATE</td></tr>
+                        <tr><td>Size</td><td><code>SUB_ST_STK_SZ</code></td><td>Store stock at Size level</td><td>ST_CD, MAJ_CAT, SUB_VALUE, STK_QTY, DATE</td></tr>
+                        <tr><td>Segment</td><td><code>SUB_ST_STK_SEG</code></td><td>Store stock at Segment level</td><td>ST_CD, MAJ_CAT, SUB_VALUE, STK_QTY, DATE</td></tr>
+                        <tr><td>Vendor</td><td><code>SUB_ST_STK_VND</code></td><td>Store stock at Vendor level</td><td>ST_CD, MAJ_CAT, SUB_VALUE, STK_QTY, DATE</td></tr>
+                        <tr class="table-light"><td colspan="4" class="fw-bold">DC Stock Tables (4 — one per level)</td></tr>
+                        <tr><td>MVGR</td><td><code>SUB_DC_STK_MVGR</code></td><td>DC stock at MVGR level</td><td>RDC_CD, MAJ_CAT, SUB_VALUE, DC_STK_Q, GRT_STK_Q, W_GRT_STK_Q, DATE</td></tr>
+                        <tr><td>Size</td><td><code>SUB_DC_STK_SZ</code></td><td>DC stock at Size level</td><td>Same columns</td></tr>
+                        <tr><td>Segment</td><td><code>SUB_DC_STK_SEG</code></td><td>DC stock at Segment level</td><td>Same columns</td></tr>
+                        <tr><td>Vendor</td><td><code>SUB_DC_STK_VND</code></td><td>DC stock at Vendor level</td><td>Same columns</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Execution Flow -->
+    <div class="card shadow-sm">
+        <div class="card-header" style="background:#e67e2220;"><h5 class="card-title mb-0" style="color:#e67e22;"><i class="bi bi-diagram-3 me-2"></i>Sub-Level Execution Flow</h5></div>
+        <div class="card-body small">
+            <div class="algo-block">
+<span class="keyword">FOR EACH SELECTED LEVEL</span> (MVGR, SZ, SEG, VND):<br><br>
+&nbsp;&nbsp;<span class="keyword">STEP 1:</span> Run <span class="formula">SP_GENERATE_SUB_LEVEL_TRF</span>(@@Level, @@StartWeek, @@EndWeek)<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;→ Reads: contribution table, sub store stock, sale*CONT%, display*CONT%<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;→ Writes: SUB_LEVEL_TRF_PLAN WHERE LEVEL = @@Level<br><br>
+&nbsp;&nbsp;<span class="keyword">STEP 2:</span> Run <span class="formula">SP_GENERATE_SUB_LEVEL_PP</span>(@@Level, @@StartWeek, @@EndWeek)<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;→ Reads: SUB_LEVEL_TRF_PLAN (output from Step 1), sub DC stock<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;→ Writes: SUB_LEVEL_PP_PLAN WHERE LEVEL = @@Level<br><br>
+<span class="keyword">FULL RUN (Background):</span><br>
+&nbsp;&nbsp;SubLevelJobService runs above steps for all 4 levels <span class="formula">sequentially</span><br>
+&nbsp;&nbsp;Progress tracking: Phase (TRF/PP), CurrentLevel, LevelsCompleted/TotalLevels<br>
+&nbsp;&nbsp;Polled via SubJobStatus endpoint every 5 seconds
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ╔══════════════════════════════════════════════════════════════════╗ -->
+<!-- ║  TAB 6: DATABASE SCHEMA                                         ║ -->
+<!-- ╚══════════════════════════════════════════════════════════════════╝ -->
+<div class="tab-pane fade" id="tabDatabase">
+
+    <!-- Output Tables -->
+    <div class="card shadow-sm mb-3">
+        <div class="card-header"><h5 class="card-title mb-0"><i class="bi bi-database me-2"></i>Output Tables (Generated by Stored Procedures)</h5></div>
+        <div class="card-body p-0 small">
+            <div class="table-responsive">
+                <table class="table table-sm table-bordered mb-0">
+                    <thead class="table-dark"><tr><th>Table</th><th>Granularity</th><th>Generated By</th><th>Key Columns</th><th>~Row Count</th></tr></thead>
+                    <tbody>
+                        <tr><td class="fw-bold"><code>TRF_IN_PLAN</code></td><td>ST_CD + MAJ_CAT + WEEK</td><td>SP_GENERATE_TRF_IN_PLAN / SP_RUN_ALL_PLANS</td><td>~30 metrics (OP_STK, TRF_IN, CL_STK, SALE, DISP, excess, short...)</td><td>657 stores x 50 cats x 48 weeks = ~1.6M</td></tr>
+                        <tr><td class="fw-bold"><code>PURCHASE_PLAN</code></td><td>RDC_CD + MAJ_CAT + WEEK</td><td>SP_GENERATE_PURCHASE_PLAN / SP_RUN_ALL_PLANS</td><td>~50 metrics (DC_STK, PUR_Q, PO, TRF_OUT, GRT, excess, short...)</td><td>~12 RDCs x 50 cats x 48 weeks = ~29K</td></tr>
+                        <tr><td class="fw-bold"><code>SUB_LEVEL_TRF_PLAN</code></td><td>LEVEL + ST_CD + MAJ_CAT + SUB_VALUE + WEEK</td><td>SP_GENERATE_SUB_LEVEL_TRF</td><td>LEVEL, SUB_VALUE, CONT_PCT + TRF metrics</td><td>Varies by level (millions possible)</td></tr>
+                        <tr><td class="fw-bold"><code>SUB_LEVEL_PP_PLAN</code></td><td>LEVEL + RDC_CD + MAJ_CAT + SUB_VALUE + WEEK</td><td>SP_GENERATE_SUB_LEVEL_PP</td><td>LEVEL, SUB_VALUE + PP metrics</td><td>Aggregated from sub TRF</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Reference Tables -->
+    <div class="card shadow-sm mb-3">
+        <div class="card-header"><h5 class="card-title mb-0"><i class="bi bi-table me-2 text-warning"></i>Reference / Input Tables (10)</h5></div>
+        <div class="card-body p-0 small">
+            <div class="table-responsive">
+                <table class="table table-sm table-bordered mb-0">
+                    <thead class="table-dark"><tr><th>SQL Table Name</th><th>Purpose</th><th>Columns</th><th>Used By</th></tr></thead>
+                    <tbody>
+                        <tr><td><code>WEEK_CALENDAR</code></td><td>Fiscal week definitions with start/end dates and sequence</td><td>WEEK_ID, FY_YEAR, FY_WEEK, WK_ST_DT, WK_END_DT, WEEK_SEQ</td><td>All SPs</td></tr>
+                        <tr><td><code>MASTER_ST_MASTER</code></td><td>Store master — code, name, RDC mapping, hub, area</td><td>ST CD, ST NM, RDC_CD, RDC_NM, HUB_CD, HUB_NM, AREA</td><td>TRF SP, PP SP (RDC grouping)</td></tr>
+                        <tr><td><code>MASTER_BIN_CAPACITY</code></td><td>Bin capacity + MBQ per store + category</td><td>ST-CD, MAJ-CAT, BIN CAP, BIN CAP DC TEAM, MBQ</td><td>TRF (MBQ, rounding), PP (bin req)</td></tr>
+                        <tr><td><code>QTY_SALE_QTY</code></td><td>Weekly sale forecast — 48 week columns</td><td>ST-CD, MAJ-CAT, WK-1..WK-48</td><td>TRF (UNPIVOT to SALE per week)</td></tr>
+                        <tr><td><code>QTY_DISP_QTY</code></td><td>Weekly display quantity — 48 week columns</td><td>ST-CD, MAJ-CAT, WK-1..WK-48</td><td>TRF (UNPIVOT to DISP per week)</td></tr>
+                        <tr><td><code>STORE_STOCK</code></td><td>Current store stock (with date for latest selection)</td><td>ST_CD, MAJ_CAT, STK_QTY, DATE</td><td>TRF (Week 1 OP_STK)</td></tr>
+                        <tr><td><code>DC_STOCK</code></td><td>DC-level stock per RDC + category</td><td>RDC_CD, MAJ_CAT, DC_STK_Q, GRT_STK_Q, S_GRT_STK_Q, W_GRT_STK_Q, DATE</td><td>PP (Week 1 DC opening stock)</td></tr>
+                        <tr><td><code>DEL_PENDING</code></td><td>Delivery pending quantity at DC level</td><td>RDC_CD, MAJ_CAT, DEL_PEND_Q, DATE</td><td>PP (added to PP_NET_BGT_CF_STK_Q)</td></tr>
+                        <tr><td><code>MASTER_GRT_CONTRIBUTION</code></td><td>GRT consumption % by SSN by week (48 WK columns)</td><td>SSN, WK_1..WK_48</td><td>PP (UNPIVOT → GRT_CONS_PCT per week)</td></tr>
+                        <tr><td><code>MASTER_PRODUCT_HIERARCHY</code></td><td>Product classification — maps category to SSN/SEG/DIV</td><td>SEG, DIV, SUB_DIV, MAJ_CAT_NM, SSN</td><td>All SPs (SSN for shrinkage/GRT)</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Contribution & Sub-Stock Tables -->
+    <div class="card shadow-sm mb-3">
+        <div class="card-header"><h5 class="card-title mb-0"><i class="bi bi-pie-chart me-2" style="color:#e67e22;"></i>Contribution Tables (4) + Sub-Level Stock Tables (8)</h5></div>
+        <div class="card-body p-0 small">
+            <div class="table-responsive">
+                <table class="table table-sm table-bordered mb-0">
+                    <thead class="table-dark"><tr><th>Category</th><th>SQL Table Name</th><th>Sub-Value Column</th><th>Key Columns</th></tr></thead>
+                    <tbody>
+                        <tr class="table-light"><td colspan="4" class="fw-bold">Contribution Tables (CONT_PCT per store + category + sub-value)</td></tr>
+                        <tr><td>MVGR</td><td><code>ST_MAJ_CAT_MACRO_MVGR_PLAN</code></td><td>DISP_MVGR_MATRIX</td><td>ID, ST_CD, MAJ_CAT_CD, DISP_MVGR_MATRIX, CONT_PCT</td></tr>
+                        <tr><td>Size</td><td><code>ST_MAJ_CAT_SZ_PLAN</code></td><td>SZ</td><td>ID, ST_CD, MAJ_CAT_CD, SZ, CONT_PCT</td></tr>
+                        <tr><td>Segment</td><td><code>ST_MAJ_CAT_SEG_PLAN</code></td><td>SEG</td><td>ID, ST_CD, MAJ_CAT_CD, SEG, CONT_PCT</td></tr>
+                        <tr><td>Vendor</td><td><code>ST_MAJ_CAT_VND_PLAN</code></td><td>M_VND_CD</td><td>ID, ST_CD, MAJ_CAT_CD, M_VND_CD, CONT_PCT</td></tr>
+                        <tr class="table-light"><td colspan="4" class="fw-bold">Store Stock (opening stock for sub-level TRF Week 1)</td></tr>
+                        <tr><td>MVGR</td><td><code>SUB_ST_STK_MVGR</code></td><td>SUB_VALUE</td><td>ID, ST_CD, MAJ_CAT, SUB_VALUE, STK_QTY, DATE</td></tr>
+                        <tr><td>Size</td><td><code>SUB_ST_STK_SZ</code></td><td>SUB_VALUE</td><td>Same structure</td></tr>
+                        <tr><td>Segment</td><td><code>SUB_ST_STK_SEG</code></td><td>SUB_VALUE</td><td>Same structure</td></tr>
+                        <tr><td>Vendor</td><td><code>SUB_ST_STK_VND</code></td><td>SUB_VALUE</td><td>Same structure</td></tr>
+                        <tr class="table-light"><td colspan="4" class="fw-bold">DC Stock (opening stock for sub-level PP Week 1)</td></tr>
+                        <tr><td>MVGR</td><td><code>SUB_DC_STK_MVGR</code></td><td>SUB_VALUE</td><td>ID, RDC_CD, MAJ_CAT, SUB_VALUE, DC_STK_Q, GRT_STK_Q, W_GRT_STK_Q, DATE</td></tr>
+                        <tr><td>Size</td><td><code>SUB_DC_STK_SZ</code></td><td>SUB_VALUE</td><td>Same structure</td></tr>
+                        <tr><td>Segment</td><td><code>SUB_DC_STK_SEG</code></td><td>SUB_VALUE</td><td>Same structure</td></tr>
+                        <tr><td>Vendor</td><td><code>SUB_DC_STK_VND</code></td><td>SUB_VALUE</td><td>Same structure</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- SQL Scripts -->
+    <div class="card shadow-sm mb-3">
+        <div class="card-header"><h5 class="card-title mb-0"><i class="bi bi-file-earmark-code me-2"></i>SQL Scripts (Execution Order for Fresh Setup)</h5></div>
+        <div class="card-body small">
+            <div class="row">
+                <div class="col-md-6">
+                    <h6 class="fw-bold">Schema & Tables</h6>
+                    <ol class="mb-0">
+                        <li><code>01_CREATE_REFERENCE_TABLES.sql</code> — 10 reference tables</li>
+                        <li><code>02_CREATE_TRF_IN_PLAN_TABLE.sql</code> — TRF_IN_PLAN output table</li>
+                        <li><code>08_CREATE_PURCHASE_PLAN_REF_TABLES.sql</code> — PP-specific tables</li>
+                        <li><code>09_CREATE_PURCHASE_PLAN_TABLE.sql</code> — PURCHASE_PLAN output table</li>
+                        <li><code>21_CREATE_CONTRIBUTION_TABLES.sql</code> — 4 contribution tables</li>
+                        <li><code>22_CREATE_SUB_LEVEL_TABLES.sql</code> — SUB_LEVEL_TRF/PP_PLAN output tables</li>
+                        <li><code>23_CREATE_SUB_STOCK_TABLES.sql</code> — 8 sub-level stock tables</li>
                     </ol>
+                </div>
+                <div class="col-md-6">
+                    <h6 class="fw-bold">Stored Procedures</h6>
+                    <ol class="mb-0">
+                        <li><code>03_CREATE_SP_GENERATE_TRF_IN_PLAN.sql</code></li>
+                        <li><code>10_CREATE_SP_GENERATE_PURCHASE_PLAN.sql</code></li>
+                        <li><code>19_CREATE_SP_RUN_ALL_PLANS.sql</code></li>
+                        <li><code>20_CREATE_SP_RUN_ALL_PLANS_V3.sql</code> — Bulk optimized version</li>
+                        <li><code>24_CREATE_SP_SUB_LEVEL_TRF_IN_PLAN.sql</code></li>
+                        <li><code>25_CREATE_SP_SUB_LEVEL_PP.sql</code></li>
+                    </ol>
+                    <h6 class="fw-bold mt-3">Views & Patches</h6>
+                    <p class="text-muted mb-0">Scripts 05-07, 11-12, 14, 18 create SQL Views for pivot/detail reporting. Scripts 13, 15-17 are patches for columns, partitioning, and performance.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Key Patterns -->
+    <div class="card shadow-sm">
+        <div class="card-header"><h5 class="card-title mb-0"><i class="bi bi-gear me-2"></i>Database Patterns & Conventions</h5></div>
+        <div class="card-body small">
+            <div class="row">
+                <div class="col-md-6">
+                    <ul>
+                        <li><strong>Column Naming</strong>: SQL uses <code>[ST-CD]</code>, <code>[MAJ-CAT]</code>, <code>[BIN CAP]</code> (hyphens/spaces). EF models use <code>[Column("ST-CD")]</code> attribute mapping.</li>
+                        <li><strong>NOLOCK</strong>: All read queries use <code>WITH (NOLOCK)</code> hint</li>
+                        <li><strong>UNPIVOT</strong>: Sale/Display tables have 48 weekly columns. SPs UNPIVOT them to rows for processing. After UNPIVOT, original alias is invalid — use UNPIVOT alias.</li>
+                        <li><strong>Week Columns</strong>: <code>WK-1</code> to <code>WK-48</code> represent fiscal weeks, not calendar weeks</li>
+                    </ul>
+                </div>
+                <div class="col-md-6">
+                    <ul>
+                        <li><strong>Nullable Types</strong>: Most decimal columns are <code>decimal?</code> in EF models. Always use <code>?? 0</code> when summing.</li>
+                        <li><strong>Raw SQL</strong>: Dashboard KPIs + performance-critical queries use raw <code>SqlConnection</code>. CRUD uses EF Core.</li>
+                        <li><strong>Dynamic SQL</strong>: Sub-level SPs use <code>sp_executesql</code> for dynamic table names. Temp tables must be CREATE'd in parent scope, INSERT from dynamic SQL.</li>
+                        <li><strong>SqlBulkCopy</strong>: Bulk Upload uses SqlBulkCopy for 20L+ row performance</li>
+                    </ul>
                 </div>
             </div>
         </div>
     </div>
 </div>
 
-<!-- ═══════════════ TAB: SYSTEM FEATURES ═══════════════ -->
+<!-- ╔══════════════════════════════════════════════════════════════════╗ -->
+<!-- ║  TAB 7: SYSTEM FEATURES                                         ║ -->
+<!-- ╚══════════════════════════════════════════════════════════════════╝ -->
 <div class="tab-pane fade" id="tabFeatures">
 
     <!-- Dashboard -->
@@ -164,7 +1047,7 @@
         <div class="card-body small">
             <div class="row">
                 <div class="col-md-6">
-                    <h6 class="fw-bold">KPIs &amp; Alerts</h6>
+                    <h6 class="fw-bold">KPIs & Alerts</h6>
                     <ul>
                         <li><strong>4 Alert Cards</strong>: Critical Short Stores, Excess Stores, DC Short (RDC x Cat), Zero Stock + Demand</li>
                         <li><strong>10 KPI Cards</strong>: Stores, Categories, RDCs, Transfer In Qty, Purchase Qty, DC Short, DC Excess, Transfer Out, PO Raised, Del Pending</li>
@@ -173,16 +1056,16 @@
                     </ul>
                 </div>
                 <div class="col-md-6">
-                    <h6 class="fw-bold">Charts &amp; Tables</h6>
+                    <h6 class="fw-bold">Charts & Tables</h6>
                     <ul>
-                        <li><strong>6 Charts</strong>: TRF by Category, Weekly Trend (TRF+Sale+ClStk), RDC Horizontal Bar, Short vs Excess, PP by Category, PP Weekly Trend</li>
+                        <li><strong>6 Charts</strong>: TRF by Category, Weekly Trend (TRF+Sale+ClStk), RDC Bar, Short vs Excess, PP by Category, PP Weekly Trend</li>
                         <li><strong>RDC Inventory Health Table</strong>: DC Stock, TRF Out, Purchase, Short/Excess per RDC</li>
                         <li><strong>Top 10 Tables</strong>: Short Stores, Excess Stores, DC Short, DC Excess</li>
                         <li><strong>Risk Categories</strong>: Top categories by Company Short with CRITICAL/AT RISK rating</li>
                     </ul>
                 </div>
             </div>
-            <div class="alert alert-info py-2 mb-0 mt-2"><i class="bi bi-info-circle me-1"></i><strong>Drill-Down Filters:</strong> RDC, Category, FY Week — all multi-select with search. Data cached for 60s per filter combination.</div>
+            <div class="alert alert-info py-2 mb-0 mt-2"><i class="bi bi-funnel me-1"></i><strong>Drill-Down Filters:</strong> RDC, Category, FY Week — all multi-select with search. Data cached for 60s per filter combination, 5min for dropdown lists.</div>
         </div>
     </div>
 
@@ -195,63 +1078,39 @@
                     <h6 class="fw-bold">Capabilities</h6>
                     <ul>
                         <li><strong>22 Tables Supported</strong>: 10 Reference + 4 Contribution + 4 Sub Store Stock + 4 Sub DC Stock</li>
-                        <li><strong>Multi-Sheet Excel</strong>: Reads ALL sheets from a single .xlsx file and merges rows</li>
-                        <li><strong>Replace or Append</strong>: Replace mode truncates table before upload; Append adds to existing data</li>
-                        <li><strong>Performance</strong>: Uses <code>SqlBulkCopy</code> — 20 lakh+ rows in seconds</li>
-                        <li><strong>File Limit</strong>: Up to 500 MB per upload (Excel or CSV)</li>
-                        <li><strong>Header Row</strong>: First row treated as column headers (auto-mapped)</li>
+                        <li><strong>Multi-Sheet Excel</strong>: Reads ALL sheets from .xlsx and merges rows</li>
+                        <li><strong>Replace or Append</strong>: Replace truncates table first; Append adds to existing</li>
+                        <li><strong>Performance</strong>: <code>SqlBulkCopy</code> — 20 lakh+ rows in seconds</li>
+                        <li><strong>File Limit</strong>: Up to 500 MB (Excel or CSV)</li>
                     </ul>
                 </div>
                 <div class="col-md-6">
                     <h6 class="fw-bold">Additional Features</h6>
                     <ul>
-                        <li><strong>Download Sample</strong>: Auto-generated Excel template with correct column names + 1 sample row per table</li>
+                        <li><strong>Download Sample</strong>: Auto-generated Excel template with correct columns + 1 sample row</li>
                         <li><strong>Download Data</strong>: Export entire table as CSV for backup/audit</li>
-                        <li><strong>Live Row Counts</strong>: Shows current row count per table before/after upload</li>
+                        <li><strong>Live Row Counts</strong>: Shows current count per table before/after upload</li>
                         <li><strong>Column Validation</strong>: Validates uploaded columns match expected schema</li>
+                        <li><strong>Header Row</strong>: First row treated as column headers (auto-mapped)</li>
                     </ul>
-                    <h6 class="fw-bold mt-3">Supported Tables</h6>
-                    <div class="row">
-                        <div class="col-6"><code class="small">WEEK_CALENDAR</code>, <code>MASTER_ST_MASTER</code>, <code>MASTER_BIN_CAPACITY</code>, <code>QTY_SALE_QTY</code>, <code>QTY_DISP_QTY</code>, <code>STORE_STOCK</code>, <code>DC_STOCK</code>, <code>DEL_PENDING</code>, <code>MASTER_GRT_CONTRIBUTION</code>, <code>MASTER_PRODUCT_HIERARCHY</code></div>
-                        <div class="col-6"><code class="small">ST_MAJ_CAT_MACRO_MVGR_PLAN</code>, <code>ST_MAJ_CAT_SZ_PLAN</code>, <code>ST_MAJ_CAT_SEG_PLAN</code>, <code>ST_MAJ_CAT_VND_PLAN</code>, <code>SUB_ST_STK_MVGR/SZ/SEG/VND</code>, <code>SUB_DC_STK_MVGR/SZ/SEG/VND</code></div>
-                    </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Plan Execution -->
-    <div class="card shadow-sm mb-3">
-        <div class="card-header"><h5 class="card-title mb-0"><i class="bi bi-lightning me-2"></i>Plan Execution &amp; Background Jobs</h5></div>
-        <div class="card-body small">
-            <div class="table-responsive">
-                <table class="table table-sm table-bordered mb-0">
-                    <thead class="table-dark"><tr><th>Feature</th><th>Page</th><th>Stored Procedure</th><th>Mode</th><th>Description</th></tr></thead>
-                    <tbody>
-                        <tr><td class="fw-bold">Single Store TRF</td><td>Execute Plan</td><td><code>SP_GENERATE_TRF_IN_PLAN</code></td><td>Sync (Web)</td><td>Run TRF for 1 store + category subset. ~10s per store.</td></tr>
-                        <tr><td class="fw-bold">Full Run (All Stores)</td><td>Execute Plan</td><td><code>SP_RUN_ALL_PLANS</code></td><td><span class="badge bg-primary">Background</span></td><td>Truncates TRF+PP, runs bulk for all 657 stores. ~1-2 min. Live progress polling.</td></tr>
-                        <tr><td class="fw-bold">Purchase Plan</td><td>Purchase Plan</td><td><code>SP_GENERATE_PURCHASE_PLAN</code></td><td>Sync (Web)</td><td>Run PP for week range + optional RDC/MajCat filter.</td></tr>
-                        <tr><td class="fw-bold">Sub-Level (Per Level)</td><td>Sub-Level Plans</td><td><code>SP_GENERATE_SUB_LEVEL_TRF</code> + <code>SP_GENERATE_SUB_LEVEL_PP</code></td><td>Sync (Web)</td><td>Run TRF+PP for selected levels. Form submit.</td></tr>
-                        <tr><td class="fw-bold">Sub-Level Full Run</td><td>Sub-Level Plans</td><td>Same SPs &times; 4 levels</td><td><span class="badge bg-primary">Background</span></td><td>Runs all 4 levels (MVGR, SZ, SEG, VND) sequentially in background. Live progress with level tracking.</td></tr>
-                    </tbody>
-                </table>
-            </div>
-            <div class="alert alert-warning py-2 mt-2 mb-0"><i class="bi bi-exclamation-triangle me-1"></i><strong>Background Jobs:</strong> Run in a singleton service — you can navigate away and come back. Job status is polled every 5 seconds. Only one job per type can run at a time.</div>
-        </div>
-    </div>
-
     <!-- Data Export -->
     <div class="card shadow-sm mb-3">
-        <div class="card-header"><h5 class="card-title mb-0"><i class="bi bi-download me-2"></i>Data Export (CSV &amp; Pivot)</h5></div>
-        <div class="card-body small">
+        <div class="card-header"><h5 class="card-title mb-0"><i class="bi bi-download me-2"></i>Data Export (CSV & Pivot)</h5></div>
+        <div class="card-body p-0 small">
             <div class="table-responsive">
                 <table class="table table-sm table-bordered mb-0">
                     <thead class="table-dark"><tr><th>Export Type</th><th>Available On</th><th>Format</th><th>Description</th></tr></thead>
                     <tbody>
-                        <tr><td class="fw-bold">CSV Export</td><td>All output pages + all reference tables</td><td>Row-per-record</td><td>Standard flat CSV. Filters applied before export. Streamed for large datasets (13M+ rows).</td></tr>
-                        <tr><td class="fw-bold">Pivot CSV</td><td>TRF Output, PP Output, Sub-Level TRF, Sub-Level PP</td><td>Weeks as columns</td><td>One row per entity (ST_CD+MAJ_CAT or RDC+MAJ_CAT+SUB_VALUE), metrics pivoted by week: <code>WK1_SALE, WK1_TRF_IN, WK2_SALE...</code></td></tr>
-                        <tr><td class="fw-bold">Dashboard CSV</td><td>Dashboard</td><td>Full table dump</td><td>Export entire TRF_IN_PLAN or PURCHASE_PLAN from dashboard header.</td></tr>
-                        <tr><td class="fw-bold">Bulk Download</td><td>Bulk Upload page</td><td>CSV</td><td>Download any reference table's full data as CSV for backup.</td></tr>
+                        <tr><td class="fw-bold">CSV Export</td><td>All output + reference pages</td><td>Row-per-record</td><td>Flat CSV with applied filters. Streamed for large datasets (13M+ rows).</td></tr>
+                        <tr><td class="fw-bold">Pivot CSV (24 metrics)</td><td>TRF Output, PP Output</td><td>Weeks as columns</td><td>One row per entity, 24 metrics x N weeks: <code>WK1_OP_STK, WK1_SALE, WK1_TRF_IN...</code></td></tr>
+                        <tr><td class="fw-bold">Sub-Level Pivot CSV</td><td>Sub-Level TRF, Sub-Level PP</td><td>Weeks as columns</td><td>Per level, one row per ST_CD+MAJ_CAT+SUB_VALUE</td></tr>
+                        <tr><td class="fw-bold">Dashboard CSV</td><td>Dashboard</td><td>Full table dump</td><td>Export entire TRF_IN_PLAN or PURCHASE_PLAN</td></tr>
+                        <tr><td class="fw-bold">Bulk Download</td><td>Bulk Upload page</td><td>CSV</td><td>Download any reference table's full data</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -261,43 +1120,46 @@
     <!-- Reset / Clear -->
     <div class="card shadow-sm mb-3">
         <div class="card-header"><h5 class="card-title mb-0"><i class="bi bi-trash me-2 text-danger"></i>Reset / Clear Data</h5></div>
-        <div class="card-body small">
+        <div class="card-body p-0 small">
             <div class="table-responsive">
                 <table class="table table-sm table-bordered mb-0">
                     <thead class="table-dark"><tr><th>Action</th><th>Page</th><th>SQL Operation</th><th>Scope</th></tr></thead>
                     <tbody>
-                        <tr><td class="fw-bold text-danger">Reset Transfer In</td><td>Execute Plan</td><td><code>TRUNCATE TABLE TRF_IN_PLAN</code></td><td>All TRF rows deleted</td></tr>
-                        <tr><td class="fw-bold text-danger">Reset Purchase Plan</td><td>Purchase Plan</td><td><code>TRUNCATE TABLE PURCHASE_PLAN</code></td><td>All PP rows deleted</td></tr>
-                        <tr><td class="fw-bold text-danger">Reset Sub-Level (per level)</td><td>Sub-Level Plans</td><td><code>DELETE WHERE LEVEL='X'</code></td><td>Only selected level (MVGR/SZ/SEG/VND)</td></tr>
-                        <tr><td class="fw-bold text-danger">Reset Sub-Level (all)</td><td>Sub-Level Plans</td><td><code>TRUNCATE TABLE SUB_LEVEL_TRF_PLAN + PP</code></td><td>All 4 levels deleted</td></tr>
+                        <tr><td class="fw-bold text-danger">Reset Transfer In</td><td>Execute Plan</td><td><code>TRUNCATE TABLE TRF_IN_PLAN</code></td><td>All TRF rows</td></tr>
+                        <tr><td class="fw-bold text-danger">Reset Purchase Plan</td><td>Purchase Plan</td><td><code>TRUNCATE TABLE PURCHASE_PLAN</code></td><td>All PP rows</td></tr>
+                        <tr><td class="fw-bold text-danger">Reset Sub-Level (per level)</td><td>Sub-Level Plans</td><td><code>DELETE WHERE LEVEL='X'</code></td><td>Selected level only</td></tr>
+                        <tr><td class="fw-bold text-danger">Reset Sub-Level (all)</td><td>Sub-Level Plans</td><td><code>TRUNCATE TABLE SUB_LEVEL_TRF_PLAN + PP</code></td><td>All 4 levels</td></tr>
                     </tbody>
                 </table>
             </div>
-            <div class="alert alert-danger py-2 mt-2 mb-0"><i class="bi bi-exclamation-triangle-fill me-1"></i>All reset actions require JavaScript confirmation. These are <strong>irreversible</strong> — data must be regenerated after reset.</div>
+            <div class="alert alert-danger py-2 mt-2 mb-0"><i class="bi bi-exclamation-triangle-fill me-1"></i>All reset actions require JavaScript confirmation. <strong>Irreversible</strong> — data must be regenerated after reset.</div>
         </div>
     </div>
 
-    <!-- CRUD on Reference Tables -->
+    <!-- CRUD -->
     <div class="card shadow-sm mb-3">
-        <div class="card-header"><h5 class="card-title mb-0"><i class="bi bi-pencil-square me-2"></i>CRUD Operations (Reference Tables)</h5></div>
+        <div class="card-header"><h5 class="card-title mb-0"><i class="bi bi-pencil-square me-2"></i>CRUD Operations (22 Table Pages)</h5></div>
         <div class="card-body small">
-            <p>Every reference and contribution table has a dedicated page under <strong>Reference Tables</strong> or <strong>Contribution</strong> in the sidebar with:</p>
             <div class="row">
                 <div class="col-md-6">
+                    <p>Every reference, contribution, and sub-stock table has a dedicated page with:</p>
                     <ul>
-                        <li><strong>Index</strong>: Searchable/sortable DataTable with filters, pagination, row counts</li>
-                        <li><strong>Create</strong>: Add a single row via form</li>
-                        <li><strong>Edit</strong>: Modify an existing row</li>
-                        <li><strong>Delete</strong>: Remove a single row with confirmation</li>
+                        <li><strong>Index</strong>: Searchable/sortable DataTable with filters, pagination, analytics cards, CSV export</li>
+                        <li><strong>Create</strong>: Single row form</li>
+                        <li><strong>Edit</strong>: Modify existing row</li>
+                        <li><strong>Delete</strong>: Remove with confirmation</li>
                     </ul>
                 </div>
                 <div class="col-md-6">
-                    <ul>
-                        <li><strong>Export CSV</strong>: Download filtered data as CSV</li>
-                        <li><strong>Analytics Cards</strong>: Total Rows + 2-3 table-specific KPIs (avg, distinct counts, etc.)</li>
-                        <li><strong>Search Dropdowns</strong>: Searchable filter dropdowns for key columns</li>
-                        <li><strong>10 Reference + 4 Contribution + 8 Sub-Stock = 22 table pages</strong></li>
-                    </ul>
+                    <h6 class="fw-bold">22 CRUD Controllers</h6>
+                    <div class="row">
+                        <div class="col-6">
+                            <code class="small">WeekCalendar, StoreMaster, BinCapacity, SaleQty, DispQty, StoreStock, DcStock, DelPending, GrtContribution, ProductHierarchy, ContMacroMvgr</code>
+                        </div>
+                        <div class="col-6">
+                            <code class="small">ContSz, ContSeg, ContVnd, SubStStkMvgr, SubStStkSz, SubStStkSeg, SubStStkVnd, SubDcStkMvgr, SubDcStkSz, SubDcStkSeg, SubDcStkVnd</code>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -312,30 +1174,33 @@
                     <h6 class="fw-bold">Backend</h6>
                     <ul class="mb-0">
                         <li>ASP.NET Core 8.0 MVC</li>
-                        <li>Entity Framework Core (SQL Server)</li>
-                        <li>Raw SQL + SqlBulkCopy for performance</li>
-                        <li>IMemoryCache (60s dashboard cache)</li>
+                        <li>Entity Framework Core 8 (SqlServer)</li>
+                        <li>Raw SQL + SqlBulkCopy</li>
+                        <li>IMemoryCache (60s dashboard)</li>
                         <li>Singleton background job services</li>
+                        <li>EPPlus 7 (Excel), Newtonsoft.Json</li>
                     </ul>
                 </div>
                 <div class="col-md-4">
                     <h6 class="fw-bold">Frontend</h6>
                     <ul class="mb-0">
-                        <li>Bootstrap 5.3 + Bootstrap Icons</li>
-                        <li>Chart.js 4.4 (dashboard charts)</li>
-                        <li>DataTables 1.13 (searchable tables)</li>
-                        <li>Custom searchable multi-select dropdowns</li>
+                        <li>Bootstrap 5.3 + Bootstrap Icons (CDN)</li>
+                        <li>Chart.js 4.4 (dashboard charts, CDN)</li>
+                        <li>DataTables 1.13 (searchable tables, CDN)</li>
+                        <li>Custom multi-select dropdowns (JS)</li>
                         <li>Inter font (Google Fonts)</li>
+                        <li>Razor Views (.cshtml)</li>
                     </ul>
                 </div>
                 <div class="col-md-4">
                     <h6 class="fw-bold">Database</h6>
                     <ul class="mb-0">
-                        <li>SQL Server (planning database)</li>
-                        <li>6 Stored Procedures (TRF, PP, Sub TRF, Sub PP, Run All, V3)</li>
+                        <li>SQL Server (database: <code>planning</code>)</li>
+                        <li>6 Stored Procedures</li>
                         <li>22 reference/input tables</li>
-                        <li>4 output tables (TRF, PP, SUB_TRF, SUB_PP)</li>
-                        <li>NOLOCK hints for read queries</li>
+                        <li>4 output tables</li>
+                        <li>WITH (NOLOCK) on all reads</li>
+                        <li>Temp tables + WHILE loops (set-based)</li>
                     </ul>
                 </div>
             </div>
@@ -343,713 +1208,9 @@
     </div>
 </div>
 
-<!-- ═══════════════ TAB: TRANSFER IN PLAN FORMULAS ═══════════════ -->
-<div class="tab-pane fade" id="tabTrfIn">
-    <div class="card shadow-sm mb-3">
-        <div class="card-header bg-success bg-opacity-10"><h5 class="card-title mb-0 text-success"><i class="bi bi-arrow-left-right me-2"></i>Transfer In Plan — Formula Reference</h5></div>
-        <div class="card-body p-0">
-            <div class="table-responsive">
-                <table class="table table-sm table-bordered mb-0 small formula-table">
-                    <thead class="table-dark">
-                        <tr><th>Column</th><th>As-Is Formula</th><th>To-Be Formula</th><th>Status</th></tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <th>BGT_TTL_CF_OP_STK_Q</th>
-                            <td>STORE_STOCK (Opening Stock)</td>
-                            <td>Same — Week 1: Store Stock; Week 2+: Previous week CL_STK</td>
-                            <td><span class="badge badge-unchanged">Unchanged</span></td>
-                        </tr>
-                        <tr>
-                            <th>NT_ACT_Q (Shrinkage)</th>
-                            <td>ROUND(OP_STK * 0.08, 0) * SSN_FACTOR</td>
-                            <td>Same — SSN_FACTOR = 1.0 if SSN IN ('S','PS'), else 0.5</td>
-                            <td><span class="badge badge-unchanged">Unchanged</span></td>
-                        </tr>
-                        <tr>
-                            <th>NET_BGT_CF_STK_Q</th>
-                            <td>OP_STK - Shrinkage (if &gt; 0, else 0)</td>
-                            <td>Same</td>
-                            <td><span class="badge badge-unchanged">Unchanged</span></td>
-                        </tr>
-                        <tr>
-                            <th>CM_BGT_SALE_Q</th>
-                            <td>Current Week Sale from SALE_QTY</td>
-                            <td>Same</td>
-                            <td><span class="badge badge-unchanged">Unchanged</span></td>
-                        </tr>
-                        <tr>
-                            <th>CM1_BGT_SALE_Q</th>
-                            <td>Next Week Sale from SALE_QTY</td>
-                            <td>Same</td>
-                            <td><span class="badge badge-unchanged">Unchanged</span></td>
-                        </tr>
-                        <tr>
-                            <th>CM2_BGT_SALE_Q</th>
-                            <td>Week+2 Sale from SALE_QTY</td>
-                            <td>Same</td>
-                            <td><span class="badge badge-unchanged">Unchanged</span></td>
-                        </tr>
-                        <tr>
-                            <th>BGT_ST_CL_MBQ</th>
-                            <td>MBQ from Bin Capacity (Store MBQ)</td>
-                            <td>Same</td>
-                            <td><span class="badge badge-unchanged">Unchanged</span></td>
-                        </tr>
-                        <tr>
-                            <th>BGT_DISP_CL_Q</th>
-                            <td>DISP_QTY from Display Quantity table</td>
-                            <td>Same</td>
-                            <td><span class="badge badge-unchanged">Unchanged</span></td>
-                        </tr>
-                        <tr>
-                            <th>BGT_DISP_CL_OPT</th>
-                            <td>DISP_QTY * 1000 / BIN_CAP</td>
-                            <td>Same</td>
-                            <td><span class="badge badge-unchanged">Unchanged</span></td>
-                        </tr>
-                        <tr>
-                            <th>BGT_DISP_CL_OPT_MBQ</th>
-                            <td>MBQ * 1000 / BGT_DISP_CL_OPT</td>
-                            <td>Same</td>
-                            <td><span class="badge badge-unchanged">Unchanged</span></td>
-                        </tr>
-                        <tr>
-                            <th>TRF_IN_STK_Q</th>
-                            <td colspan="2">
-                                IF MBQ=0 AND SALE=0 THEN 0<br>
-                                ELSE IF MBQ + SALE - NET_CF &gt; 0 THEN MBQ + SALE - NET_CF<br>
-                                ELSE 0
-                            </td>
-                            <td><span class="badge badge-unchanged">Unchanged</span></td>
-                        </tr>
-                        <tr>
-                            <th>BGT_TTL_CF_CL_STK_Q</th>
-                            <td colspan="2">
-                                IF MBQ=0 AND SALE=0 THEN NET_CF<br>
-                                ELSE IF MBQ + SALE &gt; NET_CF THEN MBQ<br>
-                                ELSE MAX(NET_CF - SALE, 0)
-                            </td>
-                            <td><span class="badge badge-unchanged">Unchanged</span></td>
-                        </tr>
-                        <tr>
-                            <th>TRF_IN_OPT_CNT</th>
-                            <td>TRF_IN_STK_Q * 1000 / BGT_DISP_CL_OPT_MBQ</td>
-                            <td>Same</td>
-                            <td><span class="badge badge-unchanged">Unchanged</span></td>
-                        </tr>
-                        <tr>
-                            <th>TRF_IN_OPT_MBQ</th>
-                            <td>TRF_IN_STK_Q * 1000 / TRF_IN_OPT_CNT</td>
-                            <td>Same</td>
-                            <td><span class="badge badge-unchanged">Unchanged</span></td>
-                        </tr>
-                        <tr class="changed">
-                            <th>DC_MBQ</th>
-                            <td>Next Week Sale / 30 * 15</td>
-                            <td>SQ1 + SQN2 + SQN3 + SQN4<br><small class="text-muted">(Sum of next 4 weeks sale quantity)</small></td>
-                            <td><span class="badge badge-to-be">Changed</span></td>
-                        </tr>
-                        <tr>
-                            <th>ST_CL_EXCESS_Q</th>
-                            <td>MAX(CL_STK - MBQ, 0)</td>
-                            <td>Same</td>
-                            <td><span class="badge badge-unchanged">Unchanged</span></td>
-                        </tr>
-                        <tr>
-                            <th>ST_CL_SHORT_Q</th>
-                            <td>MAX(MBQ - CL_STK, 0)</td>
-                            <td>Same</td>
-                            <td><span class="badge badge-unchanged">Unchanged</span></td>
-                        </tr>
-                        <tr>
-                            <th>W_GRT_STK_Q</th>
-                            <td>Previous week CL_STK if SSN IN ('W','PW')</td>
-                            <td>Same</td>
-                            <td><span class="badge badge-unchanged">Unchanged</span></td>
-                        </tr>
-                        <tr>
-                            <th>COVER_SALE_QTY</th>
-                            <td>Next Week Sale (SQ1.SALE_QTY)</td>
-                            <td>Same</td>
-                            <td><span class="badge badge-unchanged">Unchanged</span></td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    </div>
-
-    <div class="card shadow-sm">
-        <div class="card-header bg-success bg-opacity-10"><h5 class="card-title mb-0 text-success"><i class="bi bi-diagram-2 me-2"></i>Transfer In — Week Chaining Logic</h5></div>
-        <div class="card-body small">
-            <div class="row">
-                <div class="col-md-6">
-                    <h6 class="fw-bold">Week 1 (Opening Week)</h6>
-                    <ol>
-                        <li><strong>OP_STK</strong> = Store Stock</li>
-                        <li><strong>Shrinkage</strong> = ROUND(OP_STK * 0.08) * SSN_FACTOR</li>
-                        <li><strong>NET_CF</strong> = MAX(OP_STK - Shrinkage, 0)</li>
-                        <li><strong>TRF_IN</strong> = MAX(MBQ + SALE - NET_CF, 0)</li>
-                        <li><strong>CL_STK</strong> = closing stock logic</li>
-                    </ol>
-                </div>
-                <div class="col-md-6">
-                    <h6 class="fw-bold">Week 2+ (Chaining)</h6>
-                    <ol>
-                        <li><strong>OP_STK</strong> = Previous Week CL_STK</li>
-                        <li><strong>Shrinkage</strong> = ROUND(OP_STK * 0.08) * SSN_FACTOR</li>
-                        <li><strong>NET_CF</strong> = MAX(OP_STK - Shrinkage, 0)</li>
-                        <li><strong>TRF_IN</strong> = MAX(MBQ + SALE - NET_CF, 0)</li>
-                        <li><strong>CL_STK</strong> = closing stock logic</li>
-                    </ol>
-                </div>
-            </div>
-            <div class="alert alert-info py-2 mt-2 mb-0"><i class="bi bi-info-circle me-1"></i><strong>Key:</strong> Each week's closing stock becomes the next week's opening stock. The chain runs sequentially from first to last week in the selected range.</div>
-        </div>
-    </div>
-</div>
-
-<!-- ═══════════════ TAB: PURCHASE PLAN FORMULAS ═══════════════ -->
-<div class="tab-pane fade" id="tabPP">
-    <div class="card shadow-sm mb-3">
-        <div class="card-header bg-purple bg-opacity-10" style="background:#8e44ad20 !important;"><h5 class="card-title mb-0" style="color:#8e44ad;"><i class="bi bi-bag-check me-2"></i>Purchase Plan — Formula Reference</h5></div>
-        <div class="card-body p-0">
-            <div class="table-responsive">
-                <table class="table table-sm table-bordered mb-0 small formula-table">
-                    <thead class="table-dark">
-                        <tr><th>Column</th><th>As-Is Formula</th><th>To-Be Formula</th><th>Status</th></tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <th>DC_STK_Q</th>
-                            <td>Week 1: DC Stock table<br>Week 2+: Not chained</td>
-                            <td>Week 1: DC Stock table<br>Week 2+: Previous week BGT_DC_CL_STK_Q</td>
-                            <td><span class="badge badge-to-be">Changed</span></td>
-                        </tr>
-                        <tr>
-                            <th>BGT_DC_OP_STK_Q</th>
-                            <td>DC_STK_Q</td>
-                            <td>Week 1: DC_STK_Q; Week 2+: Previous week BGT_DC_CL_STK_Q</td>
-                            <td><span class="badge badge-to-be">Changed</span></td>
-                        </tr>
-                        <tr class="changed">
-                            <th>GRT_CONS_PCT</th>
-                            <td>Hardcoded SSN-to-week lookup from Broader_Menu</td>
-                            <td>Dynamic UNPIVOT from MASTER_GRT_CONTRIBUTION by SSN + Week</td>
-                            <td><span class="badge badge-to-be">Changed</span></td>
-                        </tr>
-                        <tr>
-                            <th>GRT_STK_Q</th>
-                            <td>From DC Stock table</td>
-                            <td>Same</td>
-                            <td><span class="badge badge-unchanged">Unchanged</span></td>
-                        </tr>
-                        <tr>
-                            <th>S_GRT_STK_Q</th>
-                            <td>From DC Stock table</td>
-                            <td>Same</td>
-                            <td><span class="badge badge-unchanged">Unchanged</span></td>
-                        </tr>
-                        <tr>
-                            <th>W_GRT_STK_Q</th>
-                            <td>From DC Stock table</td>
-                            <td>Same</td>
-                            <td><span class="badge badge-unchanged">Unchanged</span></td>
-                        </tr>
-                        <tr>
-                            <th>BIN_CAP_DC_TEAM / BIN_CAP</th>
-                            <td>From Bin Capacity table</td>
-                            <td>Same</td>
-                            <td><span class="badge badge-unchanged">Unchanged</span></td>
-                        </tr>
-                        <tr>
-                            <th>CW_BGT_SALE_Q</th>
-                            <td>Sum of TRF_IN_STK_Q (current week, aggregated by RDC)</td>
-                            <td>Same — CW Transfer Out from TRF_IN_PLAN</td>
-                            <td><span class="badge badge-unchanged">Unchanged</span></td>
-                        </tr>
-                        <tr>
-                            <th>CW1_BGT_SALE_Q</th>
-                            <td>From Transfer In aggregation (week+1)</td>
-                            <td>Same</td>
-                            <td><span class="badge badge-unchanged">Unchanged</span></td>
-                        </tr>
-                        <tr class="changed">
-                            <th>CW2_BGT_SALE_Q</th>
-                            <td>Not sourced from Transfer In (separate calculation)</td>
-                            <td>CW1_BGT_SALE_Q at week offset +2 from Transfer In</td>
-                            <td><span class="badge badge-to-be">Changed</span></td>
-                        </tr>
-                        <tr class="changed">
-                            <th>CW3_BGT_SALE_Q</th>
-                            <td>Not available</td>
-                            <td>CW1_BGT_SALE_Q at week offset +3 from Transfer In</td>
-                            <td><span class="badge badge-new">New</span></td>
-                        </tr>
-                        <tr class="changed">
-                            <th>CW4_BGT_SALE_Q</th>
-                            <td>Not available</td>
-                            <td>CW1_BGT_SALE_Q at week offset +4 from Transfer In</td>
-                            <td><span class="badge badge-new">New</span></td>
-                        </tr>
-                        <tr>
-                            <th>CW5_BGT_SALE_Q</th>
-                            <td>Not available</td>
-                            <td>CW1_BGT_SALE_Q at week offset +5 from Transfer In</td>
-                            <td><span class="badge badge-new">New</span></td>
-                        </tr>
-                        <tr>
-                            <th>NT_ACT_STK</th>
-                            <td>GRT_STK_Q * 0.10 if SSN IN ('S','OC','A')</td>
-                            <td>Same</td>
-                            <td><span class="badge badge-unchanged">Unchanged</span></td>
-                        </tr>
-                        <tr>
-                            <th>CW_TRF_OUT_Q</th>
-                            <td>Sum TRF_IN (current week) from TRF_IN_PLAN by RDC</td>
-                            <td>Same</td>
-                            <td><span class="badge badge-unchanged">Unchanged</span></td>
-                        </tr>
-                        <tr>
-                            <th>CW1_TRF_OUT_Q</th>
-                            <td>Sum TRF_IN (week+1) from TRF_IN_PLAN by RDC</td>
-                            <td>Same</td>
-                            <td><span class="badge badge-unchanged">Unchanged</span></td>
-                        </tr>
-                        <tr class="changed">
-                            <th>CW2_TRF_OUT_Q</th>
-                            <td>Not sourced from Transfer In</td>
-                            <td>Sum TRF_IN (week+2) from TRF_IN_PLAN by RDC</td>
-                            <td><span class="badge badge-to-be">Changed</span></td>
-                        </tr>
-                        <tr class="changed">
-                            <th>CW3_TRF_OUT_Q</th>
-                            <td>Not available</td>
-                            <td>Sum TRF_IN (week+3) from TRF_IN_PLAN by RDC</td>
-                            <td><span class="badge badge-new">New</span></td>
-                        </tr>
-                        <tr class="changed">
-                            <th>CW4_TRF_OUT_Q</th>
-                            <td>Not available</td>
-                            <td>Sum TRF_IN (week+4) from TRF_IN_PLAN by RDC</td>
-                            <td><span class="badge badge-new">New</span></td>
-                        </tr>
-                        <tr>
-                            <th>TTL_TRF_OUT_Q</th>
-                            <td>CW + CW1 Transfer Out</td>
-                            <td>CW + CW1 + CW2 + CW3 + CW4 Transfer Out</td>
-                            <td><span class="badge badge-to-be">Changed</span></td>
-                        </tr>
-                        <tr class="changed">
-                            <th>BGT_DC_MBQ_SALE</th>
-                            <td>SUM(DC_MBQ) or Next Week Sale / 30 * 15</td>
-                            <td>CW1_BGT_SALE_Q + CW2_BGT_SALE_Q + CW3_BGT_SALE_Q + CW4_BGT_SALE_Q</td>
-                            <td><span class="badge badge-to-be">Changed</span></td>
-                        </tr>
-                        <tr class="changed">
-                            <th>BGT_DC_CL_MBQ</th>
-                            <td>MIN(TTL_TRF_OUT_Q, BGT_DC_MBQ_SALE)</td>
-                            <td>MIN(CW1_TRF_OUT + CW2_TRF_OUT + CW3_TRF_OUT + CW4_TRF_OUT, BGT_DC_MBQ_SALE)</td>
-                            <td><span class="badge badge-to-be">Changed</span></td>
-                        </tr>
-                        <tr>
-                            <th>GRT_CONS_Q</th>
-                            <td colspan="2">
-                                IF TTL_TRF_OUT_Q = 0 THEN 0<br>
-                                ELSE MIN of:<br>
-                                &nbsp;&nbsp;- TTL_TRF_OUT_Q * 0.30<br>
-                                &nbsp;&nbsp;- MAX(OP_STK - NT_ACT_STK, 0)<br>
-                                &nbsp;&nbsp;- MAX(TTL_TRF_OUT - MAX(BGT_CF_STK - BGT_DC_CL_MBQ, 0), 0)<br>
-                                &nbsp;&nbsp;- MAX(TTL_STK - NT_ACT_STK, 0) * GRT_CONS_PCT
-                            </td>
-                            <td><span class="badge badge-unchanged">Unchanged</span></td>
-                        </tr>
-                        <tr>
-                            <th>PP_NET_BGT_CF_STK_Q</th>
-                            <td>BGT_CF_STK_Q + GRT_CONS_Q + DEL_PEND_Q</td>
-                            <td>Same</td>
-                            <td><span class="badge badge-unchanged">Unchanged</span></td>
-                        </tr>
-                        <tr>
-                            <th>BGT_PUR_Q_INIT</th>
-                            <td colspan="2">MAX(TTL_TRF_OUT_Q + BGT_DC_CL_MBQ - PP_NET_BGT_CF_STK_Q - DEL_PEND_Q, 0)</td>
-                            <td><span class="badge badge-unchanged">Unchanged</span></td>
-                        </tr>
-                        <tr>
-                            <th>POS_PO_RAISED</th>
-                            <td>MAX(BGT_PUR_Q_INIT - DEL_PEND_Q, 0)</td>
-                            <td>Same</td>
-                            <td><span class="badge badge-unchanged">Unchanged</span></td>
-                        </tr>
-                        <tr>
-                            <th>NEG_PO_RAISED</th>
-                            <td>MIN(BGT_PUR_Q_INIT - DEL_PEND_Q, 0)</td>
-                            <td>Same</td>
-                            <td><span class="badge badge-unchanged">Unchanged</span></td>
-                        </tr>
-                        <tr>
-                            <th>BGT_DC_CL_STK_Q</th>
-                            <td>MAX(PP_NET_BGT_CF_STK_Q + POS_PO_RAISED - TTL_TRF_OUT_Q, 0)</td>
-                            <td>Same</td>
-                            <td><span class="badge badge-unchanged">Unchanged</span></td>
-                        </tr>
-                        <tr>
-                            <th>DC_STK_EXCESS_Q</th>
-                            <td>MAX(BGT_DC_CL_STK_Q - BGT_DC_CL_MBQ, 0)</td>
-                            <td>Same</td>
-                            <td><span class="badge badge-unchanged">Unchanged</span></td>
-                        </tr>
-                        <tr>
-                            <th>DC_STK_SHORT_Q</th>
-                            <td>MAX(BGT_DC_CL_MBQ - BGT_DC_CL_STK_Q, 0)</td>
-                            <td>Same</td>
-                            <td><span class="badge badge-unchanged">Unchanged</span></td>
-                        </tr>
-                        <tr>
-                            <th>BGT_CO_CL_STK_Q</th>
-                            <td>NET_BGT_ST_CL_STK_Q + NET_SSNL_CL_STK_Q + BGT_DC_CL_STK_Q</td>
-                            <td>Same</td>
-                            <td><span class="badge badge-unchanged">Unchanged</span></td>
-                        </tr>
-                        <tr>
-                            <th>FRESH_BIN_REQ</th>
-                            <td>BGT_DC_CL_STK_Q / BIN_CAP</td>
-                            <td>Same</td>
-                            <td><span class="badge badge-unchanged">Unchanged</span></td>
-                        </tr>
-                        <tr>
-                            <th>GRT_BIN_REQ</th>
-                            <td>OP_STK / BIN_CAP</td>
-                            <td>Same</td>
-                            <td><span class="badge badge-unchanged">Unchanged</span></td>
-                        </tr>
-                        <tr>
-                            <th>NET_SSNL_CL_STK_Q</th>
-                            <td>MAX(OP_STK - GRT_CONS_Q, 0)</td>
-                            <td>Same</td>
-                            <td><span class="badge badge-unchanged">Unchanged</span></td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    </div>
-
-    <div class="card shadow-sm">
-        <div class="card-header" style="background:#8e44ad20;"><h5 class="card-title mb-0" style="color:#8e44ad;"><i class="bi bi-diagram-2 me-2"></i>Purchase Plan — Week Chaining Logic</h5></div>
-        <div class="card-body small">
-            <div class="row">
-                <div class="col-md-6">
-                    <h6 class="fw-bold">Week 1 (Opening Week)</h6>
-                    <ol>
-                        <li><strong>DC_STK_Q</strong> = DC Stock table</li>
-                        <li><strong>BGT_DC_OP_STK_Q</strong> = DC_STK_Q</li>
-                        <li><strong>BGT_CF_STK_Q</strong> = DC_STK_Q</li>
-                        <li>Calculate GRT_CONS_Q, PP_NET_BGT_CF_STK_Q</li>
-                        <li>Calculate BGT_PUR_Q_INIT, PO quantities</li>
-                        <li><strong>BGT_DC_CL_STK_Q</strong> = closing DC stock</li>
-                    </ol>
-                </div>
-                <div class="col-md-6">
-                    <h6 class="fw-bold">Week 2+ (Chaining)</h6>
-                    <ol>
-                        <li><strong>DC_STK_Q</strong> = Previous week BGT_DC_CL_STK_Q</li>
-                        <li><strong>BGT_DC_OP_STK_Q</strong> = Previous week BGT_DC_CL_STK_Q</li>
-                        <li><strong>BGT_CF_STK_Q</strong> = Previous week BGT_DC_CL_STK_Q</li>
-                        <li>Recalculate GRT_CONS_Q, PP_NET_BGT_CF_STK_Q</li>
-                        <li>Recalculate BGT_PUR_Q_INIT, PO quantities</li>
-                        <li><strong>BGT_DC_CL_STK_Q</strong> = closing DC stock</li>
-                    </ol>
-                </div>
-            </div>
-            <div class="alert alert-info py-2 mt-2 mb-0"><i class="bi bi-info-circle me-1"></i><strong>Key:</strong> DC closing stock chains to next week opening. All dependent formulas (GRT, Purchase, PO) are recalculated per week.</div>
-        </div>
-    </div>
-</div>
-
-<!-- ═══════════════ TAB: SUB-LEVEL PLANS ═══════════════ -->
-<div class="tab-pane fade" id="tabSubLevel">
-    <div class="card shadow-sm mb-3">
-        <div class="card-header" style="background:#e67e2220;"><h5 class="card-title mb-0" style="color:#e67e22;"><i class="bi bi-layers me-2"></i>Sub-Level Plans — Architecture</h5></div>
-        <div class="card-body small">
-            <div class="row">
-                <div class="col-md-4">
-                    <h6 class="fw-bold">Main Level (Existing)</h6>
-                    <p class="text-muted">Granularity: <strong>ST_CD + MAJ_CAT + WEEK</strong></p>
-                    <ul>
-                        <li>Transfer In Plan (<code>TRF_IN_PLAN</code>)</li>
-                        <li>Purchase Plan (<code>PURCHASE_PLAN</code>)</li>
-                        <li>All algorithms run at this level</li>
-                        <li>Stock, MBQ, shrinkage, chaining — all at main level</li>
-                    </ul>
-                </div>
-                <div class="col-md-4">
-                    <h6 class="fw-bold">Sub-Level (New)</h6>
-                    <p class="text-muted">Granularity: <strong>ST_CD + MAJ_CAT + SUB_VALUE + WEEK</strong></p>
-                    <ul>
-                        <li>Sub-Level TRF (<code>SUB_LEVEL_TRF_PLAN</code>)</li>
-                        <li>Sub-Level PP (<code>SUB_LEVEL_PP_PLAN</code>)</li>
-                        <li>Runs <strong>FULL algorithm</strong> (same chain as main plan)</li>
-                        <li>Level-specific Store Stock (<code>SUB_ST_STK_*</code>)</li>
-                        <li>Level-specific DC Stock (<code>SUB_DC_STK_*</code>)</li>
-                        <li>Sale Qty &times; CONT_PCT, Display Qty &times; CONT_PCT</li>
-                    </ul>
-                </div>
-                <div class="col-md-4">
-                    <h6 class="fw-bold">4 Sub-Levels</h6>
-                    <table class="table table-sm table-bordered mb-0">
-                        <tr><td><strong>MVGR</strong></td><td>DISP_MVGR_MATRIX</td></tr>
-                        <tr><td><strong>Size</strong></td><td>SZ</td></tr>
-                        <tr><td><strong>Segment</strong></td><td>SEG</td></tr>
-                        <tr><td><strong>Vendor</strong></td><td>M_VND_CD</td></tr>
-                    </table>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="card shadow-sm mb-3">
-        <div class="card-header" style="background:#e67e2220;"><h5 class="card-title mb-0" style="color:#e67e22;"><i class="bi bi-calculator me-2"></i>Sub-Level TRF Formulas (SP_GENERATE_SUB_LEVEL_TRF)</h5></div>
-        <div class="card-body p-0">
-            <div class="table-responsive">
-                <table class="table table-sm table-bordered mb-0 small formula-table">
-                    <thead class="table-dark"><tr><th>Column</th><th>Formula / Source</th><th>Level-Specific?</th></tr></thead>
-                    <tbody>
-                        <tr class="changed"><th>BGT_DISP_CL_Q</th><td>DISP_QTY (UNPIVOT WK_N) &times; CONT_PCT from contribution table</td><td><span class="badge bg-success">Yes</span></td></tr>
-                        <tr class="changed"><th>CM_BGT_SALE_Q</th><td>SALE_QTY (UNPIVOT WK_N) &times; CONT_PCT from contribution table</td><td><span class="badge bg-success">Yes</span></td></tr>
-                        <tr class="changed"><th>CM1_BGT_SALE_Q</th><td>SALE_QTY (UNPIVOT WK_N+1) &times; CONT_PCT</td><td><span class="badge bg-success">Yes</span></td></tr>
-                        <tr class="changed"><th>CM2_BGT_SALE_Q</th><td>SALE_QTY (UNPIVOT WK_N+2) &times; CONT_PCT</td><td><span class="badge bg-success">Yes</span></td></tr>
-                        <tr class="changed"><th>COVER_SALE_QTY</th><td>CM + CM1 + CM2 + CM3 (sum of 4 weeks sale)</td><td><span class="badge bg-success">Yes</span></td></tr>
-                        <tr class="changed"><th>BGT_TTL_CF_OP_STK_Q</th><td>Week 1: from <code>SUB_ST_STK_{level}</code>; Week 2+: previous week CL_STK</td><td><span class="badge bg-success">Yes</span></td></tr>
-                        <tr class="changed"><th>SHRINKAGE</th><td>OP_STK &times; Shrinkage% (from BIN_CAPACITY via MAJ_CAT)</td><td><span class="badge bg-success">Yes</span></td></tr>
-                        <tr class="changed"><th>NET_CF</th><td>OP_STK &minus; SHRINKAGE &minus; SALE &minus; DISPLAY</td><td><span class="badge bg-success">Yes</span></td></tr>
-                        <tr class="changed"><th>BGT_ST_CL_MBQ</th><td>MBQ from BIN_CAPACITY (per ST_CD + MAJ_CAT)</td><td><span class="badge bg-warning text-dark">Main</span></td></tr>
-                        <tr class="changed"><th>TRF_IN_STK_Q</th><td>MAX(0, MBQ &minus; NET_CF) rounded to BIN_CAP multiples</td><td><span class="badge bg-success">Yes</span></td></tr>
-                        <tr class="changed"><th>BGT_TTL_CF_CL_STK_Q</th><td>NET_CF + TRF_IN (chains to next week OP_STK)</td><td><span class="badge bg-success">Yes</span></td></tr>
-                        <tr class="changed"><th>ST_CL_EXCESS_Q</th><td>MAX(0, CL_STK &minus; MBQ)</td><td><span class="badge bg-success">Yes</span></td></tr>
-                        <tr class="changed"><th>ST_CL_SHORT_Q</th><td>MAX(0, MBQ &minus; CL_STK)</td><td><span class="badge bg-success">Yes</span></td></tr>
-                    </tbody>
-                </table>
-            </div>
-            <div class="alert alert-info py-2 mb-0 small border-0 rounded-0">
-                <i class="bi bi-info-circle me-1"></i><strong>Key:</strong> Full chain algorithm runs independently per SUB_VALUE. Store stock from <code>SUB_ST_STK_{MVGR|SZ|SEG|VND}</code>. Sale/Display from main tables &times; CONT_PCT.
-            </div>
-        </div>
-    </div>
-
-    <div class="card shadow-sm mb-3">
-        <div class="card-header" style="background:#8e44ad20;"><h5 class="card-title mb-0" style="color:#8e44ad;"><i class="bi bi-calculator me-2"></i>Sub-Level PP Formulas (SP_GENERATE_SUB_LEVEL_PP)</h5></div>
-        <div class="card-body p-0">
-            <div class="table-responsive">
-                <table class="table table-sm table-bordered mb-0 small formula-table">
-                    <thead class="table-dark"><tr><th>Column</th><th>Formula / Source</th><th>Level-Specific?</th></tr></thead>
-                    <tbody>
-                        <tr class="changed"><th>CW_TRF_OUT_Q</th><td>SUM(TRF_IN_STK_Q) from SUB_LEVEL_TRF_PLAN grouped by RDC + MAJ_CAT + SUB_VALUE</td><td><span class="badge bg-success">Yes</span></td></tr>
-                        <tr class="changed"><th>CW1-CW4_TRF_OUT_Q</th><td>TRF_OUT at week offsets (+1 to +4) from SUB_LEVEL_TRF_PLAN</td><td><span class="badge bg-success">Yes</span></td></tr>
-                        <tr class="changed"><th>CW_BGT_SALE_Q</th><td>SUM(CM_BGT_SALE_Q) from SUB_LEVEL_TRF_PLAN by RDC + MAJ_CAT + SUB_VALUE</td><td><span class="badge bg-success">Yes</span></td></tr>
-                        <tr class="changed"><th>CW1-CW4_BGT_SALE_Q</th><td>Sale at week offsets from SUB_LEVEL_TRF_PLAN</td><td><span class="badge bg-success">Yes</span></td></tr>
-                        <tr class="changed"><th>DC_STK_Q</th><td>Week 1: from <code>SUB_DC_STK_{level}</code>; Week 2+: previous week BGT_DC_CL_STK_Q</td><td><span class="badge bg-success">Yes</span></td></tr>
-                        <tr class="changed"><th>BGT_DC_MBQ_SALE</th><td>CW1 + CW2 + CW3 + CW4 BGT_SALE_Q (sum of 4 weeks)</td><td><span class="badge bg-success">Yes</span></td></tr>
-                        <tr class="changed"><th>BGT_DC_CL_MBQ</th><td>MIN(CW1+CW2+CW3+CW4 TRF_OUT, MBQ_SALE)</td><td><span class="badge bg-success">Yes</span></td></tr>
-                        <tr class="changed"><th>BGT_PUR_Q_INIT</th><td>MAX(0, DC_CL_MBQ &minus; DC_CL_STK_Q) rounded up</td><td><span class="badge bg-success">Yes</span></td></tr>
-                        <tr class="changed"><th>BGT_DC_CL_STK_Q</th><td>DC_STK + DEL_PEND + PUR_Q &minus; TRF_OUT (chains to next week)</td><td><span class="badge bg-success">Yes</span></td></tr>
-                        <tr class="changed"><th>DC_STK_EXCESS_Q</th><td>MAX(0, DC_CL_STK &minus; DC_CL_MBQ)</td><td><span class="badge bg-success">Yes</span></td></tr>
-                        <tr class="changed"><th>DC_STK_SHORT_Q</th><td>MAX(0, DC_CL_MBQ &minus; DC_CL_STK)</td><td><span class="badge bg-success">Yes</span></td></tr>
-                    </tbody>
-                </table>
-            </div>
-            <div class="alert alert-info py-2 mb-0 small border-0 rounded-0">
-                <i class="bi bi-info-circle me-1"></i><strong>Key:</strong> Reads TRF_OUT from SUB_LEVEL_TRF_PLAN (must run TRF first). DC stock from <code>SUB_DC_STK_{MVGR|SZ|SEG|VND}</code>. Full DC chain algorithm per SUB_VALUE.
-            </div>
-        </div>
-    </div>
-
-    <div class="card shadow-sm">
-        <div class="card-header"><h5 class="card-title mb-0"><i class="bi bi-diagram-2 me-2"></i>Execution Flow</h5></div>
-        <div class="card-body small">
-            <ol>
-                <li><strong>Upload Contribution Data</strong> — 4 Excel files (MVGR, Size, Segment, Vendor) via Bulk Upload. Each has ST_CD, MAJ_CAT_CD, sub-value, CONT_PCT.</li>
-                <li><strong>Upload Sub-Level Stock</strong> — 4 Store Stock tables (<code>SUB_ST_STK_*</code>) + 4 DC Stock tables (<code>SUB_DC_STK_*</code>) via Bulk Upload.</li>
-                <li><strong>Ensure Main Reference Data Exists</strong> — Sale Qty, Display Qty, Bin Capacity, Store Master, Week Calendar must be populated.</li>
-                <li><strong>Generate Sub-Level Plans</strong> — Go to Sub-Level Plans page, select week range, optional MajCat/StoreCode filters, select levels, click Generate.</li>
-                <li><strong>Algorithm Runs Per Level</strong> — TRF SP runs first (full chain with level-specific stock), then PP SP reads from TRF output.</li>
-                <li><strong>View Output</strong> — TRF Output and PP Output per level with filters, pagination, CSV export.</li>
-            </ol>
-            <div class="alert alert-warning py-2 mb-0"><i class="bi bi-exclamation-triangle me-1"></i><strong>Important:</strong> Sub-Level plans run the <strong>full algorithm independently</strong> — they are NOT derived from main plan output. Main plan execution is NOT required first.</div>
-        </div>
-    </div>
-</div>
-
-<!-- ═══════════════ TAB: REFERENCE TABLES ═══════════════ -->
-<div class="tab-pane fade" id="tabRef">
-    <div class="row g-3">
-        <div class="col-md-6">
-            <div class="card info-card ref shadow-sm h-100">
-                <div class="card-body">
-                    <h6 class="fw-bold"><i class="bi bi-calendar-week me-2 text-warning"></i>WEEK_CALENDAR</h6>
-                    <p class="small text-muted mb-1">Defines fiscal weeks with start/end dates. Used to map week IDs to date ranges for plan execution.</p>
-                    <code class="small">WEEK_ID, FY_YEAR, FY_WEEK, WK_ST_DT, WK_END_DT</code>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-6">
-            <div class="card info-card ref shadow-sm h-100">
-                <div class="card-body">
-                    <h6 class="fw-bold"><i class="bi bi-shop me-2 text-warning"></i>STORE_MASTER</h6>
-                    <p class="small text-muted mb-1">Store details — code, name, RDC mapping, Hub, Area. Used to join store-level data and aggregate to RDC level.</p>
-                    <code class="small">ST_CD, ST_NM, RDC_CD, RDC_NM, HUB_CD, HUB_NM, AREA</code>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-6">
-            <div class="card info-card ref shadow-sm h-100">
-                <div class="card-body">
-                    <h6 class="fw-bold"><i class="bi bi-box me-2 text-warning"></i>BIN_CAPACITY</h6>
-                    <p class="small text-muted mb-1">Store-level bin capacity and MBQ (Minimum Batch Quantity) per category. Drives optimal transfer counts.</p>
-                    <code class="small">ST_CD, MAJ_CAT, MBQ, BIN_CAP, BIN_CAP_DC_TEAM</code>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-6">
-            <div class="card info-card ref shadow-sm h-100">
-                <div class="card-body">
-                    <h6 class="fw-bold"><i class="bi bi-graph-up me-2 text-warning"></i>SALE_QTY</h6>
-                    <p class="small text-muted mb-1">Weekly sale forecast per store + category. 48 weekly columns (WK-1 to WK-48). Drives demand in plan.</p>
-                    <code class="small">ST_CD, MAJ_CAT, WK_1..WK_48</code>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-6">
-            <div class="card info-card ref shadow-sm h-100">
-                <div class="card-body">
-                    <h6 class="fw-bold"><i class="bi bi-display me-2 text-warning"></i>DISP_QTY</h6>
-                    <p class="small text-muted mb-1">Display quantity per store + category (48 weeks). Used for BGT_DISP_CL_Q and optimal transfer calculations.</p>
-                    <code class="small">ST_CD, MAJ_CAT, WK_1..WK_48</code>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-6">
-            <div class="card info-card ref shadow-sm h-100">
-                <div class="card-body">
-                    <h6 class="fw-bold"><i class="bi bi-boxes me-2 text-warning"></i>STORE_STOCK</h6>
-                    <p class="small text-muted mb-1">Current stock on hand at store level per category. Opening stock for Transfer In Plan Week 1.</p>
-                    <code class="small">ST_CD, MAJ_CAT, STK_QTY</code>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-6">
-            <div class="card info-card ref shadow-sm h-100">
-                <div class="card-body">
-                    <h6 class="fw-bold"><i class="bi bi-building me-2 text-warning"></i>DC_STOCK</h6>
-                    <p class="small text-muted mb-1">DC-level stock per RDC + category. Opening stock for Purchase Plan Week 1. Includes GRT stock split.</p>
-                    <code class="small">RDC_CD, MAJ_CAT, DC_STK_Q, GRT_STK_Q, S_GRT_STK_Q, W_GRT_STK_Q</code>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-6">
-            <div class="card info-card ref shadow-sm h-100">
-                <div class="card-body">
-                    <h6 class="fw-bold"><i class="bi bi-truck me-2 text-warning"></i>DEL_PENDING</h6>
-                    <p class="small text-muted mb-1">Delivery pending quantity per RDC + category. Added to DC stock availability in purchase plan.</p>
-                    <code class="small">RDC_CD, MAJ_CAT, DEL_PEND_QTY</code>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-6">
-            <div class="card info-card ref shadow-sm h-100">
-                <div class="card-body">
-                    <h6 class="fw-bold"><i class="bi bi-percent me-2 text-warning"></i>MASTER_GRT_CONTRIBUTION <span class="badge badge-new ms-1">New</span></h6>
-                    <p class="small text-muted mb-1">GRT contribution percentage per SSN per week (48 columns). Used via UNPIVOT to dynamically look up GRT_CONS_PCT in Purchase Plan.</p>
-                    <code class="small">SSN, WK_1..WK_48</code>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-6">
-            <div class="card info-card ref shadow-sm h-100">
-                <div class="card-body">
-                    <h6 class="fw-bold"><i class="bi bi-diagram-3 me-2 text-warning"></i>MASTER_PRODUCT_HIERARCHY <span class="badge badge-new ms-1">New</span></h6>
-                    <p class="small text-muted mb-1">Product classification hierarchy. Replaces old Broader_Menu table. Maps SEG/DIV/SUB_DIV/MAJ_CAT_NM to SSN.</p>
-                    <code class="small">ID, SEG, DIV, SUB_DIV, MAJ_CAT_NM, SSN</code>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-6">
-            <div class="card info-card ref shadow-sm h-100" style="border-left-color:#e67e22;">
-                <div class="card-body">
-                    <h6 class="fw-bold"><i class="bi bi-pie-chart me-2" style="color:#e67e22;"></i>ST_MAJ_CAT_MACRO_MVGR_PLAN <span class="badge badge-new ms-1">New</span></h6>
-                    <p class="small text-muted mb-1">Macro MVGR contribution % per store + category. Used to split Sale/Display at MVGR level.</p>
-                    <code class="small">ID, ST_CD, MAJ_CAT_CD, DISP_MVGR_MATRIX, CONT_PCT</code>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-6">
-            <div class="card info-card ref shadow-sm h-100" style="border-left-color:#e67e22;">
-                <div class="card-body">
-                    <h6 class="fw-bold"><i class="bi bi-pie-chart me-2" style="color:#e67e22;"></i>ST_MAJ_CAT_SZ_PLAN <span class="badge badge-new ms-1">New</span></h6>
-                    <p class="small text-muted mb-1">Size contribution % per store + category. Used to split Sale/Display at Size level.</p>
-                    <code class="small">ID, ST_CD, MAJ_CAT_CD, SZ, CONT_PCT</code>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-6">
-            <div class="card info-card ref shadow-sm h-100" style="border-left-color:#e67e22;">
-                <div class="card-body">
-                    <h6 class="fw-bold"><i class="bi bi-pie-chart me-2" style="color:#e67e22;"></i>ST_MAJ_CAT_SEG_PLAN <span class="badge badge-new ms-1">New</span></h6>
-                    <p class="small text-muted mb-1">Segment contribution % per store + category. Used to split Sale/Display at Segment level.</p>
-                    <code class="small">ID, ST_CD, MAJ_CAT_CD, SEG, CONT_PCT</code>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-6">
-            <div class="card info-card ref shadow-sm h-100" style="border-left-color:#e67e22;">
-                <div class="card-body">
-                    <h6 class="fw-bold"><i class="bi bi-pie-chart me-2" style="color:#e67e22;"></i>ST_MAJ_CAT_VND_PLAN <span class="badge badge-new ms-1">New</span></h6>
-                    <p class="small text-muted mb-1">Vendor contribution % per store + category. Used to split Sale/Display at Vendor level.</p>
-                    <code class="small">ID, ST_CD, MAJ_CAT_CD, M_VND_CD, CONT_PCT</code>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-6">
-            <div class="card info-card ref shadow-sm h-100" style="border-left-color:#e67e22;">
-                <div class="card-body">
-                    <h6 class="fw-bold"><i class="bi bi-box-seam me-2" style="color:#e67e22;"></i>SUB_ST_STK_{MVGR|SZ|SEG|VND} <span class="badge badge-new ms-1">New</span></h6>
-                    <p class="small text-muted mb-1">4 separate store stock tables per sub-level. Opening stock for sub-level TRF plan Week 1.</p>
-                    <code class="small">ID, ST_CD, MAJ_CAT, SUB_VALUE, STK_QTY, DATE</code>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-6">
-            <div class="card info-card ref shadow-sm h-100" style="border-left-color:#e67e22;">
-                <div class="card-body">
-                    <h6 class="fw-bold"><i class="bi bi-building me-2" style="color:#e67e22;"></i>SUB_DC_STK_{MVGR|SZ|SEG|VND} <span class="badge badge-new ms-1">New</span></h6>
-                    <p class="small text-muted mb-1">4 separate DC stock tables per sub-level. Opening stock for sub-level PP plan Week 1.</p>
-                    <code class="small">ID, RDC_CD, MAJ_CAT, SUB_VALUE, DC_STK_Q, GRT_STK_Q, W_GRT_STK_Q, DATE</code>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-6">
-            <div class="card info-card ref shadow-sm h-100" style="border-left-color:#e67e22;">
-                <div class="card-body">
-                    <h6 class="fw-bold"><i class="bi bi-layers me-2" style="color:#e67e22;"></i>SUB_LEVEL_TRF_PLAN <span class="badge badge-new ms-1">New</span></h6>
-                    <p class="small text-muted mb-1">Sub-level Transfer In output. Full algorithm per level with level-specific stock, Sale&times;CONT%, Display&times;CONT%.</p>
-                    <code class="small">ID, LEVEL, SUB_VALUE, ST_CD, MAJ_CAT, CONT_PCT, FY_YEAR, FY_WEEK, BGT_DISP_CL_Q, CM_BGT_SALE_Q, ...</code>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-6">
-            <div class="card info-card ref shadow-sm h-100" style="border-left-color:#e67e22;">
-                <div class="card-body">
-                    <h6 class="fw-bold"><i class="bi bi-layers me-2" style="color:#e67e22;"></i>SUB_LEVEL_PP_PLAN <span class="badge badge-new ms-1">New</span></h6>
-                    <p class="small text-muted mb-1">Sub-level Purchase Plan output. Full DC algorithm per level using SUB_LEVEL_TRF_PLAN + level-specific DC stock.</p>
-                    <code class="small">ID, LEVEL, SUB_VALUE, RDC_CD, MAJ_CAT, CONT_PCT, FY_YEAR, FY_WEEK, CW_BGT_SALE_Q, ...</code>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- ═══════════════ TAB: CHANGE LOG ═══════════════ -->
+<!-- ╔══════════════════════════════════════════════════════════════════╗ -->
+<!-- ║  TAB 8: CHANGE LOG                                              ║ -->
+<!-- ╚══════════════════════════════════════════════════════════════════╝ -->
 <div class="tab-pane fade" id="tabChanges">
     <div class="card shadow-sm">
         <div class="card-header"><h5 class="card-title mb-0"><i class="bi bi-clock-history me-2"></i>Formula & System Changes</h5></div>
@@ -1057,205 +1218,37 @@
             <div class="table-responsive">
                 <table class="table table-sm table-bordered mb-0 small">
                     <thead class="table-dark">
-                        <tr><th style="width:60px;">#</th><th style="width:120px;">Area</th><th>Change Description</th><th style="width:100px;">As-Is</th><th style="width:100px;">To-Be</th></tr>
+                        <tr><th style="width:40px;">#</th><th style="width:110px;">Area</th><th>Change Description</th><th style="width:100px;">Before</th><th style="width:100px;">After</th></tr>
                     </thead>
                     <tbody>
-                        <tr>
-                            <td>1</td>
-                            <td><span class="badge bg-success">Transfer In</span></td>
-                            <td><strong>DC_MBQ formula</strong> — Changed from simple ratio to sum of next 4 weeks sale</td>
-                            <td><code>Sale/30*15</code></td>
-                            <td><code>SQ1+SQ2+SQ3+SQ4</code></td>
-                        </tr>
-                        <tr>
-                            <td>2</td>
-                            <td><span class="badge bg-purple" style="background:#8e44ad;">Purchase Plan</span></td>
-                            <td><strong>BGT_DC_MBQ_SALE formula</strong> — Sum of 4 weeks sale instead of DC_MBQ aggregate</td>
-                            <td><code>SUM(DC_MBQ)</code></td>
-                            <td><code>CW1+CW2+CW3+CW4 BGT_SALE</code></td>
-                        </tr>
-                        <tr>
-                            <td>3</td>
-                            <td><span class="badge bg-purple" style="background:#8e44ad;">Purchase Plan</span></td>
-                            <td><strong>BGT_DC_CL_MBQ formula</strong> — Uses 4-week transfer out sum</td>
-                            <td><code>MIN(TTL_TRF, MBQ_SALE)</code></td>
-                            <td><code>MIN(CW1+CW2+CW3+CW4 TRF_OUT, MBQ_SALE)</code></td>
-                        </tr>
-                        <tr>
-                            <td>4</td>
-                            <td><span class="badge bg-purple" style="background:#8e44ad;">Purchase Plan</span></td>
-                            <td><strong>CW2-CW5 BGT_SALE_Q sourcing</strong> — Now derived from Transfer In CW1_BGT_SALE_Q at week offsets</td>
-                            <td>Separate calculation</td>
-                            <td>From Transfer In output</td>
-                        </tr>
-                        <tr>
-                            <td>5</td>
-                            <td><span class="badge bg-purple" style="background:#8e44ad;">Purchase Plan</span></td>
-                            <td><strong>CW2-CW4 TRF_OUT_Q sourcing</strong> — Now aggregated from Transfer In at week offsets</td>
-                            <td>Not available</td>
-                            <td>From Transfer In by RDC</td>
-                        </tr>
-                        <tr>
-                            <td>6</td>
-                            <td><span class="badge bg-purple" style="background:#8e44ad;">Purchase Plan</span></td>
-                            <td><strong>DC_STK_Q week chaining</strong> — Week 2+ now uses previous week closing DC stock</td>
-                            <td>Static per week</td>
-                            <td>Chains from BGT_DC_CL_STK_Q</td>
-                        </tr>
-                        <tr>
-                            <td>7</td>
-                            <td><span class="badge bg-purple" style="background:#8e44ad;">Purchase Plan</span></td>
-                            <td><strong>GRT_CONS_PCT lookup</strong> — Replaced hardcoded mapping with dynamic UNPIVOT from MASTER_GRT_CONTRIBUTION</td>
-                            <td>Hardcoded SSN map</td>
-                            <td>Dynamic UNPIVOT by SSN+Week</td>
-                        </tr>
-                        <tr>
-                            <td>8</td>
-                            <td><span class="badge bg-warning text-dark">Reference</span></td>
-                            <td><strong>Broader_Menu replaced</strong> — All SPs now use MASTER_PRODUCT_HIERARCHY instead of Broader_Menu</td>
-                            <td>Broader_Menu</td>
-                            <td>MASTER_PRODUCT_HIERARCHY</td>
-                        </tr>
-                        <tr>
-                            <td>9</td>
-                            <td><span class="badge bg-warning text-dark">Reference</span></td>
-                            <td><strong>MASTER_GRT_CONS_percentage replaced</strong> — Now uses MASTER_GRT_CONTRIBUTION with UNPIVOT</td>
-                            <td>GRT_CONS_percentage</td>
-                            <td>MASTER_GRT_CONTRIBUTION</td>
-                        </tr>
-                        <tr>
-                            <td>10</td>
-                            <td><span class="badge bg-info text-dark">System</span></td>
-                            <td><strong>SP_RUN_ALL_PLANS V3</strong> — Bulk execution (all stores at once) instead of per-store loop</td>
-                            <td>~27 min (per-store)</td>
-                            <td>~1-2 min (bulk)</td>
-                        </tr>
-                        <tr>
-                            <td>11</td>
-                            <td><span class="badge bg-info text-dark">System</span></td>
-                            <td><strong>Dashboard optimization</strong> — Consolidated 30+ queries into 2 raw SQL with caching</td>
-                            <td>30+ EF queries</td>
-                            <td>2 raw SQL + 60s cache</td>
-                        </tr>
-                        <tr>
-                            <td>12</td>
-                            <td><span class="badge bg-info text-dark">System</span></td>
-                            <td><strong>New reference tables</strong> — Added GRT Contribution and Product Hierarchy with CRUD + Bulk Upload</td>
-                            <td>Not available</td>
-                            <td>Full CRUD + Bulk Upload</td>
-                        </tr>
-                        <tr>
-                            <td>13</td>
-                            <td><span class="badge" style="background:#e67e22;color:#fff;">Sub-Level</span></td>
-                            <td><strong>4 Contribution tables</strong> — Macro MVGR, Size, Segment, Vendor with CRUD + Bulk Upload (multi-sheet Excel)</td>
-                            <td>Not available</td>
-                            <td>Full CRUD + Bulk Upload</td>
-                        </tr>
-                        <tr>
-                            <td>14</td>
-                            <td><span class="badge" style="background:#e67e22;color:#fff;">Sub-Level</span></td>
-                            <td><strong>Sub-Level TRF Plan</strong> — Full TRF chain algorithm per level with level-specific store stock (<code>SUB_ST_STK_*</code>), Sale&times;CONT%, Display&times;CONT%</td>
-                            <td>Not available</td>
-                            <td>SP_GENERATE_SUB_LEVEL_TRF</td>
-                        </tr>
-                        <tr>
-                            <td>15</td>
-                            <td><span class="badge" style="background:#e67e22;color:#fff;">Sub-Level</span></td>
-                            <td><strong>Sub-Level PP Plan</strong> — Full DC chain algorithm per level with level-specific DC stock (<code>SUB_DC_STK_*</code>), reads TRF output</td>
-                            <td>Not available</td>
-                            <td>SP_GENERATE_SUB_LEVEL_PP</td>
-                        </tr>
-                        <tr>
-                            <td>16</td>
-                            <td><span class="badge" style="background:#e67e22;color:#fff;">Sub-Level</span></td>
-                            <td><strong>Per-level execution</strong> — Each level (MVGR/SZ/SEG/VND) can be generated independently with its own status</td>
-                            <td>Not available</td>
-                            <td>Execute page with per-level cards</td>
-                        </tr>
-                        <tr>
-                            <td>17</td>
-                            <td><span class="badge bg-info text-dark">System</span></td>
-                            <td><strong>Multi-sheet Excel upload</strong> — Bulk Upload now reads all sheets from Excel files and merges rows</td>
-                            <td>Single sheet only</td>
-                            <td>All sheets merged</td>
-                        </tr>
-                        <tr>
-                            <td>18</td>
-                            <td><span class="badge bg-info text-dark">System</span></td>
-                            <td><strong>Multi-select filters</strong> — Dashboard, Plan Output, Purchase Output now support multi-select dropdowns with search</td>
-                            <td>Single select</td>
-                            <td>Multi-select with checkboxes</td>
-                        </tr>
-                        <tr>
-                            <td>19</td>
-                            <td><span class="badge" style="background:#e67e22;color:#fff;">Sub-Level</span></td>
-                            <td><strong>8 Sub-Level Stock tables</strong> — 4 Store Stock + 4 DC Stock per level (MVGR/SZ/SEG/VND) with CRUD + Bulk Upload</td>
-                            <td>Not available</td>
-                            <td>SUB_ST_STK_*, SUB_DC_STK_*</td>
-                        </tr>
-                        <tr>
-                            <td>20</td>
-                            <td><span class="badge" style="background:#e67e22;color:#fff;">Sub-Level</span></td>
-                            <td><strong>Optional MajCat &amp; StoreCode filters</strong> — Sub-Level execution supports optional category and store filters</td>
-                            <td>Not available</td>
-                            <td>Filtered SP execution</td>
-                        </tr>
-                        <tr>
-                            <td>21</td>
-                            <td><span class="badge" style="background:#e67e22;color:#fff;">Sub-Level</span></td>
-                            <td><strong>Pivot CSV Export</strong> — Sub-Level TRF and PP output pages now have Pivot CSV export (one row per ST_CD+MAJ_CAT+SUB_VALUE, weeks as columns)</td>
-                            <td>Not available</td>
-                            <td>Pivot CSV per level</td>
-                        </tr>
-                        <tr>
-                            <td>22</td>
-                            <td><span class="badge bg-info text-dark">System</span></td>
-                            <td><strong>Dashboard — Sub-Level Status</strong> — Dashboard now shows per-level TRF/PP row counts and last run timestamps</td>
-                            <td>Not available</td>
-                            <td>Sub-Level status card</td>
-                        </tr>
-                        <tr>
-                            <td>23</td>
-                            <td><span class="badge bg-info text-dark">System</span></td>
-                            <td><strong>Dashboard — Data Health</strong> — Dashboard now shows reference table row counts with Ready/Empty status indicators</td>
-                            <td>Not available</td>
-                            <td>14 table health check</td>
-                        </tr>
-                        <tr>
-                            <td>24</td>
-                            <td><span class="badge" style="background:#e67e22;color:#fff;">Sub-Level</span></td>
-                            <td><strong>Background Full Run</strong> — Sub-Level plans now support background execution for all 4 levels with live progress tracking (same pattern as main plan Full Run)</td>
-                            <td>Sync only</td>
-                            <td>Background singleton job</td>
-                        </tr>
-                        <tr>
-                            <td>25</td>
-                            <td><span class="badge bg-danger">Reset</span></td>
-                            <td><strong>Reset Buttons</strong> — Transfer In Plan, Purchase Plan, and Sub-Level Plans (per-level + all) now have reset/clear data buttons with confirmation</td>
-                            <td>Not available</td>
-                            <td>TRUNCATE/DELETE actions</td>
-                        </tr>
-                        <tr>
-                            <td>26</td>
-                            <td><span class="badge" style="background:#e67e22;color:#fff;">Sub-Level</span></td>
-                            <td><strong>Input Data Status (18 tables)</strong> — Sub-Level Execute page now shows all 18 required tables with SQL table names, purpose/logic, row counts, and auto-refresh every 30s</td>
-                            <td>6 tables only</td>
-                            <td>18 tables + logic</td>
-                        </tr>
-                        <tr>
-                            <td>27</td>
-                            <td><span class="badge bg-info text-dark">System</span></td>
-                            <td><strong>UI Redesign</strong> — Enterprise-grade redesign: Inter font, Indigo/Slate color palette, refined typography scale, polished components, improved responsive design</td>
-                            <td>Basic Bootstrap</td>
-                            <td>Design System v2</td>
-                        </tr>
-                        <tr>
-                            <td>28</td>
-                            <td><span class="badge bg-info text-dark">System</span></td>
-                            <td><strong>System Features Documentation</strong> — App Info page expanded with new "System Features" tab covering Dashboard, Bulk Upload, Plan Execution, Data Export, Reset, CRUD, and Tech Stack</td>
-                            <td>Formulas only</td>
-                            <td>Full system guide</td>
-                        </tr>
+                        <tr><td>1</td><td><span class="badge bg-success">Transfer In</span></td><td><strong>DC_MBQ formula</strong> — Changed from simple ratio to sum of next 4 weeks sale</td><td><code>Sale/30*15</code></td><td><code>SQ1+SQ2+SQ3+SQ4</code></td></tr>
+                        <tr><td>2</td><td><span class="badge" style="background:#8e44ad;">Purchase Plan</span></td><td><strong>BGT_DC_MBQ_SALE</strong> — Sum of 4 weeks sale from TRF aggregation</td><td><code>SUM(DC_MBQ)</code></td><td><code>CW1+CW2+CW3+CW4 SALE</code></td></tr>
+                        <tr><td>3</td><td><span class="badge" style="background:#8e44ad;">Purchase Plan</span></td><td><strong>BGT_DC_CL_MBQ</strong> — Uses next 4-week transfer out sum</td><td><code>MIN(TTL_TRF, SALE)</code></td><td><code>MIN(CW1+CW2+CW3+CW4 TRF, SALE)</code></td></tr>
+                        <tr><td>4</td><td><span class="badge" style="background:#8e44ad;">Purchase Plan</span></td><td><strong>CW2-CW5 BGT_SALE sourcing</strong> — From TRF CW1_BGT_SALE at week offsets</td><td>Separate calc</td><td>From TRF output</td></tr>
+                        <tr><td>5</td><td><span class="badge" style="background:#8e44ad;">Purchase Plan</span></td><td><strong>CW2-CW4 TRF_OUT sourcing</strong> — Aggregated from TRF at week offsets</td><td>Not available</td><td>From TRF by RDC</td></tr>
+                        <tr><td>6</td><td><span class="badge" style="background:#8e44ad;">Purchase Plan</span></td><td><strong>DC_STK_Q week chaining</strong> — WK2+ uses prev BGT_DC_CL_STK_Q</td><td>Static</td><td>Chained</td></tr>
+                        <tr><td>7</td><td><span class="badge" style="background:#8e44ad;">Purchase Plan</span></td><td><strong>OP_STK chaining</strong> — WK2+ OP_STK = prev NET_SSNL_CL_STK_Q</td><td>Static</td><td>Chained</td></tr>
+                        <tr><td>8</td><td><span class="badge" style="background:#8e44ad;">Purchase Plan</span></td><td><strong>POS_PO_RAISED</strong> = MAX(BGT_DC_CL_MBQ + CW_TRF_OUT - PP_NET, 0)</td><td>MAX(PUR-DEL,0)</td><td>New formula</td></tr>
+                        <tr><td>9</td><td><span class="badge" style="background:#8e44ad;">Purchase Plan</span></td><td><strong>BGT_PUR_Q_INIT</strong> = POS_PO_RAISED (simplified)</td><td>TTL_TRF+MBQ-NET-DEL</td><td>= POS_PO_RAISED</td></tr>
+                        <tr><td>10</td><td><span class="badge" style="background:#8e44ad;">Purchase Plan</span></td><td><strong>BGT_DC_CL_STK_Q</strong> = MAX(PUR + PP_NET - CW_TRF_OUT, 0)</td><td>NET+POS-TTL_TRF</td><td>New formula</td></tr>
+                        <tr><td>11</td><td><span class="badge" style="background:#8e44ad;">Purchase Plan</span></td><td><strong>NEG_PO_RAISED carry-forward</strong> — WK2+ accumulates from previous week</td><td>No carry</td><td>+prev_NEG_PO</td></tr>
+                        <tr><td>12</td><td><span class="badge" style="background:#8e44ad;">Purchase Plan</span></td><td><strong>GRT_CONS_PCT</strong> — Dynamic UNPIVOT from MASTER_GRT_CONTRIBUTION</td><td>Hardcoded SSN map</td><td>Dynamic by SSN+Week</td></tr>
+                        <tr><td>13</td><td><span class="badge bg-warning text-dark">Reference</span></td><td><strong>Broader_Menu replaced</strong> → MASTER_PRODUCT_HIERARCHY</td><td>Broader_Menu</td><td>PRODUCT_HIERARCHY</td></tr>
+                        <tr><td>14</td><td><span class="badge bg-warning text-dark">Reference</span></td><td><strong>GRT_CONS_percentage replaced</strong> → MASTER_GRT_CONTRIBUTION with UNPIVOT</td><td>GRT_CONS_pct</td><td>GRT_CONTRIBUTION</td></tr>
+                        <tr><td>15</td><td><span class="badge bg-info text-dark">System</span></td><td><strong>SP_RUN_ALL_PLANS V3</strong> — Bulk execution for all stores</td><td>~27 min per-store</td><td>~1-2 min bulk</td></tr>
+                        <tr><td>16</td><td><span class="badge bg-info text-dark">System</span></td><td><strong>Dashboard optimization</strong> — 2 raw SQL with 60s caching</td><td>30+ EF queries</td><td>2 SQL + cache</td></tr>
+                        <tr><td>17</td><td><span class="badge" style="background:#e67e22;color:#fff;">Sub-Level</span></td><td><strong>4 Contribution tables</strong> — MVGR, SZ, SEG, VND with CRUD + Bulk Upload</td><td>N/A</td><td>Full CRUD</td></tr>
+                        <tr><td>18</td><td><span class="badge" style="background:#e67e22;color:#fff;">Sub-Level</span></td><td><strong>Sub-Level TRF Plan SP</strong> — Full chain algorithm per level with level-specific stock</td><td>N/A</td><td>SP_GENERATE_SUB_LEVEL_TRF</td></tr>
+                        <tr><td>19</td><td><span class="badge" style="background:#e67e22;color:#fff;">Sub-Level</span></td><td><strong>Sub-Level PP Plan SP</strong> — Full DC chain per level reading from TRF output</td><td>N/A</td><td>SP_GENERATE_SUB_LEVEL_PP</td></tr>
+                        <tr><td>20</td><td><span class="badge" style="background:#e67e22;color:#fff;">Sub-Level</span></td><td><strong>8 Sub-Level Stock tables</strong> — 4 Store + 4 DC per level</td><td>N/A</td><td>Full CRUD + Upload</td></tr>
+                        <tr><td>21</td><td><span class="badge" style="background:#e67e22;color:#fff;">Sub-Level</span></td><td><strong>Background Full Run</strong> — All 4 levels sequentially with progress</td><td>Sync only</td><td>Background job</td></tr>
+                        <tr><td>22</td><td><span class="badge" style="background:#e67e22;color:#fff;">Sub-Level</span></td><td><strong>Pivot CSV Export</strong> — Per-level TRF and PP pivot output</td><td>N/A</td><td>Pivot CSV</td></tr>
+                        <tr><td>23</td><td><span class="badge" style="background:#e67e22;color:#fff;">Sub-Level</span></td><td><strong>Input Data Status</strong> — 18 tables with SQL names, logic, row counts, auto-refresh</td><td>6 tables</td><td>18 tables + logic</td></tr>
+                        <tr><td>24</td><td><span class="badge bg-info text-dark">System</span></td><td><strong>Multi-select filters</strong> — Dashboard + output pages with search dropdowns</td><td>Single select</td><td>Multi-select + search</td></tr>
+                        <tr><td>25</td><td><span class="badge bg-info text-dark">System</span></td><td><strong>Multi-sheet Excel</strong> — Bulk Upload reads all sheets and merges</td><td>Single sheet</td><td>All sheets merged</td></tr>
+                        <tr><td>26</td><td><span class="badge bg-danger">Reset</span></td><td><strong>Reset Buttons</strong> — TRF, PP, Sub-Level per-level + all with confirmation</td><td>N/A</td><td>TRUNCATE/DELETE</td></tr>
+                        <tr><td>27</td><td><span class="badge bg-info text-dark">System</span></td><td><strong>UI Redesign</strong> — Enterprise: Inter font, Indigo/Slate palette, Design System v2</td><td>Basic Bootstrap</td><td>Design System v2</td></tr>
+                        <tr><td>28</td><td><span class="badge bg-info text-dark">System</span></td><td><strong>Dashboard — Sub-Level Status + Data Health</strong> — Per-level counts + 14 table health</td><td>N/A</td><td>Status cards</td></tr>
                     </tbody>
                 </table>
             </div>

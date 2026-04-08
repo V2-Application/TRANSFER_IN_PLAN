@@ -222,12 +222,27 @@ namespace TRANSFER_IN_PLAN.Controllers
                     Q(k.Seg ?? "NA"), Q(k.Div ?? "NA"), Q(k.SubDiv ?? "NA"), Q(k.MajCatNm ?? "NA"), Q(k.Ssn ?? "NA")));
 
                 var byWeek = g.GroupBy(x => x.FyWeek ?? 0).ToDictionary(x => x.Key, x => x.First());
-                foreach (var w in weeks)
+                for (int wi = 0; wi < weeks.Count; wi++)
                 {
+                    var w = weeks[wi];
                     byWeek.TryGetValue(w, out var r);
+                    // Chain: WK-2+ OP_STK = previous week NET_SSNL_CL_STK_Q
+                    PurchasePlan? prevR = null;
+                    if (wi > 0) byWeek.TryGetValue(weeks[wi - 1], out prevR);
                     foreach (var m in metrics)
-                        if (w == firstWeek || !week1Only.Contains(m.Label))
-                            sb.Append($",{(r != null ? m.Item2(r) ?? 0 : 0)}");
+                    {
+                        if (w != firstWeek && week1Only.Contains(m.Label)) continue;
+                        decimal val = 0;
+                        if (r != null)
+                        {
+                            // For OP_STK in week 2+, use previous week's NET_SSNL_CL_STK_Q
+                            if (m.Label == "OP_STK" && wi > 0 && prevR != null)
+                                val = prevR.NetSsnlClStkQ ?? 0;
+                            else
+                                val = m.Item2(r) ?? 0;
+                        }
+                        sb.Append($",{val}");
+                    }
                 }
                 sb.AppendLine();
             }

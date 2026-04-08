@@ -455,19 +455,20 @@ BEGIN
                                       THEN OP_STK - GRT_CONS_Q ELSE 0 END;
 
         UPDATE #PP
-        SET BGT_PUR_Q_INIT = CASE WHEN TTL_TRF_OUT_Q + BGT_DC_CL_MBQ - PP_NET_BGT_CF_STK_Q - DEL_PEND_Q > 0
-                                  THEN TTL_TRF_OUT_Q + BGT_DC_CL_MBQ - PP_NET_BGT_CF_STK_Q - DEL_PEND_Q
-                                  ELSE 0 END;
+        SET POS_PO_RAISED = CASE WHEN BGT_DC_CL_MBQ + CW_TRF_OUT_Q - PP_NET_BGT_CF_STK_Q > 0
+                                  THEN BGT_DC_CL_MBQ + CW_TRF_OUT_Q - PP_NET_BGT_CF_STK_Q ELSE 0 END;
 
         UPDATE #PP
-        SET POS_PO_RAISED = CASE WHEN BGT_PUR_Q_INIT - DEL_PEND_Q > 0
-                                  THEN BGT_PUR_Q_INIT - DEL_PEND_Q ELSE 0 END,
-            NEG_PO_RAISED = CASE WHEN BGT_PUR_Q_INIT - DEL_PEND_Q < 0
+        SET BGT_PUR_Q_INIT = POS_PO_RAISED;
+
+        -- WK-1: NEG_PO_RAISED = MIN(0, BGT_PUR_Q_INIT - DEL_PEND_Q)
+        UPDATE #PP
+        SET NEG_PO_RAISED = CASE WHEN BGT_PUR_Q_INIT - DEL_PEND_Q < 0
                                   THEN BGT_PUR_Q_INIT - DEL_PEND_Q ELSE 0 END;
 
         UPDATE #PP
-        SET BGT_DC_CL_STK_Q = CASE WHEN PP_NET_BGT_CF_STK_Q + POS_PO_RAISED - TTL_TRF_OUT_Q > 0
-                                    THEN PP_NET_BGT_CF_STK_Q + POS_PO_RAISED - TTL_TRF_OUT_Q
+        SET BGT_DC_CL_STK_Q = CASE WHEN BGT_PUR_Q_INIT + PP_NET_BGT_CF_STK_Q - CW_TRF_OUT_Q > 0
+                                    THEN BGT_PUR_Q_INIT + PP_NET_BGT_CF_STK_Q - CW_TRF_OUT_Q
                                     ELSE 0 END;
 
         UPDATE #PP
@@ -496,9 +497,10 @@ BEGIN
             SELECT @tw = WID FROM @WeekList WHERE Seq = @i;
             SELECT @pw = WID FROM @WeekList WHERE Seq = @i - 1;
 
-            -- Chain: DC_STK_Q, BGT_DC_OP_STK_Q and BGT_CF_STK_Q from prev week's BGT_DC_CL_STK_Q
+            -- Chain: OP_STK = prev NET_SSNL_CL_STK_Q, DC stocks from prev BGT_DC_CL_STK_Q
             UPDATE c
-            SET c.DC_STK_Q = p.BGT_DC_CL_STK_Q,
+            SET c.OP_STK = p.NET_SSNL_CL_STK_Q,
+                c.DC_STK_Q = p.BGT_DC_CL_STK_Q,
                 c.BGT_DC_OP_STK_Q = p.BGT_DC_CL_STK_Q,
                 c.BGT_CF_STK_Q = CASE WHEN p.BGT_DC_CL_STK_Q > 0
                                        THEN p.BGT_DC_CL_STK_Q ELSE 0 END
@@ -538,21 +540,25 @@ BEGIN
             WHERE [WEEK_ID] = @tw;
 
             UPDATE #PP
-            SET BGT_PUR_Q_INIT = CASE WHEN TTL_TRF_OUT_Q + BGT_DC_CL_MBQ - PP_NET_BGT_CF_STK_Q - DEL_PEND_Q > 0
-                                      THEN TTL_TRF_OUT_Q + BGT_DC_CL_MBQ - PP_NET_BGT_CF_STK_Q - DEL_PEND_Q
-                                      ELSE 0 END
+            SET POS_PO_RAISED = CASE WHEN BGT_DC_CL_MBQ + CW_TRF_OUT_Q - PP_NET_BGT_CF_STK_Q > 0
+                                      THEN BGT_DC_CL_MBQ + CW_TRF_OUT_Q - PP_NET_BGT_CF_STK_Q ELSE 0 END
             WHERE [WEEK_ID] = @tw;
 
             UPDATE #PP
-            SET POS_PO_RAISED = CASE WHEN BGT_PUR_Q_INIT - DEL_PEND_Q > 0
-                                      THEN BGT_PUR_Q_INIT - DEL_PEND_Q ELSE 0 END,
-                NEG_PO_RAISED = CASE WHEN BGT_PUR_Q_INIT - DEL_PEND_Q < 0
-                                      THEN BGT_PUR_Q_INIT - DEL_PEND_Q ELSE 0 END
+            SET BGT_PUR_Q_INIT = POS_PO_RAISED
             WHERE [WEEK_ID] = @tw;
 
+            -- WK-2+: NEG_PO_RAISED = MIN(0, BGT_PUR_Q_INIT - DEL_PEND_Q + prev_NEG_PO_RAISED)
+            UPDATE c
+            SET c.NEG_PO_RAISED = CASE WHEN c.BGT_PUR_Q_INIT - c.DEL_PEND_Q + p.NEG_PO_RAISED < 0
+                                        THEN c.BGT_PUR_Q_INIT - c.DEL_PEND_Q + p.NEG_PO_RAISED ELSE 0 END
+            FROM #PP c
+            INNER JOIN #PP p ON p.[RDC_CD] = c.[RDC_CD] AND p.[MAJ_CAT] = c.[MAJ_CAT] AND p.[WEEK_ID] = @pw
+            WHERE c.[WEEK_ID] = @tw;
+
             UPDATE #PP
-            SET BGT_DC_CL_STK_Q = CASE WHEN PP_NET_BGT_CF_STK_Q + POS_PO_RAISED - TTL_TRF_OUT_Q > 0
-                                        THEN PP_NET_BGT_CF_STK_Q + POS_PO_RAISED - TTL_TRF_OUT_Q
+            SET BGT_DC_CL_STK_Q = CASE WHEN BGT_PUR_Q_INIT + PP_NET_BGT_CF_STK_Q - CW_TRF_OUT_Q > 0
+                                        THEN BGT_PUR_Q_INIT + PP_NET_BGT_CF_STK_Q - CW_TRF_OUT_Q
                                         ELSE 0 END
             WHERE [WEEK_ID] = @tw;
 
