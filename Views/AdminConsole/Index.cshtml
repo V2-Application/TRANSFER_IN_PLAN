@@ -1,0 +1,290 @@
+@{ ViewData["Title"] = "Admin Console"; }
+
+<style>
+    .chat-container { display: flex; flex-direction: column; height: calc(100vh - 200px); min-height: 500px; }
+    .chat-messages { flex: 1; overflow-y: auto; padding: 16px; background: #f8fafc; border-radius: 12px 12px 0 0; border: 1px solid #e2e8f0; border-bottom: none; }
+    .chat-input-bar { display: flex; gap: 8px; padding: 12px; background: #fff; border: 1px solid #e2e8f0; border-radius: 0 0 12px 12px; }
+    .chat-input { flex: 1; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 14px; font-size: 0.9rem; outline: none; resize: none; min-height: 44px; max-height: 120px; font-family: 'Inter', sans-serif; }
+    .chat-input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(79,70,229,0.12); }
+    .chat-send { background: var(--primary); color: #fff; border: none; border-radius: 8px; padding: 0 20px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 6px; }
+    .chat-send:hover { background: var(--primary-hover); }
+    .chat-send:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .msg { margin-bottom: 16px; display: flex; gap: 10px; }
+    .msg-user { justify-content: flex-end; }
+    .msg-ai { justify-content: flex-start; }
+    .msg-avatar { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.85rem; flex-shrink: 0; }
+    .msg-user .msg-avatar { background: var(--primary); color: #fff; }
+    .msg-ai .msg-avatar { background: #1e293b; color: #fff; }
+    .msg-bubble { max-width: 85%; border-radius: 12px; padding: 10px 14px; font-size: 0.88rem; line-height: 1.6; }
+    .msg-user .msg-bubble { background: var(--primary); color: #fff; border-bottom-right-radius: 4px; }
+    .msg-ai .msg-bubble { background: #fff; color: #1a3a5c; border: 1px solid #e2e8f0; border-bottom-left-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
+    .msg-ai .msg-bubble code { background: #f1f5f9; padding: 1px 5px; border-radius: 4px; font-size: 0.82rem; color: #c0392b; }
+    .msg-ai .msg-bubble pre { background: #1e293b; color: #e2e8f0; padding: 12px; border-radius: 8px; overflow-x: auto; margin: 8px 0; font-size: 0.82rem; }
+    .msg-ai .msg-bubble pre code { background: transparent; color: #e2e8f0; padding: 0; }
+    .msg-ai .msg-bubble table { width: 100%; font-size: 0.8rem; border-collapse: collapse; margin: 8px 0; }
+    .msg-ai .msg-bubble table th { background: #1e293b; color: #fff; padding: 6px 8px; text-align: left; white-space: nowrap; }
+    .msg-ai .msg-bubble table td { padding: 5px 8px; border-bottom: 1px solid #e2e8f0; }
+    .msg-ai .msg-bubble h2 { font-size: 1rem; font-weight: 700; color: var(--primary); margin: 0 0 8px 0; }
+    .msg-ai .msg-bubble strong { color: #0f172a; }
+
+    .msg-sql { background: #1e293b; color: #a5d6ff; padding: 8px 12px; border-radius: 6px; font-family: 'Consolas', monospace; font-size: 0.78rem; margin: 6px 0; cursor: pointer; position: relative; white-space: pre-wrap; word-break: break-all; }
+    .msg-sql:hover { background: #273549; }
+    .msg-sql::after { content: 'Click to copy'; position: absolute; top: 4px; right: 8px; font-size: 0.65rem; color: #64748b; }
+
+    .result-wrap { max-height: 350px; overflow: auto; margin: 8px 0; border-radius: 8px; border: 1px solid #e2e8f0; }
+    .result-tbl { font-size: 0.78rem; width: 100%; border-collapse: collapse; }
+    .result-tbl th { background: #1e293b; color: #fff; padding: 6px 8px; white-space: nowrap; position: sticky; top: 0; z-index: 1; }
+    .result-tbl td { padding: 5px 8px; border-bottom: 1px solid #f1f5f9; white-space: nowrap; max-width: 250px; overflow: hidden; text-overflow: ellipsis; }
+    .result-tbl tbody tr:hover { background: #f8fafc; }
+
+    .suggestions { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 0; }
+    .suggestion-chip { background: #fff; border: 1px solid #e2e8f0; border-radius: 20px; padding: 5px 12px; font-size: 0.78rem; cursor: pointer; color: #475569; transition: all 0.15s; }
+    .suggestion-chip:hover { border-color: var(--primary); color: var(--primary); background: var(--primary-light); }
+
+    .typing-indicator { display: flex; gap: 4px; padding: 8px 0; }
+    .typing-indicator span { width: 8px; height: 8px; border-radius: 50%; background: #94a3b8; animation: typing 1.2s infinite; }
+    .typing-indicator span:nth-child(2) { animation-delay: 0.2s; }
+    .typing-indicator span:nth-child(3) { animation-delay: 0.4s; }
+    @@keyframes typing { 0%,60%,100% { opacity: 0.3; transform: translateY(0); } 30% { opacity: 1; transform: translateY(-4px); } }
+
+    .welcome-card { text-align: center; padding: 40px 20px; }
+    .welcome-card h4 { color: #1e293b; margin-bottom: 8px; }
+    .welcome-card p { color: #64748b; margin-bottom: 20px; }
+</style>
+
+<div class="d-flex justify-content-between align-items-start mb-3">
+    <div>
+        <h3 class="mb-1"><i class="bi bi-terminal me-2"></i>Admin Console</h3>
+        <small class="text-muted">Ask anything about the application, database, formulas — or run SQL directly</small>
+    </div>
+    <div class="d-flex gap-2">
+        <button class="btn btn-outline-secondary btn-sm" onclick="clearChat()"><i class="bi bi-trash me-1"></i>Clear</button>
+        <button class="btn btn-outline-primary btn-sm" onclick="toggleSql()" id="btnSqlMode"><i class="bi bi-code-slash me-1"></i>SQL Mode</button>
+    </div>
+</div>
+
+<div class="chat-container" id="chatContainer">
+    <div class="chat-messages" id="chatMessages">
+        <!-- Welcome -->
+        <div class="welcome-card" id="welcomeCard">
+            <div style="font-size:2.5rem; margin-bottom:12px;"><i class="bi bi-terminal" style="color:var(--primary);"></i></div>
+            <h4>Welcome to Admin Console</h4>
+            <p>Ask me anything about the Transfer In Plan system — formulas, data, architecture, or run SQL queries.</p>
+            <div class="suggestions" style="justify-content:center;">
+                <span class="suggestion-chip" onclick="askQ('What is the TRF_IN formula?')">TRF_IN formula</span>
+                <span class="suggestion-chip" onclick="askQ('Show plan status')">Plan status</span>
+                <span class="suggestion-chip" onclick="askQ('Which stores have short stock?')">Short stores</span>
+                <span class="suggestion-chip" onclick="askQ('Show purchase summary by RDC')">PP by RDC</span>
+                <span class="suggestion-chip" onclick="askQ('How is POS_PO_RAISED calculated?')">POS_PO formula</span>
+                <span class="suggestion-chip" onclick="askQ('What is the shrinkage formula?')">Shrinkage</span>
+                <span class="suggestion-chip" onclick="askQ('Show table health')">Table health</span>
+                <span class="suggestion-chip" onclick="askQ('How does week chaining work?')">Week chaining</span>
+                <span class="suggestion-chip" onclick="askQ('Show database size')">DB size</span>
+                <span class="suggestion-chip" onclick="askQ('What is the application workflow?')">Workflow</span>
+                <span class="suggestion-chip" onclick="askQ('Show sub-level status')">Sub-level status</span>
+                <span class="suggestion-chip" onclick="askQ('List all stored procedures')">SP list</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="chat-input-bar">
+        <textarea id="chatInput" class="chat-input" placeholder="Ask a question or type SQL..." rows="1"
+                  onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendMessage();}"></textarea>
+        <button class="chat-send" onclick="sendMessage()" id="btnSend">
+            <i class="bi bi-send-fill"></i> Ask
+        </button>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+const chatMessages = document.getElementById('chatMessages');
+const chatInput = document.getElementById('chatInput');
+let sqlMode = false;
+
+// Auto-resize textarea
+chatInput.addEventListener('input', function() {
+    this.style.height = 'auto';
+    this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+});
+
+function toggleSql() {
+    sqlMode = !sqlMode;
+    const btn = document.getElementById('btnSqlMode');
+    btn.classList.toggle('btn-primary', sqlMode);
+    btn.classList.toggle('btn-outline-primary', !sqlMode);
+    chatInput.placeholder = sqlMode ? 'Type SQL query directly...' : 'Ask a question or type SQL...';
+    chatInput.style.fontFamily = sqlMode ? "'Consolas', monospace" : "'Inter', sans-serif";
+}
+
+async function sendMessage() {
+    const text = chatInput.value.trim();
+    if (!text) return;
+
+    // Hide welcome
+    const welcome = document.getElementById('welcomeCard');
+    if (welcome) welcome.remove();
+
+    // Add user message
+    addMessage(text, 'user');
+    chatInput.value = ''; chatInput.style.height = 'auto';
+
+    // Show typing
+    const typingId = showTyping();
+
+    try {
+        let res, data;
+        if (sqlMode) {
+            // Direct SQL mode
+            res = await fetch('@Url.Action("ExecuteQuery")', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ sql: text, maxRows: 500 })
+            });
+            data = await res.json();
+            removeTyping(typingId);
+            if (!data.success) { addError(data.error); return; }
+            if (data.type === 'select') {
+                addAIMessage(`Query returned **${data.rowCount} row(s)**:`, text, data.columns, data.rows);
+            } else {
+                addAIMessage(data.message, text, null, null);
+            }
+        } else {
+            // AI prompt mode
+            res = await fetch('@Url.Action("AskAI")', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ prompt: text })
+            });
+            data = await res.json();
+            removeTyping(typingId);
+            if (!data.success) { addError(data.error); return; }
+            if (data.type === 'knowledge') {
+                addAIMessage(data.answer, data.sql, null, null);
+            } else if (data.type === 'data') {
+                addAIMessage(data.answer, data.sql, data.columns, data.rows);
+            }
+        }
+    } catch (err) {
+        removeTyping(typingId);
+        addError('Network error: ' + err.message);
+    }
+}
+
+function askQ(q) { chatInput.value = q; sendMessage(); }
+
+function addMessage(text, type) {
+    const div = document.createElement('div');
+    div.className = `msg msg-${type}`;
+    const icon = type === 'user' ? 'bi-person-fill' : 'bi-terminal';
+    div.innerHTML = `
+        ${type === 'ai' ? `<div class="msg-avatar"><i class="bi ${icon}"></i></div>` : ''}
+        <div class="msg-bubble">${type === 'user' ? escHtml(text) : text}</div>
+        ${type === 'user' ? `<div class="msg-avatar"><i class="bi ${icon}"></i></div>` : ''}
+    `;
+    chatMessages.appendChild(div);
+    scrollBottom();
+}
+
+function addAIMessage(answer, sql, columns, rows) {
+    const div = document.createElement('div');
+    div.className = 'msg msg-ai';
+    let html = '<div class="msg-avatar"><i class="bi bi-terminal"></i></div><div class="msg-bubble">';
+
+    // Parse markdown-like answer
+    html += renderMarkdown(answer || '');
+
+    // Show SQL if present
+    if (sql) {
+        html += `<div class="msg-sql" onclick="copySql(this)" title="Click to copy">${escHtml(sql)}</div>`;
+    }
+
+    // Show data table
+    if (columns && rows && rows.length > 0) {
+        html += `<div class="result-wrap"><table class="result-tbl"><thead><tr>`;
+        html += `<th>#</th>`;
+        columns.forEach(c => html += `<th>${escHtml(c)}</th>`);
+        html += `</tr></thead><tbody>`;
+        rows.forEach((r, i) => {
+            html += `<tr><td style="color:#94a3b8">${i+1}</td>`;
+            columns.forEach(c => {
+                const v = r[c];
+                if (v === null) html += `<td style="color:#94a3b8">NULL</td>`;
+                else if (typeof v === 'number') html += `<td style="text-align:right;font-weight:500">${Number(v).toLocaleString()}</td>`;
+                else html += `<td>${escHtml(String(v))}</td>`;
+            });
+            html += '</tr>';
+        });
+        html += '</tbody></table></div>';
+        html += `<div style="font-size:0.72rem;color:#94a3b8;margin-top:4px;">${rows.length} row(s) returned</div>`;
+    }
+
+    html += '</div>';
+    div.innerHTML = html;
+    chatMessages.appendChild(div);
+    scrollBottom();
+}
+
+function addError(msg) {
+    const div = document.createElement('div');
+    div.className = 'msg msg-ai';
+    div.innerHTML = `<div class="msg-avatar" style="background:#dc2626"><i class="bi bi-exclamation-triangle"></i></div>
+        <div class="msg-bubble" style="border-color:#fecaca;background:#fef2f2;color:#991b1b;">
+            <strong>Error:</strong> ${escHtml(msg)}
+        </div>`;
+    chatMessages.appendChild(div);
+    scrollBottom();
+}
+
+function showTyping() {
+    const id = 'typing_' + Date.now();
+    const div = document.createElement('div');
+    div.className = 'msg msg-ai'; div.id = id;
+    div.innerHTML = `<div class="msg-avatar"><i class="bi bi-terminal"></i></div>
+        <div class="msg-bubble"><div class="typing-indicator"><span></span><span></span><span></span></div></div>`;
+    chatMessages.appendChild(div);
+    scrollBottom();
+    return id;
+}
+
+function removeTyping(id) { document.getElementById(id)?.remove(); }
+function scrollBottom() { chatMessages.scrollTop = chatMessages.scrollHeight; }
+function clearChat() { chatMessages.innerHTML = ''; }
+
+function copySql(el) {
+    navigator.clipboard.writeText(el.textContent.trim());
+    const orig = el.style.background; el.style.background = '#064e3b';
+    setTimeout(() => el.style.background = orig, 300);
+}
+
+// Simple markdown renderer
+function renderMarkdown(text) {
+    return text
+        .replace(/^## (.+)$/gm, '<h2>$1</h2>')
+        .replace(/^### (.+)$/gm, '<h6 style="font-weight:700;margin:6px 0 4px;">$1</h6>')
+        .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+        .replace(/`([^`]+)`/g, '<code>$1</code>')
+        .replace(/```\n([\s\S]*?)```/g, '<pre><code>$1</code></pre>')
+        .replace(/^\| (.+)$/gm, (match) => {
+            const cells = match.split('|').filter(c => c.trim());
+            if (cells.every(c => /^[\s-]+$/.test(c))) return ''; // separator row
+            const isHeader = !renderMarkdown._tableStarted;
+            renderMarkdown._tableStarted = true;
+            const tag = isHeader ? 'th' : 'td';
+            return '<tr>' + cells.map(c => `<${tag}>${c.trim()}</${tag}>`).join('') + '</tr>';
+        })
+        .replace(/((?:<tr>.*<\/tr>\n?)+)/g, (match) => {
+            renderMarkdown._tableStarted = false;
+            return '<table>' + match + '</table>';
+        })
+        .replace(/^- (.+)$/gm, '<div style="padding-left:12px;">- $1</div>')
+        .replace(/^\d+\. (.+)$/gm, '<div style="padding-left:12px;">$&</div>')
+        .replace(/\n/g, '<br>');
+}
+renderMarkdown._tableStarted = false;
+
+function escHtml(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+// Focus input
+chatInput.focus();
+</script>
+}

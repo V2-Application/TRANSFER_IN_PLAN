@@ -10,7 +10,8 @@
 </div>
 
 @{ ViewBag.Kpi2Label = "Stores"; ViewBag.Kpi2Value = ViewBag.TotalStores; ViewBag.Kpi2Color = "#27ae60";
-   ViewBag.Kpi3Label = "Categories"; ViewBag.Kpi3Value = ViewBag.TotalCats; ViewBag.Kpi3Color = "#8e44ad"; }
+   ViewBag.Kpi3Label = "Categories"; ViewBag.Kpi3Value = ViewBag.TotalCats; ViewBag.Kpi3Color = "#8e44ad";
+   ViewBag.Kpi4Label = "Sizes"; ViewBag.Kpi4Value = ViewBag.TotalLevels; ViewBag.Kpi4Color = "#e67e22"; }
 <partial name="_RefTableAnalytics" />
 
 @if (TempData["SuccessMessage"] != null) { <div class="alert alert-success alert-dismissible fade show py-2"><i class="bi bi-check-circle me-1"></i>@TempData["SuccessMessage"]<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div> }

@@ -19,6 +19,7 @@ public class ContMacroMvgrController : Controller
         if (!string.IsNullOrEmpty(dispMvgrMatrix)) query = query.Where(x => x.DispMvgrMatrix == dispMvgrMatrix);
 
         ViewBag.TotalCount = await query.CountAsync();
+        ViewBag.TotalRows = await _context.ContMacroMvgrs.CountAsync();
         ViewBag.Page = page; ViewBag.PageSize = pageSize;
         ViewBag.StCd = stCd; ViewBag.MajCatCd = majCatCd; ViewBag.DispMvgrMatrix = dispMvgrMatrix;
         ViewBag.StoreCodes = await _context.ContMacroMvgrs.Select(x => x.StCd).Distinct().OrderBy(x => x).ToListAsync();
@@ -26,6 +27,7 @@ public class ContMacroMvgrController : Controller
         ViewBag.MvgrValues = await _context.ContMacroMvgrs.Select(x => x.DispMvgrMatrix).Distinct().OrderBy(x => x).ToListAsync();
         ViewBag.TotalStores = await _context.ContMacroMvgrs.Select(x => x.StCd).Distinct().CountAsync();
         ViewBag.TotalCats = await _context.ContMacroMvgrs.Select(x => x.MajCatCd).Distinct().CountAsync();
+        ViewBag.TotalLevels = await _context.ContMacroMvgrs.Select(x => x.DispMvgrMatrix).Distinct().CountAsync();
 
         var data = await query.OrderBy(x => x.StCd).ThenBy(x => x.MajCatCd)
             .Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();

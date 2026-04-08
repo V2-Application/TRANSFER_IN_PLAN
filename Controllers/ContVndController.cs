@@ -19,6 +19,7 @@ public class ContVndController : Controller
         if (!string.IsNullOrEmpty(mVndCd)) query = query.Where(x => x.MVndCd == mVndCd);
 
         ViewBag.TotalCount = await query.CountAsync();
+        ViewBag.TotalRows = await _context.ContVnds.CountAsync();
         ViewBag.Page = page; ViewBag.PageSize = pageSize;
         ViewBag.StCd = stCd; ViewBag.MajCatCd = majCatCd; ViewBag.MVndCd = mVndCd;
         ViewBag.StoreCodes = await _context.ContVnds.Select(x => x.StCd).Distinct().OrderBy(x => x).ToListAsync();
@@ -26,6 +27,7 @@ public class ContVndController : Controller
         ViewBag.VndValues = await _context.ContVnds.Select(x => x.MVndCd).Distinct().OrderBy(x => x).ToListAsync();
         ViewBag.TotalStores = await _context.ContVnds.Select(x => x.StCd).Distinct().CountAsync();
         ViewBag.TotalCats = await _context.ContVnds.Select(x => x.MajCatCd).Distinct().CountAsync();
+        ViewBag.TotalLevels = await _context.ContVnds.Select(x => x.MVndCd).Distinct().CountAsync();
 
         var data = await query.OrderBy(x => x.StCd).ThenBy(x => x.MajCatCd)
             .Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();

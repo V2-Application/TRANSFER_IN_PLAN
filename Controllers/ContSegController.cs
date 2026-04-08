@@ -19,6 +19,7 @@ public class ContSegController : Controller
         if (!string.IsNullOrEmpty(seg)) query = query.Where(x => x.Seg == seg);
 
         ViewBag.TotalCount = await query.CountAsync();
+        ViewBag.TotalRows = await _context.ContSegs.CountAsync();
         ViewBag.Page = page; ViewBag.PageSize = pageSize;
         ViewBag.StCd = stCd; ViewBag.MajCatCd = majCatCd; ViewBag.Seg = seg;
         ViewBag.StoreCodes = await _context.ContSegs.Select(x => x.StCd).Distinct().OrderBy(x => x).ToListAsync();
@@ -26,6 +27,7 @@ public class ContSegController : Controller
         ViewBag.SegValues = await _context.ContSegs.Select(x => x.Seg).Distinct().OrderBy(x => x).ToListAsync();
         ViewBag.TotalStores = await _context.ContSegs.Select(x => x.StCd).Distinct().CountAsync();
         ViewBag.TotalCats = await _context.ContSegs.Select(x => x.MajCatCd).Distinct().CountAsync();
+        ViewBag.TotalLevels = await _context.ContSegs.Select(x => x.Seg).Distinct().CountAsync();
 
         var data = await query.OrderBy(x => x.StCd).ThenBy(x => x.MajCatCd)
             .Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();
