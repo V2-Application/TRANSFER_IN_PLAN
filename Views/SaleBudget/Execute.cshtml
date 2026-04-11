@@ -1,0 +1,274 @@
+@{ ViewData["Title"] = "Sale Budget Plan"; }
+
+<div class="mb-4">
+    <h3 class="mb-1"><i class="bi bi-coin me-2" style="color:#8B5CF6;"></i>Sale Budget Plan</h3>
+    <small class="text-muted">Generate monthly sale budgets per Store x Major Category from Snowflake data</small>
+</div>
+
+<div class="row g-3">
+    <!-- LEFT: Config & Execute -->
+    <div class="col-lg-7">
+
+        <!-- Fetch Snowflake Data -->
+        <div class="card shadow-sm border-0 mb-3" style="border-left:4px solid #8B5CF6 !important;">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h6 class="mb-0"><i class="bi bi-cloud-download me-2" style="color:#8B5CF6;"></i>Step 1: Fetch Snowflake Data</h6>
+                <button class="btn btn-sm text-white" style="background:#8B5CF6;" id="btnFetch" onclick="fetchSnowflake()">
+                    <i class="bi bi-cloud-arrow-down me-1"></i>Fetch Latest Data
+                </button>
+            </div>
+            <div class="card-body p-0">
+                <div id="fetchStatus" class="alert alert-info py-2 mx-3 mt-2 mb-2 small d-none"></div>
+                <table class="table table-sm table-bordered mb-0 small">
+                    <thead class="table-dark"><tr><th>Staging Table</th><th>Rows</th><th>Last Fetched</th><th>Status</th><th class="text-center">Download</th></tr></thead>
+                    <tbody id="stagingBody">
+                        @if (ViewBag.StagingStatus != null)
+                        {
+                            foreach (var s in (List<TRANSFER_IN_PLAN.Models.StagingStatusItem>)ViewBag.StagingStatus)
+                            {
+                                <tr>
+                                    <td>@s.DisplayName</td>
+                                    <td class="text-end">@s.RowCount.ToString("N0")</td>
+                                    <td>@(s.LastFetched?.ToString("dd-MMM HH:mm") ?? "—")</td>
+                                    <td>@(s.IsReady ? Html.Raw("<span class='badge bg-success'>Ready</span>") : Html.Raw("<span class='badge bg-danger'>Empty</span>"))</td>
+                                    <td class="text-center">
+                                        @if (s.IsReady)
+                                        {
+                                            <a href="@Url.Action("DownloadStaging", "SaleBudget", new { tableName = s.TableName })" class="btn btn-outline-success btn-sm py-0 px-2" title="Download CSV"><i class="bi bi-download"></i></a>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted">—</span>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Configure & Run Budget -->
+        <div class="card shadow-sm border-0 mb-3" style="border-left:4px solid #059669 !important;">
+            <div class="card-header"><h6 class="mb-0"><i class="bi bi-calculator me-2 text-success"></i>Step 2: Generate Sale Budget</h6></div>
+            <div class="card-body small">
+                <div class="row g-2 mb-3">
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">Target Months</label>
+                        @{
+                            var today = DateTime.Now;
+                            var months = Enumerable.Range(0, 9).Select(i => today.AddMonths(i))
+                                .Select(d => new { Value = d.ToString("yyyy-MM"), Label = d.ToString("MMM yyyy") });
+                        }
+                        @foreach (var m in months)
+                        {
+                            <div class="form-check">
+                                <input type="checkbox" class="form-check-input chkMonth" name="targetMonths" value="@m.Value" id="m_@m.Value"
+                                    @(m.Value == today.ToString("yyyy-MM") ? "checked" : "") />
+                                <label class="form-check-label" for="m_@m.Value">@m.Label</label>
+                            </div>
+                        }
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">Algorithm</label>
+                        <div class="form-check mb-2">
+                            <input type="radio" class="form-check-input" name="algoMethod" value="HYBRID" id="algoHybrid" checked />
+                            <label class="form-check-label" for="algoHybrid"><strong>Hybrid</strong> <small class="text-muted">(60% ML + 40% LYSP where available)</small></label>
+                        </div>
+                        <div class="form-check mb-2">
+                            <input type="radio" class="form-check-input" name="algoMethod" value="ML_FORECAST" id="algoML" />
+                            <label class="form-check-label" for="algoML"><strong>ML Forecast</strong> <small class="text-muted">(ensemble from Snowflake)</small></label>
+                        </div>
+                        <div class="form-check mb-3">
+                            <input type="radio" class="form-check-input" name="algoMethod" value="LYSP_GROWTH" id="algoLysp" />
+                            <label class="form-check-label" for="algoLysp"><strong>LYSP Growth</strong> <small class="text-muted">(V-0063 logic)</small></label>
+                        </div>
+                        <label class="form-label fw-bold">Growth Rate Override <small class="text-muted fw-normal">(optional)</small></label>
+                        <div class="input-group input-group-sm">
+                            <input type="number" class="form-control" id="growthOverride" step="0.01" placeholder="e.g. 0.10 = 10%">
+                            <span class="input-group-text">%</span>
+                        </div>
+                    </div>
+                </div>
+                <button class="btn btn-success w-100" id="btnRun" onclick="startBudgetRun()">
+                    <i class="bi bi-play-fill me-1"></i>Generate Sale Budget Plan
+                </button>
+            </div>
+        </div>
+
+        <!-- Progress -->
+        <div class="card shadow-sm border-0 mb-3 d-none" id="progressCard">
+            <div class="card-header"><h6 class="mb-0"><i class="bi bi-hourglass-split me-2"></i>Progress</h6></div>
+            <div class="card-body small">
+                <div class="d-flex justify-content-between mb-2">
+                    <span id="progressPhase" class="fw-bold"></span>
+                    <span id="progressElapsed" class="text-muted"></span>
+                </div>
+                <div class="progress mb-2" style="height:6px;">
+                    <div class="progress-bar" id="progressBar" style="width:0%;background:#8B5CF6;"></div>
+                </div>
+                <div id="progressStatus" class="text-muted"></div>
+                <div id="progressError" class="alert alert-danger py-2 mt-2 d-none"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- RIGHT: Status & Info -->
+    <div class="col-lg-5">
+
+        <!-- Current Budget Status -->
+        <div class="card shadow-sm border-0 mb-3">
+            <div class="card-header"><h6 class="mb-0"><i class="bi bi-bar-chart me-2"></i>Budget Output Status</h6></div>
+            <div class="card-body small">
+                <div class="d-flex justify-content-between mb-2">
+                    <span>Total Budget Rows</span>
+                    <strong>@(((int)ViewBag.BudgetRows).ToString("N0"))</strong>
+                </div>
+                <div class="d-flex justify-content-between mb-2">
+                    <span>Latest Run</span>
+                    <strong>@(ViewBag.LatestRun ?? "None")</strong>
+                </div>
+                <div class="d-flex gap-2">
+                    <a href="@Url.Action("Output")" class="btn btn-outline-primary btn-sm flex-fill">
+                        <i class="bi bi-table me-1"></i>View Output
+                    </a>
+                    <form method="post" asp-action="ResetBudget" onsubmit="return confirm('Reset ALL budget data? This cannot be undone.');">
+                        <button class="btn btn-outline-danger btn-sm"><i class="bi bi-trash me-1"></i>Reset</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Algorithm Info -->
+        <div class="card shadow-sm border-0 mb-3">
+            <div class="card-header"><h6 class="mb-0"><i class="bi bi-info-circle me-2"></i>Algorithm Info</h6></div>
+            <div class="card-body small">
+                <div class="mb-2">
+                    <strong style="color:#8B5CF6;">Hybrid (Default)</strong>
+                    <p class="text-muted mb-1">60% ML ensemble forecast + 40% LYSP-based. Falls back to ML-only or LYSP-only where one is unavailable. Uses contribution % for new stores.</p>
+                </div>
+                <div class="mb-2">
+                    <strong class="text-primary">ML Forecast</strong>
+                    <p class="text-muted mb-1">Uses pre-computed ensemble (WMA, Exp Smooth, Seasonal, Regression) from Snowflake FACT_DEMAND_FORECAST. Per-store forecast with confidence intervals.</p>
+                </div>
+                <div>
+                    <strong class="text-success">LYSP Growth</strong>
+                    <p class="text-muted mb-0">Classic V-0063 logic: <code>LYSP x (1+Growth) x FillAdj x (1+Festival)</code>. Growth from actual YoY trend. Fill rate dampened at 50%.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Data Flow -->
+        <div class="card shadow-sm border-0">
+            <div class="card-header"><h6 class="mb-0"><i class="bi bi-diagram-3 me-2"></i>Data Flow</h6></div>
+            <div class="card-body small">
+                <div class="text-center">
+                    <span class="badge text-white mb-1" style="background:#8B5CF6;">Snowflake GOLD</span><br>
+                    <i class="bi bi-arrow-down" style="color:#8B5CF6;"></i><br>
+                    <span class="badge bg-secondary mb-1">SQL Server Staging (5 tables)</span><br>
+                    <i class="bi bi-arrow-down text-success"></i><br>
+                    <span class="badge bg-success mb-1">Budget Algorithm</span><br>
+                    <i class="bi bi-arrow-down text-primary"></i><br>
+                    <span class="badge bg-primary">SALE_BUDGET_PLAN</span>
+                </div>
+                <hr>
+                <small class="text-muted">Output feeds into: Weekly Disaggregation → Transfer In Plan → Purchase Plan → Sub-Level → ARS Allocation</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+    function fetchSnowflake() {
+        var btn = document.getElementById('btnFetch');
+        var status = document.getElementById('fetchStatus');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Fetching...';
+        status.classList.remove('d-none', 'alert-success', 'alert-danger');
+        status.classList.add('alert-info');
+        status.textContent = 'Connecting to Snowflake...';
+
+        fetch('@Url.Action("FetchSnowflakeData")', { method: 'POST' })
+            .then(r => r.json())
+            .then(d => {
+                status.textContent = d.message;
+                status.classList.remove('alert-info');
+                status.classList.add(d.success ? 'alert-success' : 'alert-danger');
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-cloud-arrow-down me-1"></i>Fetch Latest Data';
+                if (d.success) refreshStaging();
+            })
+            .catch(e => {
+                status.textContent = 'Error: ' + e;
+                status.classList.remove('alert-info');
+                status.classList.add('alert-danger');
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-cloud-arrow-down me-1"></i>Fetch Latest Data';
+            });
+    }
+
+    function refreshStaging() {
+        fetch('@Url.Action("StagingStatus")').then(r => r.json()).then(data => {
+            var body = document.getElementById('stagingBody');
+            body.innerHTML = '';
+            data.forEach(s => {
+                body.innerHTML += `<tr>
+                    <td>${s.displayName}</td>
+                    <td class="text-end">${s.rowCount.toLocaleString()}</td>
+                    <td>${s.lastFetched ? new Date(s.lastFetched).toLocaleString() : '—'}</td>
+                    <td>${s.isReady ? '<span class="badge bg-success">Ready</span>' : '<span class="badge bg-danger">Empty</span>'}</td>
+                </tr>`;
+            });
+        });
+    }
+
+    function startBudgetRun() {
+        var months = [...document.querySelectorAll('.chkMonth:checked')].map(c => c.value);
+        if (months.length === 0) { alert('Select at least one target month.'); return; }
+        var algo = document.querySelector('input[name=algoMethod]:checked').value;
+        var gr = document.getElementById('growthOverride').value || null;
+
+        document.getElementById('btnRun').disabled = true;
+        document.getElementById('progressCard').classList.remove('d-none');
+
+        var fd = new FormData();
+        months.forEach(m => fd.append('targetMonths', m));
+        fd.append('algoMethod', algo);
+        if (gr) fd.append('growthOverride', gr);
+
+        fetch('@Url.Action("StartBudgetRun")', { method: 'POST', body: fd })
+            .then(r => r.json())
+            .then(d => {
+                if (d.success) pollProgress();
+                else { alert(d.message); document.getElementById('btnRun').disabled = false; }
+            });
+    }
+
+    var pollTimer;
+    function pollProgress() {
+        pollTimer = setInterval(() => {
+            fetch('@Url.Action("JobStatus")').then(r => r.json()).then(d => {
+                document.getElementById('progressPhase').textContent = d.phase;
+                document.getElementById('progressStatus').textContent = d.status;
+                document.getElementById('progressElapsed').textContent = d.elapsedSeconds + 's';
+
+                var pct = d.phase === 'Fetching' ? 25 : d.phase === 'Calculating' ? 60 : d.phase === 'Storing' ? 90 : d.phase === 'Done' ? 100 : 10;
+                document.getElementById('progressBar').style.width = pct + '%';
+
+                if (d.error) {
+                    document.getElementById('progressError').textContent = d.error;
+                    document.getElementById('progressError').classList.remove('d-none');
+                }
+
+                if (!d.isRunning) {
+                    clearInterval(pollTimer);
+                    document.getElementById('btnRun').disabled = false;
+                    if (d.phase === 'Done') setTimeout(() => location.reload(), 1500);
+                }
+            });
+        }, 3000);
+    }
+</script>
+}

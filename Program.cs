@@ -36,10 +36,24 @@ builder.Services.AddDbContext<PlanningDbContext>(options =>
     );
 });
 
+builder.Services.AddDbContext<DataV2DbContext>(options =>
+{
+    options.UseSqlServer(
+        builder.Configuration.GetConnectionString("DataV2Database"),
+        sqlOptions => sqlOptions.CommandTimeout(300)
+    );
+});
+
 builder.Services.AddMemoryCache();
 builder.Services.AddScoped<PlanService>();
 builder.Services.AddSingleton<PlanJobService>();
 builder.Services.AddSingleton<SubLevelJobService>();
+builder.Services.AddScoped<SnowflakeService>();
+builder.Services.AddSingleton<SaleBudgetJobService>();
+builder.Services.AddSingleton<FixtureDensityJobService>();
+builder.Services.AddSingleton<ArsAllocationJobService>();
+builder.Services.AddSingleton<WeeklyDisaggService>();
+builder.Services.AddHttpClient();
 
 // Add session for TempData support
 builder.Services.AddSession(options =>

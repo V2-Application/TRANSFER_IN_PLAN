@@ -34,6 +34,10 @@ public class PlanningDbContext : DbContext
     public DbSet<SubDcStkSz> SubDcStkSzs { get; set; }
     public DbSet<SubDcStkSeg> SubDcStkSegs { get; set; }
     public DbSet<SubDcStkVnd> SubDcStkVnds { get; set; }
+    public DbSet<SaleBudgetPlan> SaleBudgetPlans { get; set; }
+    public DbSet<SaleBudgetConfig> SaleBudgetConfigs { get; set; }
+    public DbSet<FixtureDensityPlan> FixtureDensityPlans { get; set; }
+    public DbSet<WeeklyDisaggLog> WeeklyDisaggLogs { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

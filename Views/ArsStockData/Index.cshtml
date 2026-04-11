@@ -1,0 +1,88 @@
+@{ ViewData["Title"] = "Store Stock (ET_STOCK_DATA)";
+   var rows = ViewBag.Rows as List<Dictionary<string, object?>> ?? new();
+   var cols = new[] { "MATNR", "WERKS", "LGORT", "CHARG", "MEINS", "LABST", "TRAME", "LABST_DMBTR", "TRAME_DMBTR", "V_MENGE", "V_DMBTR", "stock_Date" };
+   var sortable = new HashSet<string> { "WERKS", "MATNR", "LGORT", "LABST", "TRAME", "stock_Date" };
+   string sc = ViewBag.SortCol; string sd = ViewBag.SortDir;
+   string NextDir(string c) => c == sc && sd == "ASC" ? "DESC" : "ASC";
+   string Arrow(string c) => c == sc ? (sd == "ASC" ? " ▲" : " ▼") : ""; }
+
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+    <div>
+        <h3 class="mb-0"><i class="bi bi-boxes me-2 text-primary"></i>Store Stock Data</h3>
+        <small class="text-muted">ET_STOCK_DATA — SAP store stock (read-only) @(ViewBag.StockDate != null ? $"| Last: {ViewBag.StockDate}" : "")</small>
+    </div>
+    <a asp-action="ExportCsv" asp-route-werks="@ViewBag.Werks" asp-route-matnr="@ViewBag.Matnr" asp-route-lgort="@ViewBag.Lgort" class="btn btn-success btn-sm"><i class="bi bi-download me-1"></i>CSV</a>
+</div>
+
+<!-- KPIs -->
+<div class="row g-2 mb-3">
+    <div class="col-6 col-sm-4 col-lg-2"><div class="card border-0 shadow-sm text-center py-2" style="border-top:3px solid #2980b9 !important;"><div class="fw-bold fs-5" style="color:#2980b9;">@(((int)(ViewBag.TotalCount ?? 0)).ToString("N0"))</div><div class="text-muted" style="font-size:0.65rem;text-transform:uppercase;font-weight:700;">Total Rows</div></div></div>
+    <div class="col-6 col-sm-4 col-lg-2"><div class="card border-0 shadow-sm text-center py-2" style="border-top:3px solid #27ae60 !important;"><div class="fw-bold fs-5" style="color:#27ae60;">@ViewBag.TotalStores</div><div class="text-muted" style="font-size:0.65rem;text-transform:uppercase;font-weight:700;">Stores</div></div></div>
+    <div class="col-6 col-sm-4 col-lg-2"><div class="card border-0 shadow-sm text-center py-2" style="border-top:3px solid #8e44ad !important;"><div class="fw-bold fs-5" style="color:#8e44ad;">@ViewBag.TotalArticles</div><div class="text-muted" style="font-size:0.65rem;text-transform:uppercase;font-weight:700;">Articles</div></div></div>
+    <div class="col-6 col-sm-4 col-lg-2"><div class="card border-0 shadow-sm text-center py-2" style="border-top:3px solid #e67e22 !important;"><div class="fw-bold fs-5" style="color:#e67e22;">@ViewBag.TotalLocations</div><div class="text-muted" style="font-size:0.65rem;text-transform:uppercase;font-weight:700;">Locations</div></div></div>
+    <div class="col-6 col-sm-4 col-lg-2"><div class="card border-0 shadow-sm text-center py-2" style="border-top:3px solid #1B5E20 !important;"><div class="fw-bold fs-5" style="color:#1B5E20;">@(((decimal)(ViewBag.TotalLabst ?? 0m)).ToString("N0"))</div><div class="text-muted" style="font-size:0.65rem;text-transform:uppercase;font-weight:700;">Total LABST</div></div></div>
+    <div class="col-6 col-sm-4 col-lg-2"><div class="card border-0 shadow-sm text-center py-2" style="border-top:3px solid #c0392b !important;"><div class="fw-bold fs-5" style="color:#c0392b;">@(((decimal)(ViewBag.TotalTrame ?? 0m)).ToString("N0"))</div><div class="text-muted" style="font-size:0.65rem;text-transform:uppercase;font-weight:700;">Total TRAME</div></div></div>
+</div>
+
+<!-- Filters -->
+<div class="card shadow-sm border-0 mb-2"><div class="card-body py-2">
+    <form method="get" class="row g-2 align-items-end">
+        <div class="col-md-2"><label class="form-label small fw-semibold mb-0">Store (WERKS)</label>
+            <select name="werks" class="form-select form-select-sm"><option value="">-- All --</option>
+                @foreach (var s in (ViewBag.StoreList as List<string> ?? new())) { <option value="@s" selected="@(s == ViewBag.Werks?.ToString())">@s</option> }
+            </select></div>
+        <div class="col-md-3"><label class="form-label small fw-semibold mb-0">Article (MATNR)</label>
+            <input name="matnr" class="form-control form-control-sm" value="@ViewBag.Matnr" placeholder="e.g. 1130140482" /></div>
+        <div class="col-md-2"><label class="form-label small fw-semibold mb-0">Location (LGORT)</label>
+            <select name="lgort" class="form-select form-select-sm"><option value="">-- All --</option>
+                @foreach (var l in (ViewBag.LgortList as List<string> ?? new())) { <option value="@l" selected="@(l == ViewBag.Lgort?.ToString())">@l</option> }
+            </select></div>
+        <div class="col-md-2"><label class="form-label small fw-semibold mb-0">Page Size</label>
+            <select name="pageSize" class="form-select form-select-sm">
+                @foreach (var ps in new[] { 50, 100, 250, 500 }) { <option value="@ps" selected="@(ViewBag.PageSize?.ToString() == ps.ToString())">@ps</option> }
+            </select></div>
+        <div class="col-md-3 d-flex gap-2">
+            <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-search me-1"></i>Filter</button>
+            <a href="@Url.Action("Index")" class="btn btn-outline-secondary btn-sm"><i class="bi bi-x-circle me-1"></i>Clear</a>
+        </div>
+    </form>
+</div></div>
+
+@{ var total = (int)(ViewBag.TotalCount ?? 0); var pg = (int)(ViewBag.Page ?? 1); var ps2 = (int)(ViewBag.PageSize ?? 100); }
+<div class="alert alert-info py-1 small mb-2"><i class="bi bi-info-circle me-1"></i>Showing <strong>@rows.Count</strong> of <strong>@total.ToString("N0")</strong> (Page @pg)</div>
+
+<div class="card shadow-sm border-0"><div class="card-body p-0"><div class="table-responsive">
+    <table class="table table-hover table-bordered table-sm mb-0 small">
+        <thead class="table-dark"><tr>
+            @foreach (var c in cols)
+            {
+                if (sortable.Contains(c))
+                { <th><a href="@Url.Action("Index", new { werks = ViewBag.Werks, matnr = ViewBag.Matnr, lgort = ViewBag.Lgort, sortCol = c, sortDir = NextDir(c), page = 1, pageSize = ps2 })" class="text-white text-decoration-none">@c@Arrow(c)</a></th> }
+                else { <th>@c</th> }
+            }
+        </tr></thead>
+        <tbody>
+            @foreach (var row in rows)
+            {
+                <tr>
+                    @foreach (var c in cols)
+                    {
+                        var v = row.GetValueOrDefault(c);
+                        if (c == "WERKS") { <td class="fw-semibold text-primary">@v</td> }
+                        else if (v is decimal d) { <td class="text-end">@d.ToString("N4")</td> }
+                        else if (v is DateTime dt) { <td>@dt.ToString("dd-MMM-yy")</td> }
+                        else { <td>@v</td> }
+                    }
+                </tr>
+            }
+            @if (!rows.Any()) { <tr><td colspan="@cols.Length" class="text-center text-muted py-3">No data.</td></tr> }
+        </tbody>
+    </table>
+</div></div></div>
+
+@{ var totalPages = total > 0 ? (int)Math.Ceiling((double)total / ps2) : 1; }
+@if (totalPages > 1) {
+<nav class="mt-2"><ul class="pagination pagination-sm justify-content-center flex-wrap">
+    @for (int p = Math.Max(1, pg - 4); p <= Math.Min(totalPages, pg + 4); p++)
+    { <li class="page-item @(p == pg ? "active" : "")"><a class="page-link" href="@Url.Action("Index", new { werks = ViewBag.Werks, matnr = ViewBag.Matnr, lgort = ViewBag.Lgort, sortCol = sc, sortDir = sd, page = p, pageSize = ps2 })">@p</a></li> }
+</ul></nav> }

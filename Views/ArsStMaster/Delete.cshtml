@@ -1,0 +1,18 @@
+@{ ViewData["Title"] = "Delete Store Master"; }
+@model TRANSFER_IN_PLAN.Models.ArsStMaster
+<h4 class="mb-3 text-danger"><i class="bi bi-trash me-2"></i>Delete Store Master Record</h4>
+<div class="card shadow-sm border-0" style="max-width:600px;"><div class="card-body">
+<p>Are you sure you want to delete this record?</p>
+<dl class="row small">
+    <dt class="col-4">Store Code</dt><dd class="col-8">@Model.StCd</dd>
+    <dt class="col-4">Store Name</dt><dd class="col-8">@Model.StNm</dd>
+    <dt class="col-4">Tagged RDC</dt><dd class="col-8">@Model.TaggedRdc</dd>
+    <dt class="col-4">Hub</dt><dd class="col-8">@Model.HubCd — @Model.HubNm</dd>
+    <dt class="col-4">TTL ALC Days</dt><dd class="col-8">@Model.TtlAlcDays</dd>
+</dl>
+<form asp-action="Delete" method="post">
+    <input type="hidden" asp-for="Id" />
+    <button type="submit" class="btn btn-danger"><i class="bi bi-trash me-1"></i>Delete</button>
+    <a asp-action="Index" class="btn btn-secondary ms-2">Cancel</a>
+</form>
+</div></div>

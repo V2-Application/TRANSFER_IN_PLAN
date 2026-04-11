@@ -1,0 +1,398 @@
+@{ ViewData["Title"] = "Planning Pipeline — Complete Reference"; }
+
+<style>
+    .plan-card { border-left: 4px solid var(--primary); }
+    .plan-card.p1 { border-left-color: #8B5CF6; }
+    .plan-card.p2 { border-left-color: #E67E22; }
+    .plan-card.p3 { border-left-color: #0284C7; }
+    .plan-card.p4 { border-left-color: #059669; }
+    .plan-card.p5 { border-left-color: #8E44AD; }
+    .plan-card.p6 { border-left-color: #D97706; }
+    .plan-card.p7 { border-left-color: #DC2626; }
+    .plan-card.p8 { border-left-color: #1E293B; }
+    .algo-block { background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 8px; padding: 16px; font-family: 'Consolas', monospace; font-size: 0.82rem; line-height: 1.7; color: #1a3a5c; }
+    .algo-block .kw { color: #8e44ad; font-weight: 600; }
+    .algo-block .fm { color: #c0392b; font-weight: 600; }
+    .algo-block .cm { color: #6c757d; font-style: italic; }
+    .nav-pills .nav-link { color: #1a3a5c; font-weight: 500; border-radius: 8px; }
+    .nav-pills .nav-link.active { background: #8B5CF6; color: #fff; }
+</style>
+
+<div class="mb-4 d-flex justify-content-between align-items-start">
+    <div>
+        <h3 class="mb-1"><i class="bi bi-book me-2" style="color:#8B5CF6;"></i>Planning Pipeline — Complete Reference</h3>
+        <small class="text-muted">8-Plan end-to-end supply chain planning system — from Sale Budget to Store Delivery</small>
+    </div>
+    <a href="@Url.Action("Index", "PlanDashboard")" class="btn btn-sm text-white" style="background:#8B5CF6;"><i class="bi bi-speedometer2 me-1"></i>Pipeline Dashboard</a>
+</div>
+
+<!-- Tabs -->
+<ul class="nav nav-pills mb-3 flex-wrap" id="infoTabs" role="tablist">
+    <li class="nav-item"><a class="nav-link active" data-bs-toggle="pill" href="#tabOverview"><i class="bi bi-diagram-3 me-1"></i>Overview</a></li>
+    <li class="nav-item"><a class="nav-link" data-bs-toggle="pill" href="#tabP1"><i class="bi bi-coin me-1"></i>Plan 1</a></li>
+    <li class="nav-item"><a class="nav-link" data-bs-toggle="pill" href="#tabP2"><i class="bi bi-grid-3x3-gap me-1"></i>Plan 2</a></li>
+    <li class="nav-item"><a class="nav-link" data-bs-toggle="pill" href="#tabP3"><i class="bi bi-calendar3 me-1"></i>Plan 3</a></li>
+    <li class="nav-item"><a class="nav-link" data-bs-toggle="pill" href="#tabP4P5"><i class="bi bi-arrow-left-right me-1"></i>Plans 4-5</a></li>
+    <li class="nav-item"><a class="nav-link" data-bs-toggle="pill" href="#tabP6P7"><i class="bi bi-layers me-1"></i>Plans 6-7</a></li>
+    <li class="nav-item"><a class="nav-link" data-bs-toggle="pill" href="#tabP8"><i class="bi bi-robot me-1"></i>Plan 8</a></li>
+    <li class="nav-item"><a class="nav-link" data-bs-toggle="pill" href="#tabData"><i class="bi bi-database me-1"></i>Data Sources</a></li>
+</ul>
+
+<div class="tab-content">
+
+<!-- ═══ TAB: OVERVIEW ═══ -->
+<div class="tab-pane fade show active" id="tabOverview">
+    <div class="card shadow-sm mb-3">
+        <div class="card-header"><h5 class="card-title mb-0"><i class="bi bi-signpost-split me-2"></i>Complete Plan Sequence (Top to Bottom)</h5></div>
+        <div class="card-body small">
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="algo-block">
+<span class="kw">PLAN 1: SALE BUDGET PLAN</span> <span class="cm">(replaces V-0063 Excel, 685 MB)</span><br>
+"How much will each store sell?" → <span class="fm">BGT_SALE_QTY, BGT_SALE_VAL</span><br>
+Source: Snowflake FACT_SALE_GENCOLOR + FACT_DEMAND_FORECAST<br>
+Grain: Store × MajCat × Month<br><br>
+
+<span class="kw">PLAN 2: FIXTURE & DENSITY PLAN</span> <span class="cm">(replaces V-0081 Excel)</span><br>
+"How much display stock should each store have?" → <span class="fm">BGT_DISP_QTY, ACC_DENSITY</span><br>
+Depends on: Plan 1 output<br>
+Grain: Store × MajCat × Month<br><br>
+
+<span class="kw">PLAN 3: WEEKLY DISAGGREGATION</span> <span class="cm">(replaces manual Excel split)</span><br>
+"Split monthly → 48 weekly buckets" → <span class="fm">QTY_SALE_QTY, QTY_DISP_QTY</span><br>
+Depends on: Plan 1 + Plan 2 output<br>
+Grain: Store × MajCat × 48 Weeks<br><br>
+
+<span class="kw">PLAN 4: TRANSFER IN PLAN (TRF)</span><br>
+"How much stock should each store receive?" → <span class="fm">TRF_IN_PLAN</span><br>
+Depends on: Plan 3 output (QTY_SALE_QTY, QTY_DISP_QTY)<br>
+Grain: Store × MajCat × Week
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="algo-block">
+<span class="kw">PLAN 5: PURCHASE PLAN (PP)</span><br>
+"How much should each DC purchase?" → <span class="fm">PURCHASE_PLAN</span><br>
+Depends on: Plan 4 output (TRF_IN_PLAN)<br>
+Grain: RDC × MajCat × Week<br><br>
+
+<span class="kw">PLAN 6: SUB-LEVEL TRANSFER IN PLAN</span><br>
+"Break TRF by MVGR/Size/Segment/Vendor" → <span class="fm">SUB_LEVEL_TRF_PLAN</span><br>
+Uses: CONT_PCT + level-specific stock<br>
+Grain: Store × MajCat × SubValue × Week<br><br>
+
+<span class="kw">PLAN 7: SUB-LEVEL PURCHASE PLAN</span><br>
+"Break PP by MVGR/Size/Segment/Vendor" → <span class="fm">SUB_LEVEL_PP_PLAN</span><br>
+Depends on: Plan 6 output<br>
+Grain: RDC × MajCat × SubValue × Week<br><br>
+
+<span class="kw">PLAN 8: ARTICLE ALLOCATION (ARS)</span> <span class="cm">(external Azure API)</span><br>
+"Which specific articles + sizes to send?" → <span class="fm">Delivery Orders → SAP</span><br>
+Reads: BGT_DISP_QTY from Supabase<br>
+5 engines: Budget Cascade → Scoring → Filling → Size → DO
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Data Flow Diagram -->
+    <div class="card shadow-sm mb-3">
+        <div class="card-header"><h5 class="card-title mb-0"><i class="bi bi-arrow-repeat me-2"></i>Data Flow</h5></div>
+        <div class="card-body small text-center">
+            <div class="row align-items-center">
+                <div class="col-md-2"><div class="card p-2" style="border:2px solid #0284C7;"><strong class="text-info">Snowflake GOLD</strong><br><small>12.5M sale rows<br>106K forecasts<br>168K contribution %</small></div></div>
+                <div class="col-md-1" style="font-size:1.5rem;color:#8B5CF6;">→</div>
+                <div class="col-md-2">
+                    <div class="card p-2 mb-1" style="border:2px solid #8B5CF6;"><strong style="color:#8B5CF6;">Plan 1</strong><br><small>Sale Budget</small></div>
+                    <div class="card p-2" style="border:2px solid #E67E22;"><strong style="color:#E67E22;">Plan 2</strong><br><small>Fixture</small></div>
+                </div>
+                <div class="col-md-1" style="font-size:1.5rem;color:#0284C7;">→</div>
+                <div class="col-md-1"><div class="card p-2" style="border:2px solid #0284C7;"><strong class="text-info">Plan 3</strong><br><small>Weekly</small></div></div>
+                <div class="col-md-1" style="font-size:1.5rem;color:#059669;">→</div>
+                <div class="col-md-2">
+                    <div class="card p-2 mb-1" style="border:2px solid #059669;background:#d4edda;"><strong class="text-success">Plan 4 TRF</strong></div>
+                    <div class="card p-2" style="border:2px solid #8E44AD;background:#f3e8ff;"><strong style="color:#8E44AD;">Plan 5 PP</strong></div>
+                </div>
+                <div class="col-md-1" style="font-size:1.5rem;">→</div>
+                <div class="col-md-1">
+                    <div class="card p-2 mb-1 bg-light"><small><strong>6-7</strong> Sub</small></div>
+                    <div class="card p-2 bg-dark text-white"><small><strong>8</strong> ARS</small></div>
+                </div>
+            </div>
+            <div class="alert alert-warning py-2 mt-3 mb-0 small"><i class="bi bi-exclamation-triangle me-1"></i><strong>Critical:</strong> Plans must execute in order. Each plan reads the previous plan's output. Skipping breaks the chain.</div>
+        </div>
+    </div>
+
+    <!-- Output Tables Summary -->
+    <div class="card shadow-sm">
+        <div class="card-header"><h5 class="card-title mb-0"><i class="bi bi-database me-2"></i>Output Tables</h5></div>
+        <div class="card-body p-0 small">
+            <table class="table table-sm table-bordered mb-0">
+                <thead class="table-dark"><tr><th>Plan</th><th>Output Table</th><th>Grain</th><th>Key Output Columns</th></tr></thead>
+                <tbody>
+                    <tr><td><span class="badge text-white" style="background:#8B5CF6;">1</span></td><td><code>SALE_BUDGET_PLAN</code></td><td>Store × MajCat × Month</td><td>BGT_SALE_QTY, BGT_SALE_VAL, LYSP, Growth%, ML Forecast</td></tr>
+                    <tr><td><span class="badge text-white" style="background:#E67E22;">2</span></td><td><code>FIXTURE_DENSITY_PLAN</code></td><td>Store × MajCat × Month</td><td>BGT_DISP_QTY, ACC_DENSITY, FIX_COUNT, GP_PSF</td></tr>
+                    <tr><td><span class="badge text-white" style="background:#0284C7;">3</span></td><td><code>QTY_SALE_QTY</code> + <code>QTY_DISP_QTY</code></td><td>Store × MajCat × 48 Weeks</td><td>WK-1..WK-48 (weekly quantities)</td></tr>
+                    <tr><td><span class="badge text-white" style="background:#059669;">4</span></td><td><code>TRF_IN_PLAN</code></td><td>Store × MajCat × Week</td><td>TRF_IN_STK_Q, OP_STK, CL_STK, Excess/Short</td></tr>
+                    <tr><td><span class="badge text-white" style="background:#8E44AD;">5</span></td><td><code>PURCHASE_PLAN</code></td><td>RDC × MajCat × Week</td><td>BGT_PUR_Q_INIT, DC_CL_STK, TRF_OUT, POS/NEG PO</td></tr>
+                    <tr><td><span class="badge text-white" style="background:#D97706;">6</span></td><td><code>SUB_LEVEL_TRF_PLAN</code></td><td>Store × MajCat × SubValue × Week</td><td>TRF_IN per MVGR/Size/Seg/Vendor</td></tr>
+                    <tr><td><span class="badge text-white" style="background:#DC2626;">7</span></td><td><code>SUB_LEVEL_PP_PLAN</code></td><td>RDC × MajCat × SubValue × Week</td><td>BGT_PUR_Q per MVGR/Size/Seg/Vendor</td></tr>
+                    <tr><td><span class="badge bg-dark">8</span></td><td>ARS API → SAP DOs</td><td>Store × Article × Size</td><td>Delivery Orders with specific articles + quantities</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- ═══ TAB: PLAN 1 ═══ -->
+<div class="tab-pane fade" id="tabP1">
+    <div class="card shadow-sm plan-card p1 mb-3">
+        <div class="card-header"><h5 class="card-title mb-0" style="color:#8B5CF6;"><i class="bi bi-coin me-2"></i>Plan 1: Sale Budget Plan</h5></div>
+        <div class="card-body small">
+            <p><strong>Purpose:</strong> "How much will each store sell per major category per month?"<br>
+            <strong>Replaces:</strong> V-0063 Excel (685 MB, 1006 columns, operated manually by Mehfuj)<br>
+            <strong>Data Source:</strong> Snowflake V2RETAIL.GOLD → SQL Server staging → Algorithm → SALE_BUDGET_PLAN</p>
+
+            <h6 class="fw-bold mt-3">Algorithm (3 methods)</h6>
+            <div class="algo-block">
+<span class="kw">METHOD 1 — LYSP Growth</span> (V-0063 logic):<br>
+&nbsp;&nbsp;<span class="fm">BGT_SALE_QTY</span> = LYSP_QTY × (1 + growth_rate) × fill_rate_adj × (1 + festival_adj)<br>
+&nbsp;&nbsp;Growth: YoY from Snowflake actuals (store×cat, category, store level)<br>
+&nbsp;&nbsp;Fill Rate: If FR &lt; 70%: increase | If FR &gt; 130%: decrease | Dampened at 50%<br>
+&nbsp;&nbsp;Min 7 days cover enforced<br><br>
+
+<span class="kw">METHOD 2 — ML Forecast</span> (from Snowflake FACT_DEMAND_FORECAST):<br>
+&nbsp;&nbsp;<span class="fm">BGT_SALE_QTY</span> = STORE_FORECAST <span class="cm">(pre-computed ensemble)</span><br>
+&nbsp;&nbsp;4 methods: WMA, Exponential Smoothing, Seasonal, Regression<br>
+&nbsp;&nbsp;Weighted by MAPE accuracy, 34 months historical data<br><br>
+
+<span class="kw">METHOD 3 — Hybrid</span> (default):<br>
+&nbsp;&nbsp;IF ML exists: <span class="fm">BGT</span> = 60% × ML + 40% × LYSP-based<br>
+&nbsp;&nbsp;ELSE: use LYSP-based or contribution % distribution<br><br>
+
+<span class="kw">VALUE:</span> <span class="fm">BGT_SALE_VAL</span> = BGT_SALE_QTY × ASP (avg selling price from LYSP or MRP)
+            </div>
+
+            <h6 class="fw-bold mt-3">Snowflake Tables Used</h6>
+            <table class="table table-sm table-bordered mb-0">
+                <thead class="table-dark"><tr><th>Table</th><th>Rows</th><th>Purpose</th></tr></thead>
+                <tbody>
+                    <tr><td><code>FACT_SALE_GENCOLOR</code></td><td>12.5M</td><td>Actual sales + LYSP at Store × GenColor × Week</td></tr>
+                    <tr><td><code>FACT_DEMAND_FORECAST</code></td><td>106K</td><td>ML ensemble forecasts per Store × MajCat × Month</td></tr>
+                    <tr><td><code>FACT_CONT_PCT_STORE</code></td><td>168K</td><td>Store contribution %, closing stock, PSF, GM%</td></tr>
+                    <tr><td><code>DIM_ARTICLE_GENCOLOR</code></td><td>1.16M</td><td>GenColor → Major Category, Division, MRP</td></tr>
+                    <tr><td><code>DIM_STORE</code></td><td>315</td><td>Store master: zone, region, state, area, cohort</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- ═══ TAB: PLAN 2 ═══ -->
+<div class="tab-pane fade" id="tabP2">
+    <div class="card shadow-sm plan-card p2 mb-3">
+        <div class="card-header"><h5 class="card-title mb-0" style="color:#E67E22;"><i class="bi bi-grid-3x3-gap me-2"></i>Plan 2: Fixture & Density Plan</h5></div>
+        <div class="card-body small">
+            <p><strong>Purpose:</strong> "How much display stock should each store have per category?"<br>
+            <strong>Replaces:</strong> V-0081 Excel (371 columns) — State model, ROI scoring, density output<br>
+            <strong>Depends on:</strong> Plan 1 (SALE_BUDGET_PLAN) + Snowflake staging data</p>
+
+            <h6 class="fw-bold mt-3">Algorithm</h6>
+            <div class="algo-block">
+<span class="kw">DISPLAY QUANTITY:</span><br>
+&nbsp;&nbsp;<span class="fm">BGT_DISP_QTY</span> = BGT_SALE_QTY × Display% <span class="cm">(APP: 28%, GM: 45%, Other: 35%)</span><br><br>
+
+<span class="kw">DENSITY:</span><br>
+&nbsp;&nbsp;<span class="fm">ACC_DENSITY</span> = MIN(article_count, display_qty) <span class="cm">(articles per fixture slot)</span><br><br>
+
+<span class="kw">FIXTURES:</span><br>
+&nbsp;&nbsp;<span class="fm">FIX_COUNT</span> = ROUND(display_qty / density)<br>
+&nbsp;&nbsp;<span class="fm">AREA_SQFT</span> = fix_count × 4 sqft <span class="cm">(per fixture)</span><br><br>
+
+<span class="kw">ROI METRICS:</span><br>
+&nbsp;&nbsp;<span class="fm">GP_PSF</span> = Gross Profit per Square Foot <span class="cm">(for prioritization)</span><br>
+&nbsp;&nbsp;<span class="fm">SALES_PSF</span> = Sale Value / Store Area<br>
+&nbsp;&nbsp;<span class="fm">STR%</span> = Sell-Through Rate = Sale / (Sale + Stock)
+            </div>
+
+            <h6 class="fw-bold mt-3">Output: FIXTURE_DENSITY_PLAN</h6>
+            <p>Store × MajCat × Month with BGT_DISP_QTY, BGT_DISP_VAL, ACC_DENSITY, FIX_COUNT, AREA_SQFT, GP_PSF, SALES_PSF</p>
+        </div>
+    </div>
+</div>
+
+<!-- ═══ TAB: PLAN 3 ═══ -->
+<div class="tab-pane fade" id="tabP3">
+    <div class="card shadow-sm plan-card p3 mb-3">
+        <div class="card-header"><h5 class="card-title mb-0 text-info"><i class="bi bi-calendar3 me-2"></i>Plan 3: Weekly Disaggregation</h5></div>
+        <div class="card-body small">
+            <p><strong>Purpose:</strong> Split monthly budgets into 48 weekly columns to feed TRF & PP plans<br>
+            <strong>Replaces:</strong> Manual Excel monthly-to-weekly split<br>
+            <strong>Depends on:</strong> Plan 1 (SALE_BUDGET_PLAN) + Plan 2 (FIXTURE_DENSITY_PLAN) + WEEK_CALENDAR</p>
+
+            <h6 class="fw-bold mt-3">Algorithm</h6>
+            <div class="algo-block">
+<span class="kw">INPUT:</span><br>
+&nbsp;&nbsp;SALE_BUDGET_PLAN: monthly BGT_SALE_QTY per Store × MajCat<br>
+&nbsp;&nbsp;FIXTURE_DENSITY_PLAN: monthly BGT_DISP_QTY per Store × MajCat<br>
+&nbsp;&nbsp;WEEK_CALENDAR: maps months to week numbers (WK-1..WK-48)<br><br>
+
+<span class="kw">DISAGGREGATION:</span><br>
+&nbsp;&nbsp;<span class="fm">Sale Qty:</span> Monthly qty ÷ weeks_in_month = equal per-week amount<br>
+&nbsp;&nbsp;&nbsp;&nbsp;e.g. Apr budget 1000 qty, 4 weeks in Apr → WK-1=250, WK-2=250...<br>
+&nbsp;&nbsp;<span class="fm">Display Qty:</span> Same value repeated for all weeks in month<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="cm">(display is stock level, not flow — stays constant within month)</span><br><br>
+
+<span class="kw">OUTPUT:</span><br>
+&nbsp;&nbsp;<span class="fm">QTY_SALE_QTY</span>: ST-CD, MAJ-CAT, WK-1, WK-2, ... WK-48 <span class="cm">(TRUNCATE + INSERT)</span><br>
+&nbsp;&nbsp;<span class="fm">QTY_DISP_QTY</span>: ST-CD, MAJ-CAT, WK-1, WK-2, ... WK-48 <span class="cm">(TRUNCATE + INSERT)</span><br><br>
+
+<span class="kw">CRITICAL:</span> This REPLACES existing QTY_SALE_QTY and QTY_DISP_QTY data.<br>
+After disagg, run Plan 4 (TRF) → Plan 5 (PP) to regenerate all downstream plans.
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ═══ TAB: PLANS 4-5 ═══ -->
+<div class="tab-pane fade" id="tabP4P5">
+    <div class="card shadow-sm plan-card p4 mb-3">
+        <div class="card-header"><h5 class="card-title mb-0 text-success"><i class="bi bi-arrow-left-right me-2"></i>Plan 4: Transfer In Plan + Plan 5: Purchase Plan</h5></div>
+        <div class="card-body small">
+            <p>These are the <strong>existing core plans</strong> already in production. See <a href="@Url.Action("Index", "Info")">App Info & Formulas</a> for complete algorithm documentation.</p>
+
+            <div class="row">
+                <div class="col-md-6">
+                    <h6 class="fw-bold text-success">Plan 4: TRF Algorithm (week chaining)</h6>
+                    <div class="algo-block">
+<span class="kw">FOR EACH</span> Store × MajCat × Week:<br>
+&nbsp;&nbsp;WK1: <span class="fm">OP_STK</span> = STORE_STOCK<br>
+&nbsp;&nbsp;<span class="fm">SHRINKAGE</span> = OP × 8% × SSN_FACTOR<br>
+&nbsp;&nbsp;<span class="fm">NET_CF</span> = MAX(OP - SHRINKAGE, 0)<br>
+&nbsp;&nbsp;<span class="fm">MBQ</span> = DISP + Next_Week_SALE<br>
+&nbsp;&nbsp;<span class="fm">TRF_IN</span> = MAX(MBQ + SALE - NET_CF, 0)<br>
+&nbsp;&nbsp;<span class="fm">CL_STK</span> → next week OP_STK<br>
+&nbsp;&nbsp;SP: <code>SP_GENERATE_TRF_IN_PLAN</code>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <h6 class="fw-bold" style="color:#8E44AD;">Plan 5: PP Algorithm (DC chaining)</h6>
+                    <div class="algo-block">
+<span class="kw">FOR EACH</span> RDC × MajCat × Week:<br>
+&nbsp;&nbsp;<span class="fm">TRF_OUT</span> = SUM(TRF_IN by RDC)<br>
+&nbsp;&nbsp;<span class="fm">DC_MBQ</span> = MIN(next 4wk TRF_OUT, SALE)<br>
+&nbsp;&nbsp;<span class="fm">GRT_CONS</span> = MIN of 4 constraints<br>
+&nbsp;&nbsp;<span class="fm">PUR_Q</span> = MAX(MBQ + TRF_OUT - NET_CF, 0)<br>
+&nbsp;&nbsp;<span class="fm">DC_CL_STK</span> → next week<br>
+&nbsp;&nbsp;SP: <code>SP_GENERATE_PURCHASE_PLAN</code>
+                    </div>
+                </div>
+            </div>
+            <div class="alert alert-info py-2 mt-2 mb-0"><i class="bi bi-info-circle me-1"></i>Full formula reference with all 30+ TRF columns and 40+ PP columns available at <a href="@Url.Action("Index", "Info")">App Info & Formulas → TRF Algorithm / PP Algorithm tabs</a></div>
+        </div>
+    </div>
+</div>
+
+<!-- ═══ TAB: PLANS 6-7 ═══ -->
+<div class="tab-pane fade" id="tabP6P7">
+    <div class="card shadow-sm plan-card p6 mb-3">
+        <div class="card-header"><h5 class="card-title mb-0" style="color:#D97706;"><i class="bi bi-layers me-2"></i>Plans 6-7: Sub-Level TRF + PP</h5></div>
+        <div class="card-body small">
+            <p><strong>Same algorithm</strong> as Plans 4-5 but at finer granularity with 4 dimensions:</p>
+            <div class="row g-3 mb-3">
+                <div class="col-md-3"><div class="card bg-light p-2 text-center"><strong>MVGR</strong><br><small>Macro MVGR Matrix</small></div></div>
+                <div class="col-md-3"><div class="card bg-light p-2 text-center"><strong>Size</strong><br><small>SZ</small></div></div>
+                <div class="col-md-3"><div class="card bg-light p-2 text-center"><strong>Segment</strong><br><small>SEG</small></div></div>
+                <div class="col-md-3"><div class="card bg-light p-2 text-center"><strong>Vendor</strong><br><small>M_VND_CD</small></div></div>
+            </div>
+            <div class="algo-block">
+<span class="kw">KEY DIFFERENCES:</span><br>
+&nbsp;&nbsp;• Sale Qty × <span class="fm">CONT_PCT</span> from contribution table<br>
+&nbsp;&nbsp;• Display Qty × <span class="fm">CONT_PCT</span><br>
+&nbsp;&nbsp;• Store stock from <span class="fm">SUB_ST_STK_{level}</span> (not STORE_STOCK)<br>
+&nbsp;&nbsp;• DC stock from <span class="fm">SUB_DC_STK_{level}</span> (not DC_STOCK)<br>
+&nbsp;&nbsp;• Granularity: Store × MajCat × <span class="fm">SUB_VALUE</span> × Week<br>
+&nbsp;&nbsp;• No bin rounding (raw quantities)<br>
+&nbsp;&nbsp;• PP: GRT_CONS_Q = 0 (simplified)
+            </div>
+            <p class="mt-2">Full documentation at <a href="@Url.Action("Index", "Info")">App Info → Sub-Level Plans tab</a></p>
+        </div>
+    </div>
+</div>
+
+<!-- ═══ TAB: PLAN 8 ═══ -->
+<div class="tab-pane fade" id="tabP8">
+    <div class="card shadow-sm plan-card p8 mb-3">
+        <div class="card-header"><h5 class="card-title mb-0"><i class="bi bi-robot me-2"></i>Plan 8: ARS — Article Allocation</h5></div>
+        <div class="card-body small">
+            <p><strong>Purpose:</strong> "Which specific articles + sizes to send to each store?"<br>
+            <strong>System:</strong> ARS (Auto Replenishment System) — Python FastAPI on Azure App Service<br>
+            <strong>API:</strong> <code>ars-v2retail-api.azurewebsites.net</code> | <strong>Performance:</strong> &lt;6 min for 1M store-article pairs</p>
+
+            <h6 class="fw-bold mt-3">5-Engine Pipeline</h6>
+            <table class="table table-sm table-bordered mb-0">
+                <thead class="table-dark"><tr><th>Engine</th><th>Name</th><th>What It Does</th></tr></thead>
+                <tbody>
+                    <tr><td><span class="badge bg-primary">1</span></td><td>Budget Cascade</td><td>Reads <code>co_budget_store_major_category</code> from Supabase → MBQ per store × MAJCAT</td></tr>
+                    <tr><td><span class="badge" style="background:#E67E22;">2</span></td><td>Article Scoring</td><td>Scores every DC article against every store using 14 weighted factors</td></tr>
+                    <tr><td><span class="badge bg-success">3</span></td><td>Greedy Filler</td><td>Fills option slots with highest-scoring articles, equitable distribution (lowest fill-rate first)</td></tr>
+                    <tr><td><span class="badge" style="background:#8B5CF6;">4</span></td><td>Size Allocator</td><td>Breaks options into size-level quantities using <code>co_budget_company_major_category_size</code></td></tr>
+                    <tr><td><span class="badge bg-danger">5</span></td><td>DO Generator</td><td>Compiles delivery orders with full article details → SAP RFC → Store delivery</td></tr>
+                </tbody>
+            </table>
+
+            <h6 class="fw-bold mt-3">Tech Stack</h6>
+            <p>Python FastAPI | Azure App Service | Azure SQL + Supabase (387K budget rows) | Snowflake (analytics) | JWT Auth + RBAC + RLS</p>
+        </div>
+    </div>
+</div>
+
+<!-- ═══ TAB: DATA SOURCES ═══ -->
+<div class="tab-pane fade" id="tabData">
+    <div class="card shadow-sm mb-3">
+        <div class="card-header"><h5 class="card-title mb-0"><i class="bi bi-database me-2"></i>Data Sources & Infrastructure</h5></div>
+        <div class="card-body small">
+            <h6 class="fw-bold">Snowflake (V2RETAIL.GOLD — Cloud Analytics)</h6>
+            <table class="table table-sm table-bordered mb-3">
+                <thead class="table-dark"><tr><th>Table</th><th>Rows</th><th>Grain</th><th>Used By</th></tr></thead>
+                <tbody>
+                    <tr><td><code>FACT_SALE_GENCOLOR</code></td><td>12.5M</td><td>Store × GenColor × Week</td><td>Plan 1 (actuals + LYSP)</td></tr>
+                    <tr><td><code>FACT_DEMAND_FORECAST</code></td><td>106K</td><td>Store × MajCat × Month</td><td>Plan 1 (ML forecast)</td></tr>
+                    <tr><td><code>FACT_CONT_PCT_STORE</code></td><td>168K</td><td>Store × MajCat</td><td>Plan 1 (contribution %)</td></tr>
+                    <tr><td><code>DIM_ARTICLE_GENCOLOR</code></td><td>1.16M</td><td>GenColor</td><td>Plan 1 (MajCat mapping)</td></tr>
+                    <tr><td><code>DIM_STORE</code></td><td>315</td><td>Store</td><td>Plan 1, 2 (store master)</td></tr>
+                    <tr><td><code>FACT_STOCK_GENCOLOR</code></td><td>4.97M</td><td>Store × GenColor</td><td>Stock analytics</td></tr>
+                </tbody>
+            </table>
+
+            <h6 class="fw-bold">SQL Server (192.168.151.28, database: planning)</h6>
+            <table class="table table-sm table-bordered mb-3">
+                <thead class="table-dark"><tr><th>Category</th><th>Tables</th><th>Purpose</th></tr></thead>
+                <tbody>
+                    <tr><td>Staging (5)</td><td><code>STG_SF_*</code></td><td>Cached Snowflake data for Plan 1-2 algorithms</td></tr>
+                    <tr><td>Budget Output (2)</td><td><code>SALE_BUDGET_PLAN</code>, <code>FIXTURE_DENSITY_PLAN</code></td><td>Plans 1-2 output</td></tr>
+                    <tr><td>Weekly Data (2)</td><td><code>QTY_SALE_QTY</code>, <code>QTY_DISP_QTY</code></td><td>Plan 3 output → Plans 4-7 input</td></tr>
+                    <tr><td>Reference (10)</td><td>WEEK_CALENDAR, STORE_MASTER, BIN_CAPACITY, etc.</td><td>Plans 4-7 reference data</td></tr>
+                    <tr><td>Plan Output (4)</td><td>TRF_IN_PLAN, PURCHASE_PLAN, SUB_LEVEL_TRF/PP_PLAN</td><td>Plans 4-7 output</td></tr>
+                    <tr><td>Contribution (4)</td><td>ST_MAJ_CAT_{MVGR/SZ/SEG/VND}_PLAN</td><td>Plans 6-7 input</td></tr>
+                    <tr><td>Sub Stock (8)</td><td>SUB_ST_STK_*, SUB_DC_STK_*</td><td>Plans 6-7 opening stock</td></tr>
+                    <tr><td>Config (2)</td><td><code>SALE_BUDGET_CONFIG</code>, <code>WEEKLY_DISAGG_LOG</code></td><td>Algorithm params + audit log</td></tr>
+                </tbody>
+            </table>
+
+            <h6 class="fw-bold">External Systems</h6>
+            <table class="table table-sm table-bordered mb-0">
+                <thead class="table-dark"><tr><th>System</th><th>URL</th><th>Purpose</th></tr></thead>
+                <tbody>
+                    <tr><td>ARS API</td><td><code>ars-v2retail-api.azurewebsites.net</code></td><td>Article-level allocation (Plan 8)</td></tr>
+                    <tr><td>Supabase</td><td>PostgreSQL (387K budget rows)</td><td>Budget data shared with ARS</td></tr>
+                    <tr><td>Server 28 API</td><td><code>sap-api.v2retail.net</code></td><td>SAP data via Cloudflare Worker (50K row limit)</td></tr>
+                    <tr><td>Azure Fabric</td><td>V2Retail_Gold lakehouse</td><td>8B+ rows sales history</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+</div>

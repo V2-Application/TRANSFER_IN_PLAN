@@ -1,0 +1,152 @@
+@{ ViewData["Title"] = "Execute Allocation"; }
+
+<div class="mb-3">
+    <h3 class="mb-1"><i class="bi bi-boxes me-2" style="color:#E67E22;"></i>Execute Allocation</h3>
+    <small class="text-muted">ARS Listing Algorithm — OLD-L articles allocation for 600+ stores</small>
+</div>
+
+<div class="row g-3">
+    <div class="col-lg-7">
+        <!-- Input Data Status -->
+        <div class="card shadow-sm border-0 mb-3" style="border-left:4px solid #E67E22 !important;">
+            <div class="card-header"><h6 class="mb-0"><i class="bi bi-database-check me-2"></i>Input Data Status</h6></div>
+            <div class="card-body p-0">
+                <table class="table table-sm table-bordered mb-0 small">
+                    <thead class="table-dark"><tr><th>Table</th><th class="text-end">Rows</th><th>Status</th></tr></thead>
+                    <tbody>
+                        @{ var tables = new[] {
+                            ("Store Stock (ET_STOCK_DATA)", (int)(ViewBag.StockRows ?? 0)),
+                            ("MSA Stock (VIEW_ET_MSA_STOCK)", (int)(ViewBag.MsaRows ?? 0)),
+                            ("Display Master", (int)(ViewBag.DisplayRows ?? 0)),
+                            ("MJ Auto Sale", (int)(ViewBag.AutoSaleRows ?? 0)),
+                            ("Article Auto Sale", (int)(ViewBag.ArtSaleRows ?? 0)),
+                            ("Hold Days Master", (int)(ViewBag.HoldDaysRows ?? 0)),
+                            ("Store Master", (int)(ViewBag.StMasterRows ?? 0)),
+                        }; }
+                        @foreach (var (name, rows) in tables)
+                        {
+                            <tr>
+                                <td>@name</td>
+                                <td class="text-end">@rows.ToString("N0")</td>
+                                <td>@(rows > 0 ? Html.Raw("<span class='badge bg-success'>Ready</span>") : Html.Raw("<span class='badge bg-danger'>Empty</span>"))</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Run Allocation -->
+        <div class="card shadow-sm border-0" style="border-left:4px solid #059669 !important;">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h6 class="mb-0"><i class="bi bi-play-circle me-2 text-success"></i>Run Allocation</h6>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-success btn-sm" id="btnRun" onclick="startRun()"><i class="bi bi-play-fill me-1"></i>Start Allocation</button>
+                    <form asp-action="Reset" method="post" class="d-inline" onsubmit="return confirm('Clear all allocation output?');">
+                        <button type="submit" class="btn btn-outline-danger btn-sm"><i class="bi bi-trash me-1"></i>Reset</button>
+                    </form>
+                </div>
+            </div>
+            <div class="card-body small">
+                <div id="progressPanel" style="display:none;">
+                    <div class="d-flex justify-content-between mb-1">
+                        <span id="phaseLabel" class="fw-bold"></span>
+                        <span id="elapsed" class="text-muted"></span>
+                    </div>
+                    <div class="progress mb-2" style="height:8px;">
+                        <div class="progress-bar progress-bar-striped progress-bar-animated" id="progressBar" style="width:0%"></div>
+                    </div>
+                    <div id="statusText" class="text-muted"></div>
+                    <div id="statsPanel" class="mt-2 row g-2" style="display:none;">
+                        <div class="col-4"><div class="card bg-light p-2 text-center"><div class="fw-bold" id="statPrepared">0</div><small class="text-muted">Prepared</small></div></div>
+                        <div class="col-4"><div class="card bg-light p-2 text-center"><div class="fw-bold text-success" id="statAllocated">0</div><small class="text-muted">Allocated</small></div></div>
+                        <div class="col-4"><div class="card bg-light p-2 text-center"><div class="fw-bold text-primary" id="statHeld">0</div><small class="text-muted">Held</small></div></div>
+                        <div class="col-3"><div class="card bg-light p-2 text-center"><div class="fw-bold" id="statL">0</div><small class="text-muted">L-ART</small></div></div>
+                        <div class="col-3"><div class="card bg-light p-2 text-center"><div class="fw-bold" id="statMix">0</div><small class="text-muted">MIX</small></div></div>
+                        <div class="col-3"><div class="card bg-light p-2 text-center"><div class="fw-bold" id="statOld">0</div><small class="text-muted">OLD</small></div></div>
+                        <div class="col-3"><div class="card bg-light p-2 text-center"><div class="fw-bold text-warning" id="statNewL">0</div><small class="text-muted">NEW-L</small></div></div>
+                    </div>
+                </div>
+                <div id="idlePanel">
+                    <p class="text-muted mb-0">Click <strong>Start Allocation</strong> to run the full algorithm: Prepare → Allocate → Finalize</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Right Panel -->
+    <div class="col-lg-5">
+        <div class="card shadow-sm border-0 mb-3">
+            <div class="card-header"><h6 class="mb-0"><i class="bi bi-bar-chart me-2"></i>Output Status</h6></div>
+            <div class="card-body">
+                <div class="d-flex justify-content-between mb-2">
+                    <span>Total Output Rows</span><strong>@(((int)(ViewBag.OutputRows ?? 0)).ToString("N0"))</strong>
+                </div>
+                <div class="d-flex justify-content-between mb-3">
+                    <span>Latest Run</span><strong>@(ViewBag.LatestRun ?? "—")</strong>
+                </div>
+                @if ((int)(ViewBag.OutputRows ?? 0) > 0)
+                {
+                    <a asp-action="Output" class="btn btn-primary btn-sm w-100"><i class="bi bi-table me-1"></i>View Output</a>
+                }
+            </div>
+        </div>
+
+        <div class="card shadow-sm border-0">
+            <div class="card-header"><h6 class="mb-0"><i class="bi bi-info-circle me-2"></i>Algorithm Flow</h6></div>
+            <div class="card-body small">
+                <ol class="mb-0">
+                    <li><strong>Prepare:</strong> Pivot stock by LGORT, calculate PD sales, MBQ, classify L/MIX/OLD</li>
+                    <li><strong>Allocate:</strong> For each store × OLD-L article: ALC-Q = MIN(REM_MSA, ART_REQ, MJ_REM_REQ). Apply HOLD-Q. Cap at MJ-MBQ.</li>
+                    <li><strong>Finalize:</strong> Tag NEW-L from remaining MSA, write output</li>
+                </ol>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+let pollTimer = null;
+
+async function startRun() {
+    const res = await fetch('@Url.Action("StartRun")', { method: 'POST' });
+    const data = await res.json();
+    if (!data.success) { alert(data.message); return; }
+    document.getElementById('btnRun').disabled = true;
+    document.getElementById('idlePanel').style.display = 'none';
+    document.getElementById('progressPanel').style.display = '';
+    document.getElementById('statsPanel').style.display = '';
+    pollTimer = setInterval(pollStatus, 3000);
+    pollStatus();
+}
+
+async function pollStatus() {
+    const res = await fetch('@Url.Action("JobStatus")');
+    const d = await res.json();
+    document.getElementById('phaseLabel').textContent = d.phase;
+    document.getElementById('statusText').textContent = d.status;
+    document.getElementById('elapsed').textContent = d.elapsedSeconds > 0 ? d.elapsedSeconds + 's' : '';
+
+    // Progress bar
+    const pcts = { 'Initializing': 5, 'Logging': 10, 'Preparing': 30, 'Allocating': 70, 'Finalizing': 90, 'Done': 100, 'Error': 100 };
+    document.getElementById('progressBar').style.width = (pcts[d.phase] || 0) + '%';
+    if (d.phase === 'Error') document.getElementById('progressBar').classList.add('bg-danger');
+
+    // Stats
+    document.getElementById('statPrepared').textContent = (d.preparedRows || 0).toLocaleString();
+    document.getElementById('statAllocated').textContent = (d.allocatedCount || 0).toLocaleString();
+    document.getElementById('statHeld').textContent = (d.heldCount || 0).toLocaleString();
+    document.getElementById('statL').textContent = (d.lCount || 0).toLocaleString();
+    document.getElementById('statMix').textContent = (d.mixCount || 0).toLocaleString();
+    document.getElementById('statOld').textContent = (d.oldCount || 0).toLocaleString();
+    document.getElementById('statNewL').textContent = (d.newLCount || 0).toLocaleString();
+
+    if (!d.isRunning && pollTimer) {
+        clearInterval(pollTimer); pollTimer = null;
+        document.getElementById('btnRun').disabled = false;
+        if (d.phase === 'Done') document.getElementById('progressBar').classList.remove('progress-bar-animated');
+    }
+}
+</script>
+}

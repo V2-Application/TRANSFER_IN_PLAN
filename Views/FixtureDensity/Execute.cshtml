@@ -1,0 +1,110 @@
+@{ ViewData["Title"] = "Fixture & Density Plan"; }
+
+<div class="mb-4">
+    <h3 class="mb-1"><i class="bi bi-grid-3x3-gap me-2" style="color:#E67E22;"></i>Fixture & Density Plan</h3>
+    <small class="text-muted">Calculate display stock targets and fixture density per Store x Major Category</small>
+</div>
+
+<div class="row g-3">
+    <div class="col-lg-7">
+        <!-- Prerequisites -->
+        <div class="card shadow-sm border-0 mb-3" style="border-left:4px solid #E67E22 !important;">
+            <div class="card-header"><h6 class="mb-0"><i class="bi bi-check2-circle me-2" style="color:#E67E22;"></i>Prerequisites</h6></div>
+            <div class="card-body small">
+                <div class="d-flex justify-content-between mb-1">
+                    <span>Sale Budget Plan (Plan 1)</span>
+                    <span class="badge @((int)ViewBag.BudgetRows > 0 ? "bg-success" : "bg-danger")">@(((int)ViewBag.BudgetRows).ToString("N0")) rows</span>
+                </div>
+                <div class="d-flex justify-content-between mb-1">
+                    <span>Snowflake Staging Data</span>
+                    <span class="badge @((bool)ViewBag.StagingReady ? "bg-success" : "bg-danger")">@((bool)ViewBag.StagingReady ? "Ready" : "Not Fetched")</span>
+                </div>
+                @if ((int)ViewBag.BudgetRows == 0)
+                {
+                    <div class="alert alert-warning py-2 mt-2 mb-0"><i class="bi bi-exclamation-triangle me-1"></i>Run <a href="@Url.Action("Execute", "SaleBudget")">Sale Budget Plan</a> first.</div>
+                }
+            </div>
+        </div>
+
+        <!-- Execute -->
+        <div class="card shadow-sm border-0 mb-3" style="border-left:4px solid #059669 !important;">
+            <div class="card-header"><h6 class="mb-0"><i class="bi bi-play-fill me-2 text-success"></i>Generate Fixture & Density Plan</h6></div>
+            <div class="card-body small">
+                <label class="form-label fw-bold">Target Months</label>
+                <div class="row mb-3">
+                    @if (ViewBag.AvailableMonths != null)
+                    {
+                        foreach (string m in (List<string>)ViewBag.AvailableMonths)
+                        {
+                            <div class="col-auto"><div class="form-check">
+                                <input type="checkbox" class="form-check-input chkMonth" value="@m" id="fm_@m" checked />
+                                <label class="form-check-label" for="fm_@m">@m</label>
+                            </div></div>
+                        }
+                    }
+                </div>
+                <button class="btn btn-success w-100" id="btnRun" onclick="startRun()">
+                    <i class="bi bi-play-fill me-1"></i>Generate Fixture & Density Plan
+                </button>
+            </div>
+        </div>
+
+        <div class="card shadow-sm border-0 d-none" id="progressCard">
+            <div class="card-body small">
+                <div class="d-flex justify-content-between mb-1"><strong id="pPhase"></strong><span class="text-muted" id="pElapsed"></span></div>
+                <div class="progress mb-2" style="height:5px;"><div class="progress-bar" id="pBar" style="width:0%;background:#E67E22;"></div></div>
+                <div id="pStatus" class="text-muted"></div>
+                <div id="pError" class="alert alert-danger py-2 mt-2 d-none"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-5">
+        <div class="card shadow-sm border-0 mb-3">
+            <div class="card-header"><h6 class="mb-0"><i class="bi bi-bar-chart me-2"></i>Output Status</h6></div>
+            <div class="card-body small">
+                <div class="d-flex justify-content-between mb-2"><span>Fixture Plan Rows</span><strong>@(((int)ViewBag.FixtureRows).ToString("N0"))</strong></div>
+                <div class="d-flex justify-content-between mb-2"><span>Latest Run</span><strong>@(ViewBag.LatestRun ?? "None")</strong></div>
+                <div class="d-flex gap-2">
+                    <a href="@Url.Action("Output")" class="btn btn-outline-primary btn-sm flex-fill"><i class="bi bi-table me-1"></i>View Output</a>
+                    <form method="post" asp-action="Reset" onsubmit="return confirm('Reset all fixture data?');"><button class="btn btn-outline-danger btn-sm"><i class="bi bi-trash me-1"></i>Reset</button></form>
+                </div>
+            </div>
+        </div>
+        <div class="card shadow-sm border-0">
+            <div class="card-header"><h6 class="mb-0"><i class="bi bi-info-circle me-2"></i>Algorithm</h6></div>
+            <div class="card-body small">
+                <p class="mb-1"><strong>Display Qty</strong> = Sale Budget x Display % (APP: 28%, GM: 45%, Other: 35%)</p>
+                <p class="mb-1"><strong>ACC Density</strong> = min(article count, display qty) per fixture slot</p>
+                <p class="mb-0"><strong>ROI: GP/PSF</strong> = Gross Profit per Square Foot for prioritization</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+function startRun() {
+    var months = [...document.querySelectorAll('.chkMonth:checked')].map(c => c.value);
+    if (!months.length) { alert('Select months.'); return; }
+    document.getElementById('btnRun').disabled = true;
+    document.getElementById('progressCard').classList.remove('d-none');
+    var fd = new FormData(); months.forEach(m => fd.append('targetMonths', m)); fd.append('algoMethod', 'STANDARD');
+    fetch('@Url.Action("StartRun")', { method: 'POST', body: fd }).then(r => r.json()).then(d => { if (d.success) poll(); else { alert(d.message); document.getElementById('btnRun').disabled = false; } });
+}
+var pt;
+function poll() {
+    pt = setInterval(() => {
+        fetch('@Url.Action("JobStatus")').then(r => r.json()).then(d => {
+            document.getElementById('pPhase').textContent = d.phase;
+            document.getElementById('pStatus').textContent = d.status;
+            document.getElementById('pElapsed').textContent = d.elapsedSeconds + 's';
+            var pct = d.phase === 'Loading' ? 20 : d.phase === 'Calculating' ? 60 : d.phase === 'Storing' ? 90 : d.phase === 'Done' ? 100 : 5;
+            document.getElementById('pBar').style.width = pct + '%';
+            if (d.error) { document.getElementById('pError').textContent = d.error; document.getElementById('pError').classList.remove('d-none'); }
+            if (!d.isRunning) { clearInterval(pt); document.getElementById('btnRun').disabled = false; if (d.phase === 'Done') setTimeout(() => location.reload(), 1500); }
+        });
+    }, 3000);
+}
+</script>
+}

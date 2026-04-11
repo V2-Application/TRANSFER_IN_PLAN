@@ -1,0 +1,99 @@
+@{ ViewData["Title"] = "Allocation Output";
+   var rows = ViewBag.Rows as List<Dictionary<string, object?>> ?? new();
+   var cols = new[] { "ST", "ST_NM", "MJ", "GEN-ART", "ART_CLASS", "TTL_ST_STK_Q", "MSA_QTY", "TTL_ALC_DAYS", "HOLD_DAYS", "ACC_DENSITY", "ST_MJ_DISP_Q", "ST_MJ_MBQ", "ART_MBQ", "ART_HOLD_MBQ", "ST_MJ_REQ", "ST_ART_REQ", "ST_ART_HOLD_REQ", "ART_ALC_Q", "ART_HOLD_Q", "REM_MSA" };
+   var sortable = new HashSet<string> { "ST", "MJ", "GEN-ART", "ART_CLASS", "TTL_ST_STK_Q", "ART_ALC_Q", "ART_HOLD_Q", "ST_MJ_MBQ", "ST_ART_REQ" };
+   string sc = ViewBag.SortCol; string sd = ViewBag.SortDir;
+   string NextDir(string c) => c == sc && sd == "ASC" ? "DESC" : "ASC";
+   string Arrow(string c) => c == sc ? (sd == "ASC" ? " ▲" : " ▼") : ""; }
+
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+    <div>
+        <h3 class="mb-0"><i class="bi bi-table me-2" style="color:#E67E22;"></i>Allocation Output</h3>
+        <small class="text-muted">ARS_ALLOCATION_OUTPUT — Store × Article allocation results</small>
+    </div>
+    <div class="d-flex gap-2">
+        <a asp-action="ExportCsv" asp-route-st="@ViewBag.St" asp-route-mj="@ViewBag.Mj" asp-route-artClass="@ViewBag.ArtClass" class="btn btn-success btn-sm"><i class="bi bi-download me-1"></i>CSV</a>
+        <a asp-action="Execute" class="btn btn-outline-primary btn-sm"><i class="bi bi-arrow-left me-1"></i>Back</a>
+    </div>
+</div>
+
+<!-- KPIs -->
+<div class="row g-2 mb-3">
+    <div class="col-6 col-sm-4 col-lg"><div class="card border-0 shadow-sm text-center py-2" style="border-top:3px solid #2980b9 !important;"><div class="fw-bold fs-5" style="color:#2980b9;">@(((int)(ViewBag.TotalCount ?? 0)).ToString("N0"))</div><div class="text-muted" style="font-size:0.6rem;text-transform:uppercase;font-weight:700;">Total Rows</div></div></div>
+    <div class="col-6 col-sm-4 col-lg"><div class="card border-0 shadow-sm text-center py-2" style="border-top:3px solid #27ae60 !important;"><div class="fw-bold fs-5" style="color:#27ae60;">@ViewBag.TotalStores</div><div class="text-muted" style="font-size:0.6rem;text-transform:uppercase;font-weight:700;">Stores</div></div></div>
+    <div class="col-6 col-sm-4 col-lg"><div class="card border-0 shadow-sm text-center py-2" style="border-top:3px solid #8e44ad !important;"><div class="fw-bold fs-5" style="color:#8e44ad;">@ViewBag.TotalArticles</div><div class="text-muted" style="font-size:0.6rem;text-transform:uppercase;font-weight:700;">Articles</div></div></div>
+    <div class="col-6 col-sm-4 col-lg"><div class="card border-0 shadow-sm text-center py-2" style="border-top:3px solid #1B5E20 !important;"><div class="fw-bold fs-5" style="color:#1B5E20;">@(((decimal)(ViewBag.TotalAlcQty ?? 0m)).ToString("N0"))</div><div class="text-muted" style="font-size:0.6rem;text-transform:uppercase;font-weight:700;">ALC Qty</div></div></div>
+    <div class="col-6 col-sm-4 col-lg"><div class="card border-0 shadow-sm text-center py-2" style="border-top:3px solid #E67E22 !important;"><div class="fw-bold fs-5" style="color:#E67E22;">@(((decimal)(ViewBag.TotalHoldQty ?? 0m)).ToString("N0"))</div><div class="text-muted" style="font-size:0.6rem;text-transform:uppercase;font-weight:700;">HOLD Qty</div></div></div>
+    <div class="col-6 col-sm-4 col-lg"><div class="card border-0 shadow-sm text-center py-2" style="border-top:3px solid #c0392b !important;"><div class="fw-bold fs-6" style="color:#059669;">L:@ViewBag.LCount MX:@ViewBag.MixCount OD:@ViewBag.OldCount NL:@ViewBag.NewLCount</div><div class="text-muted" style="font-size:0.6rem;text-transform:uppercase;font-weight:700;">Classification</div></div></div>
+</div>
+
+<!-- Filters -->
+<div class="card shadow-sm border-0 mb-2"><div class="card-body py-2">
+    <form method="get" class="row g-2 align-items-end">
+        <div class="col-md-2"><label class="form-label small fw-semibold mb-0">Store</label>
+            <select name="st" class="form-select form-select-sm"><option value="">-- All --</option>
+                @foreach (var s in (ViewBag.Stores as List<string> ?? new())) { <option value="@s" selected="@(s == ViewBag.St?.ToString())">@s</option> }
+            </select></div>
+        <div class="col-md-3"><label class="form-label small fw-semibold mb-0">Major Category</label>
+            <select name="mj" class="form-select form-select-sm"><option value="">-- All --</option>
+                @foreach (var m in (ViewBag.MajCats as List<string> ?? new())) { <option value="@m" selected="@(m == ViewBag.Mj?.ToString())">@m</option> }
+            </select></div>
+        <div class="col-md-2"><label class="form-label small fw-semibold mb-0">Classification</label>
+            <select name="artClass" class="form-select form-select-sm"><option value="">-- All --</option>
+                @foreach (var c in (ViewBag.ArtClasses as List<string> ?? new())) { <option value="@c" selected="@(c == ViewBag.ArtClass?.ToString())">@c</option> }
+            </select></div>
+        <div class="col-md-2"><label class="form-label small fw-semibold mb-0">Page Size</label>
+            <select name="pageSize" class="form-select form-select-sm">
+                @foreach (var ps in new[] { 50, 100, 250, 500 }) { <option value="@ps" selected="@(ViewBag.PageSize?.ToString() == ps.ToString())">@ps</option> }
+            </select></div>
+        <div class="col-md-3 d-flex gap-2">
+            <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-search me-1"></i>Filter</button>
+            <a href="@Url.Action("Output")" class="btn btn-outline-secondary btn-sm"><i class="bi bi-x-circle me-1"></i>Clear</a>
+        </div>
+    </form>
+</div></div>
+
+@{ var total = (int)(ViewBag.TotalCount ?? 0); var pg = (int)(ViewBag.Page ?? 1); var ps2 = (int)(ViewBag.PageSize ?? 100); }
+<div class="alert alert-info py-1 small mb-2"><i class="bi bi-info-circle me-1"></i>Showing <strong>@rows.Count</strong> of <strong>@total.ToString("N0")</strong> (Page @pg)</div>
+
+<div class="card shadow-sm border-0"><div class="card-body p-0"><div class="table-responsive">
+    <table class="table table-hover table-bordered table-sm mb-0 small">
+        <thead class="table-dark"><tr>
+            @foreach (var c in cols)
+            {
+                var display = c.Replace("_", " ");
+                if (c == "ART_ALC_Q" || c == "ART_HOLD_Q") { <th class="text-end" style="background:#1B5E20;">@(sortable.Contains(c) ? Html.Raw($"<a href='{Url.Action("Output", new { st = ViewBag.St, mj = ViewBag.Mj, artClass = ViewBag.ArtClass, sortCol = c, sortDir = NextDir(c), page = 1, pageSize = ps2 })}' class='text-white text-decoration-none'>{display}{Arrow(c)}</a>") : Html.Raw(display))</th> }
+                else if (sortable.Contains(c)) { <th><a href="@Url.Action("Output", new { st = ViewBag.St, mj = ViewBag.Mj, artClass = ViewBag.ArtClass, sortCol = c, sortDir = NextDir(c), page = 1, pageSize = ps2 })" class="text-white text-decoration-none">@display@Arrow(c)</a></th> }
+                else { <th>@display</th> }
+            }
+        </tr></thead>
+        <tbody>
+            @foreach (var row in rows)
+            {
+                <tr>
+                    @foreach (var c in cols)
+                    {
+                        var v = row.GetValueOrDefault(c);
+                        if (c == "ST") { <td class="fw-semibold text-primary">@v</td> }
+                        else if (c == "ART_CLASS") {
+                            var cls = v?.ToString() ?? "";
+                            var badge = cls == "L-ART" ? "bg-success" : cls == "MIX-ART" ? "bg-secondary" : cls == "OLD-ART" ? "bg-warning text-dark" : cls == "NEW-L" ? "bg-info" : "bg-light text-dark";
+                            <td><span class="badge @badge">@cls</span></td>
+                        }
+                        else if (c == "ART_ALC_Q" || c == "ART_HOLD_Q") { <td class="text-end fw-bold" style="color:#1B5E20;">@(v is decimal d ? d.ToString("N2") : "0")</td> }
+                        else if (v is decimal dec) { <td class="text-end">@dec.ToString("N2")</td> }
+                        else { <td>@v</td> }
+                    }
+                </tr>
+            }
+            @if (!rows.Any()) { <tr><td colspan="@cols.Length" class="text-center text-muted py-3">No data. Run allocation first.</td></tr> }
+        </tbody>
+    </table>
+</div></div></div>
+
+@{ var totalPages = total > 0 ? (int)Math.Ceiling((double)total / ps2) : 1; }
+@if (totalPages > 1) {
+<nav class="mt-2"><ul class="pagination pagination-sm justify-content-center flex-wrap">
+    @for (int p = Math.Max(1, pg - 4); p <= Math.Min(totalPages, pg + 4); p++)
+    { <li class="page-item @(p == pg ? "active" : "")"><a class="page-link" href="@Url.Action("Output", new { st = ViewBag.St, mj = ViewBag.Mj, artClass = ViewBag.ArtClass, sortCol = sc, sortDir = sd, page = p, pageSize = ps2 })">@p</a></li> }
+</ul></nav> }

@@ -1,0 +1,71 @@
+@model TRANSFER_IN_PLAN.Models.FixtureDensityOutputViewModel
+@{ ViewData["Title"] = "Fixture & Density Output"; }
+
+<div class="mb-3 d-flex justify-content-between align-items-start">
+    <div>
+        <h3 class="mb-1"><i class="bi bi-grid-3x3-gap me-2" style="color:#E67E22;"></i>Fixture & Density — Output</h3>
+        <small class="text-muted">Run: @(Model.LatestRunId ?? "—") | @Model.TotalRows.ToString("N0") rows</small>
+    </div>
+    <a href="@Url.Action("Execute")" class="btn btn-outline-primary btn-sm"><i class="bi bi-arrow-left me-1"></i>Back</a>
+</div>
+
+@if (Model.TotalRows == 0) { <div class="alert alert-warning">No data. <a href="@Url.Action("Execute")">Generate first.</a></div> return; }
+
+<!-- KPIs -->
+<div class="row g-3 mb-3">
+    <div class="col-md-3"><div class="card shadow-sm border-0" style="border-left:4px solid #E67E22 !important;"><div class="card-body py-2"><small class="text-muted">Total Display Qty</small><h4 class="mb-0" style="color:#E67E22;">@((Model.TotalDispQty/100000m).ToString("N1")) L</h4></div></div></div>
+    <div class="col-md-3"><div class="card shadow-sm border-0" style="border-left:4px solid #8B5CF6 !important;"><div class="card-body py-2"><small class="text-muted">Display Value</small><h4 class="mb-0" style="color:#8B5CF6;">@((Model.TotalDispVal/10000000m).ToString("N2")) Cr</h4></div></div></div>
+    <div class="col-md-3"><div class="card shadow-sm border-0" style="border-left:4px solid #059669 !important;"><div class="card-body py-2"><small class="text-muted">Avg Density</small><h4 class="mb-0 text-success">@Model.AvgDensity.ToString("N1")</h4></div></div></div>
+    <div class="col-md-3"><div class="card shadow-sm border-0" style="border-left:4px solid #0284C7 !important;"><div class="card-body py-2"><small class="text-muted">Stores / Categories</small><h4 class="mb-0 text-primary">@Model.StoreCount / @Model.CategoryCount</h4></div></div></div>
+</div>
+
+<!-- Filters -->
+<div class="card shadow-sm border-0 mb-3"><div class="card-body py-2">
+    <form method="get" asp-action="Output" class="row g-2 align-items-end small">
+        <div class="col-md-2"><label class="form-label mb-0">Month</label><select name="month" class="form-select form-select-sm"><option value="">All</option>@if(ViewBag.Months!=null){foreach(string m in ViewBag.Months){<option value="@m" selected="@(ViewBag.SelMonth==m)">@m</option>}}</select></div>
+        <div class="col-md-2"><label class="form-label mb-0">Division</label><select name="division" class="form-select form-select-sm"><option value="">All</option>@if(ViewBag.Divisions!=null){foreach(string d in ViewBag.Divisions){<option value="@d" selected="@(ViewBag.SelDivision==d)">@d</option>}}</select></div>
+        <div class="col-md-2"><button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-funnel me-1"></i>Filter</button> <a href="@Url.Action("Output")" class="btn btn-outline-secondary btn-sm">Clear</a></div>
+    </form>
+</div></div>
+
+<!-- Table -->
+<div class="card shadow-sm border-0 mb-3"><div class="card-body p-0"><div class="table-responsive">
+    <table class="table table-sm table-bordered table-hover mb-0 small">
+        <thead class="table-dark"><tr>
+            <th>Store</th><th>Name</th><th>State</th><th>Category</th><th>Division</th><th>Month</th>
+            <th class="text-end">Disp Qty</th><th class="text-end">Disp Val</th><th class="text-end">Density</th>
+            <th class="text-end">Fixtures</th><th class="text-end">Area sqft</th><th class="text-end">Sale BGT</th>
+            <th class="text-end">GP/PSF</th><th>Algo</th>
+        </tr></thead>
+        <tbody>
+            @foreach (var r in Model.Rows)
+            {
+                <tr>
+                    <td>@r.StoreCode</td><td>@r.StoreName</td><td>@r.State</td>
+                    <td>@r.MajorCategory</td><td>@r.Division</td><td>@r.PlanMonth?.ToString("MMM-yy")</td>
+                    <td class="text-end fw-bold" style="color:#E67E22;">@((r.BgtDispQty??0).ToString("N0"))</td>
+                    <td class="text-end">@((r.BgtDispVal??0).ToString("N0"))</td>
+                    <td class="text-end">@((r.AccDensity??0).ToString("N0"))</td>
+                    <td class="text-end">@((r.FixCount??0).ToString("N0"))</td>
+                    <td class="text-end">@((r.AreaSqft??0).ToString("N0"))</td>
+                    <td class="text-end">@((r.SaleBgtVal??0).ToString("N0"))</td>
+                    <td class="text-end">@((r.GpPsf??0).ToString("N1"))</td>
+                    <td><span class="badge" style="background:#E67E22;">@r.AlgoMethod</span></td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div></div></div>
+
+@if (Model.TotalPages > 1)
+{
+<nav class="d-flex justify-content-between align-items-center mb-3">
+    <small class="text-muted">Page @Model.CurrentPage / @Model.TotalPages</small>
+    <ul class="pagination pagination-sm mb-0">
+        @if (Model.CurrentPage > 1) { <li class="page-item"><a class="page-link" href="@Url.Action("Output", new { page = Model.CurrentPage - 1, month = ViewBag.SelMonth, division = ViewBag.SelDivision })">Prev</a></li> }
+        @for (int p = Math.Max(1, Model.CurrentPage - 3); p <= Math.Min(Model.TotalPages, Model.CurrentPage + 3); p++)
+        { <li class="page-item @(p == Model.CurrentPage ? "active" : "")"><a class="page-link" href="@Url.Action("Output", new { page = p, month = ViewBag.SelMonth, division = ViewBag.SelDivision })">@p</a></li> }
+        @if (Model.CurrentPage < Model.TotalPages) { <li class="page-item"><a class="page-link" href="@Url.Action("Output", new { page = Model.CurrentPage + 1, month = ViewBag.SelMonth, division = ViewBag.SelDivision })">Next</a></li> }
+    </ul>
+</nav>
+}

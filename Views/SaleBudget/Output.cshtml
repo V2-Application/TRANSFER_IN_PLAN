@@ -1,0 +1,256 @@
+@model TRANSFER_IN_PLAN.Models.SaleBudgetOutputViewModel
+@{ ViewData["Title"] = "Sale Budget Output"; }
+
+<div class="mb-3 d-flex justify-content-between align-items-start">
+    <div>
+        <h3 class="mb-1"><i class="bi bi-coin me-2" style="color:#8B5CF6;"></i>Sale Budget Plan — Output</h3>
+        <small class="text-muted">Run: @(Model.LatestRunId ?? "No data") &nbsp;|&nbsp; @Model.TotalRows.ToString("N0") rows</small>
+    </div>
+    <a href="@Url.Action("Execute")" class="btn btn-outline-primary btn-sm"><i class="bi bi-arrow-left me-1"></i>Back to Execute</a>
+</div>
+
+@if (Model.TotalRows == 0)
+{
+    <div class="alert alert-warning"><i class="bi bi-exclamation-triangle me-1"></i>No budget data found. <a href="@Url.Action("Execute")">Generate a budget plan first.</a></div>
+    return;
+}
+
+<!-- KPI Cards -->
+<div class="row g-3 mb-3">
+    <div class="col-md-3">
+        <div class="card shadow-sm border-0 h-100" style="border-left:4px solid #8B5CF6 !important;">
+            <div class="card-body py-2">
+                <small class="text-muted">Total Budget Value</small>
+                <h4 class="mb-0" style="color:#8B5CF6;">@((Model.TotalBgtSaleVal / 10000000m).ToString("N2")) Cr</h4>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card shadow-sm border-0 h-100" style="border-left:4px solid #059669 !important;">
+            <div class="card-body py-2">
+                <small class="text-muted">YoY Growth</small>
+                <h4 class="mb-0 @(Model.YoyGrowthPct >= 0 ? "text-success" : "text-danger")">
+                    @(Model.YoyGrowthPct >= 0 ? "+" : "")@Model.YoyGrowthPct.ToString("N1")%
+                </h4>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card shadow-sm border-0 h-100" style="border-left:4px solid #0284C7 !important;">
+            <div class="card-body py-2">
+                <small class="text-muted">Stores / Categories</small>
+                <h4 class="mb-0 text-primary">@Model.StoreCount / @Model.CategoryCount</h4>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card shadow-sm border-0 h-100" style="border-left:4px solid #D97706 !important;">
+            <div class="card-body py-2">
+                <small class="text-muted">Budget Qty</small>
+                <h4 class="mb-0 text-warning">@((Model.TotalBgtSaleQty / 100000m).ToString("N1")) L</h4>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Charts -->
+@if (Model.DivisionChart.Any() || Model.MonthlyChart.Any())
+{
+<div class="row g-3 mb-3">
+    <div class="col-md-6">
+        <div class="card shadow-sm border-0">
+            <div class="card-header"><h6 class="mb-0"><i class="bi bi-bar-chart me-2"></i>Budget by Division</h6></div>
+            <div class="card-body p-2"><canvas id="chartDiv" height="200"></canvas></div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card shadow-sm border-0">
+            <div class="card-header"><h6 class="mb-0"><i class="bi bi-graph-up me-2"></i>Monthly Trend</h6></div>
+            <div class="card-body p-2"><canvas id="chartMonth" height="200"></canvas></div>
+        </div>
+    </div>
+</div>
+}
+
+<!-- Filters -->
+<div class="card shadow-sm border-0 mb-3">
+    <div class="card-body py-2">
+        <form method="get" asp-action="Output" class="row g-2 align-items-end small">
+            <div class="col-md-2">
+                <label class="form-label mb-0">Month</label>
+                <select name="month" class="form-select form-select-sm">
+                    <option value="">All</option>
+                    @if (ViewBag.Months != null) { foreach (string m in ViewBag.Months) { <option value="@m" selected="@(ViewBag.SelMonth == m)">@m</option> } }
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label mb-0">Division</label>
+                <select name="division" class="form-select form-select-sm">
+                    <option value="">All</option>
+                    @if (ViewBag.Divisions != null) { foreach (string d in ViewBag.Divisions) { <option value="@d" selected="@(ViewBag.SelDivision == d)">@d</option> } }
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label mb-0">Store</label>
+                <select name="store" class="form-select form-select-sm search-select">
+                    <option value="">All</option>
+                    @if (ViewBag.Stores != null) { foreach (string s in ViewBag.Stores) { <option value="@s" selected="@(ViewBag.SelStore == s)">@s</option> } }
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label mb-0">Category</label>
+                <select name="majCat" class="form-select form-select-sm search-select">
+                    <option value="">All</option>
+                    @if (ViewBag.MajCats != null) { foreach (string c in ViewBag.MajCats) { <option value="@c" selected="@(ViewBag.SelMajCat == c)">@c</option> } }
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label mb-0">Algorithm</label>
+                <select name="algoMethod" class="form-select form-select-sm">
+                    <option value="">All</option>
+                    <option value="HYBRID" selected="@(ViewBag.SelAlgo == "HYBRID")">Hybrid</option>
+                    <option value="ML_FORECAST" selected="@(ViewBag.SelAlgo == "ML_FORECAST")">ML Forecast</option>
+                    <option value="LYSP_GROWTH" selected="@(ViewBag.SelAlgo == "LYSP_GROWTH")">LYSP Growth</option>
+                    <option value="CONT_PCT" selected="@(ViewBag.SelAlgo == "CONT_PCT")">Cont %</option>
+                </select>
+            </div>
+            <div class="col-md-2 d-flex gap-1">
+                <button type="submit" class="btn btn-primary btn-sm flex-fill"><i class="bi bi-funnel me-1"></i>Filter</button>
+                <a href="@Url.Action("Output")" class="btn btn-outline-secondary btn-sm">Clear</a>
+                <a href="@Url.Action("ExportCsv", new { month = ViewBag.SelMonth, division = ViewBag.SelDivision, store = ViewBag.SelStore, majCat = ViewBag.SelMajCat })"
+                   class="btn btn-outline-success btn-sm" title="Export CSV"><i class="bi bi-download"></i></a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Data Table -->
+<div class="card shadow-sm border-0 mb-3">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-sm table-bordered table-hover mb-0 small">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Store</th><th>Name</th><th>State</th><th>Zone</th>
+                        <th>Major Category</th><th>Division</th><th>Month</th>
+                        <th class="text-end">LYSP Qty</th><th class="text-end">LYSP Val</th>
+                        <th class="text-end">Growth%</th>
+                        <th class="text-end">BGT Qty</th><th class="text-end">BGT Val</th>
+                        <th class="text-end" style="background:#1B5E20;color:#fff;">ACT Qty</th>
+                        <th class="text-end" style="background:#1B5E20;color:#fff;">ACT Val</th>
+                        <th class="text-end" style="background:#E65100;color:#fff;">Ach%</th>
+                        <th class="text-end">BGT GM</th>
+                        <th class="text-end">ASP</th><th>Algo</th>
+                        <th class="text-end">ML Qty</th><th class="text-end">Cont%</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var r in Model.Rows)
+                    {
+                        <tr>
+                            <td>@r.StoreCode</td>
+                            <td>@r.StoreName</td>
+                            <td>@r.State</td>
+                            <td>@r.Zone</td>
+                            <td>@r.MajorCategory</td>
+                            <td>@r.Division</td>
+                            <td>@(r.PlanMonth?.ToString("MMM-yy"))</td>
+                            <td class="text-end">@((r.LyspSaleQty ?? 0).ToString("N0"))</td>
+                            <td class="text-end">@((r.LyspSaleVal ?? 0).ToString("N0"))</td>
+                            <td class="text-end">@(((r.GrowthRateCombined ?? 0) * 100).ToString("N1"))%</td>
+                            <td class="text-end fw-bold">@((r.BgtSaleQty ?? 0).ToString("N0"))</td>
+                            <td class="text-end fw-bold" style="color:#8B5CF6;">@((r.BgtSaleVal ?? 0).ToString("N0"))</td>
+                            @{ var actQty = r.ActualSaleQty ?? 0; var actVal = r.ActualSaleVal ?? 0;
+                               var achPct = (r.BgtSaleVal ?? 0) > 0 ? actVal / (r.BgtSaleVal ?? 1) * 100 : 0;
+                               var achColor = achPct >= 90 ? "#1B5E20" : achPct >= 70 ? "#E65100" : "#B71C1C"; }
+                            <td class="text-end fw-semibold" style="color:#1B5E20;">@(actQty.ToString("N0"))</td>
+                            <td class="text-end fw-semibold" style="color:#1B5E20;">@(actVal.ToString("N0"))</td>
+                            <td class="text-end fw-bold" style="color:@achColor;">@(achPct.ToString("N1"))%</td>
+                            <td class="text-end">@((r.BgtGmVal ?? 0).ToString("N0"))</td>
+                            <td class="text-end">@((r.AvgSellingPrice ?? 0).ToString("N0"))</td>
+                            <td><span class="badge @(r.AlgoMethod == "ML_FORECAST" ? "bg-primary" : r.AlgoMethod == "HYBRID" ? "text-white" : r.AlgoMethod == "LYSP_GROWTH" ? "bg-success" : "bg-secondary")"
+                                      style="@(r.AlgoMethod == "HYBRID" ? "background:#8B5CF6;" : "")">@r.AlgoMethod</span></td>
+                            <td class="text-end">@((r.MlForecastQty ?? 0).ToString("N0"))</td>
+                            <td class="text-end">@(((r.StoreContPct ?? 0)).ToString("N2"))%</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Pagination -->
+@if (Model.TotalPages > 1)
+{
+<nav class="d-flex justify-content-between align-items-center mb-3">
+    <small class="text-muted">Page @Model.CurrentPage of @Model.TotalPages (@Model.TotalRows.ToString("N0") rows)</small>
+    <ul class="pagination pagination-sm mb-0">
+        @if (Model.CurrentPage > 1)
+        {
+            <li class="page-item"><a class="page-link" href="@Url.Action("Output", new { page = Model.CurrentPage - 1, month = ViewBag.SelMonth, division = ViewBag.SelDivision, store = ViewBag.SelStore, majCat = ViewBag.SelMajCat, algoMethod = ViewBag.SelAlgo })">Prev</a></li>
+        }
+        @for (int p = Math.Max(1, Model.CurrentPage - 3); p <= Math.Min(Model.TotalPages, Model.CurrentPage + 3); p++)
+        {
+            <li class="page-item @(p == Model.CurrentPage ? "active" : "")">
+                <a class="page-link" href="@Url.Action("Output", new { page = p, month = ViewBag.SelMonth, division = ViewBag.SelDivision, store = ViewBag.SelStore, majCat = ViewBag.SelMajCat, algoMethod = ViewBag.SelAlgo })">@p</a>
+            </li>
+        }
+        @if (Model.CurrentPage < Model.TotalPages)
+        {
+            <li class="page-item"><a class="page-link" href="@Url.Action("Output", new { page = Model.CurrentPage + 1, month = ViewBag.SelMonth, division = ViewBag.SelDivision, store = ViewBag.SelStore, majCat = ViewBag.SelMajCat, algoMethod = ViewBag.SelAlgo })">Next</a></li>
+        }
+    </ul>
+</nav>
+}
+
+@section Scripts {
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+    // Division bar chart
+    @if (Model.DivisionChart.Any())
+    {
+        <text>
+        new Chart(document.getElementById('chartDiv'), {
+            type: 'bar',
+            data: {
+                labels: [@Html.Raw(string.Join(",", Model.DivisionChart.Take(10).Select(d => $"'{d.Division}'")))],
+                datasets: [{
+                    label: 'Budget (Cr)',
+                    data: [@string.Join(",", Model.DivisionChart.Take(10).Select(d => (d.BgtSaleVal / 10000000m).ToString("F2")))],
+                    backgroundColor: '#8B5CF6'
+                }, {
+                    label: 'LYSP (Cr)',
+                    data: [@string.Join(",", Model.DivisionChart.Take(10).Select(d => (d.LyspSaleVal / 10000000m).ToString("F2")))],
+                    backgroundColor: '#CBD5E1'
+                }]
+            },
+            options: { responsive: true, plugins: { legend: { position: 'bottom' } }, scales: { y: { beginAtZero: true } } }
+        });
+        </text>
+    }
+
+    // Monthly trend chart
+    @if (Model.MonthlyChart.Any())
+    {
+        <text>
+        new Chart(document.getElementById('chartMonth'), {
+            type: 'line',
+            data: {
+                labels: [@Html.Raw(string.Join(",", Model.MonthlyChart.Select(m => $"'{m.Month}'")))],
+                datasets: [{
+                    label: 'Budget (Cr)',
+                    data: [@string.Join(",", Model.MonthlyChart.Select(m => (m.BgtSaleVal / 10000000m).ToString("F2")))],
+                    borderColor: '#8B5CF6', backgroundColor: '#8B5CF620', fill: true, tension: 0.3
+                }, {
+                    label: 'LYSP (Cr)',
+                    data: [@string.Join(",", Model.MonthlyChart.Select(m => (m.LyspSaleVal / 10000000m).ToString("F2")))],
+                    borderColor: '#94A3B8', borderDash: [5,5], tension: 0.3
+                }]
+            },
+            options: { responsive: true, plugins: { legend: { position: 'bottom' } }, scales: { y: { beginAtZero: true } } }
+        });
+        </text>
+    }
+</script>
+}

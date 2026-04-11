@@ -1,0 +1,211 @@
+@model PipelineDashboard
+@{ ViewData["Title"] = "Planning Pipeline Dashboard"; }
+
+<div class="mb-4 d-flex justify-content-between align-items-start">
+    <div>
+        <h3 class="mb-1"><i class="bi bi-diagram-3 me-2" style="color:#8B5CF6;"></i>Planning Pipeline Dashboard</h3>
+        <small class="text-muted">End-to-end planning pipeline status — 8 plans from Sale Budget to Store Delivery</small>
+    </div>
+    <div>
+        <span class="badge bg-success fs-6">@Model.CompletedPlans / 8 Plans Active</span>
+    </div>
+</div>
+
+<!-- Pipeline Flow -->
+<div class="card shadow-sm border-0 mb-3">
+    <div class="card-header"><h6 class="mb-0"><i class="bi bi-signpost-split me-2"></i>Pipeline Status</h6></div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-sm table-bordered mb-0 small">
+                <thead class="table-dark">
+                    <tr><th style="width:30px;">#</th><th>Plan</th><th class="text-end">Rows</th><th class="text-end">Primary KPI</th><th>Last Run</th><th>Status</th><th>Action</th></tr>
+                </thead>
+                <tbody>
+                    @{ int idx = 0; }
+                    @foreach (var p in Model.AllPlans)
+                    {
+                        idx++;
+                        <tr class="@(p.IsReady ? "" : "table-light")">
+                            <td><span class="badge text-white" style="background:@p.Color;">@idx</span></td>
+                            <td><i class="bi @p.Icon me-1" style="color:@p.Color;"></i><strong>@p.Name</strong></td>
+                            <td class="text-end fw-bold">@p.Rows.ToString("N0")</td>
+                            <td class="text-end">
+                                @if (idx == 1) { @((p.Val1 / 10000000m).ToString("N2") + " Cr") }
+                                else if (idx == 2) { @((p.Qty1 / 100000m).ToString("N1") + " L disp") }
+                                else if (idx == 3) { @(p.Rows.ToString("N0") + " sale / " + ((int)p.Qty1).ToString("N0") + " disp") }
+                                else if (idx == 4) { @((p.Val1 / 100000m).ToString("N1") + " L trf qty") }
+                                else if (idx == 5) { @((p.Val1 / 100000m).ToString("N1") + " L pur qty") }
+                                else if (idx <= 7) { @(p.Rows.ToString("N0") + " rows") }
+                                else { <span class="text-muted">External API</span> }
+                            </td>
+                            <td>@(p.LastRun?.ToString("dd-MMM HH:mm") ?? "<span class='text-muted'>—</span>")</td>
+                            <td>
+                                @if (p.IsReady) { <span class="badge bg-success">Active</span> }
+                                else if (idx == 8) { <span class="badge bg-dark">External</span> }
+                                else { <span class="badge bg-warning text-dark">Empty</span> }
+                            </td>
+                            <td><a href="@p.Url" class="btn btn-sm btn-outline-primary py-0 px-2">Open</a></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- KPI Cards Row -->
+<div class="row g-3 mb-3">
+    <div class="col-md-3">
+        <div class="card shadow-sm border-0 h-100" style="border-left:4px solid #8B5CF6 !important;">
+            <div class="card-body py-2">
+                <small class="text-muted">Plan 1: Sale Budget</small>
+                <h4 class="mb-0" style="color:#8B5CF6;">@((Model.Plan1.Val1/10000000m).ToString("N2")) Cr</h4>
+                <small class="text-muted">@Model.Plan1.Stores stores x @Model.Plan1.Categories cats x @Model.Plan1.Months months</small>
+                @if (Model.Plan1.LyspVal > 0)
+                {
+                    var gr = (Model.Plan1.Val1 - Model.Plan1.LyspVal) / Model.Plan1.LyspVal * 100;
+                    <br><small class="@(gr >= 0 ? "text-success" : "text-danger") fw-bold">@(gr >= 0 ? "+" : "")@gr.ToString("N1")% vs LYSP</small>
+                }
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card shadow-sm border-0 h-100" style="border-left:4px solid #E67E22 !important;">
+            <div class="card-body py-2">
+                <small class="text-muted">Plan 2: Fixture & Density</small>
+                <h4 class="mb-0" style="color:#E67E22;">@((Model.Plan2.Qty1/100000m).ToString("N1")) L</h4>
+                <small class="text-muted">Display Qty | Avg Density: @(Model.Plan2.LyspVal.ToString("N0"))</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card shadow-sm border-0 h-100" style="border-left:4px solid #059669 !important;">
+            <div class="card-body py-2">
+                <small class="text-muted">Plan 4: Transfer In</small>
+                <h4 class="mb-0 text-success">@((Model.Plan4.Val1/100000m).ToString("N1")) L</h4>
+                <small class="text-muted">TRF Qty | @Model.Plan4.Stores stores | Short: @((Model.Plan4.LyspVal/100000m).ToString("N1"))L</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card shadow-sm border-0 h-100" style="border-left:4px solid #8E44AD !important;">
+            <div class="card-body py-2">
+                <small class="text-muted">Plan 5: Purchase Plan</small>
+                <h4 class="mb-0" style="color:#8E44AD;">@((Model.Plan5.Val1/100000m).ToString("N1")) L</h4>
+                <small class="text-muted">Purchase Qty | @Model.Plan5.Stores RDCs | Short: @((Model.Plan5.LyspVal/100000m).ToString("N1"))L</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-3 mb-3">
+    <!-- Division Chart -->
+    <div class="col-md-6">
+        <div class="card shadow-sm border-0 h-100">
+            <div class="card-header"><h6 class="mb-0"><i class="bi bi-bar-chart me-2"></i>Sale Budget by Division (Cr)</h6></div>
+            <div class="card-body p-2">
+                @if (Model.DivisionData.Any())
+                { <canvas id="chartDiv" height="220"></canvas> }
+                else { <div class="text-center text-muted py-5">No budget data. Run Plan 1 first.</div> }
+            </div>
+        </div>
+    </div>
+
+    <!-- Snowflake Staging -->
+    <div class="col-md-3">
+        <div class="card shadow-sm border-0 h-100">
+            <div class="card-header"><h6 class="mb-0"><i class="bi bi-cloud me-2"></i>Snowflake Staging</h6></div>
+            <div class="card-body small">
+                @foreach (var (name, count) in new[] { ("Sale Actuals", Model.StagingSaleActual), ("ML Forecasts", Model.StagingForecasts), ("Contribution %", Model.StagingContPct), ("Dim Store", Model.StagingDimStore), ("Dim Article", Model.StagingDimArticle) })
+                {
+                    <div class="d-flex justify-content-between mb-1">
+                        <span>@name</span>
+                        <span class="badge @(count > 0 ? "bg-success" : "bg-danger")">@count.ToString("N0")</span>
+                    </div>
+                }
+                <a href="/SaleBudget/Execute" class="btn btn-sm w-100 mt-2 text-white" style="background:#8B5CF6;"><i class="bi bi-cloud-arrow-down me-1"></i>Fetch Data</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Pipeline Flow Diagram -->
+    <div class="col-md-3">
+        <div class="card shadow-sm border-0 h-100">
+            <div class="card-header"><h6 class="mb-0"><i class="bi bi-diagram-3 me-2"></i>Execution Order</h6></div>
+            <div class="card-body small text-center" style="line-height:1.8;">
+                @foreach (var p in Model.AllPlans)
+                {
+                    var num = Array.IndexOf(Model.AllPlans, p) + 1;
+                    <span class="badge text-white @(p.IsReady ? "" : "opacity-50")" style="background:@p.Color;">@num</span>
+                    if (num < 8) { <br><i class="bi bi-arrow-down" style="color:@p.Color; font-size:0.7rem;"></i><br> }
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Sub-Level & Weekly Status -->
+<div class="row g-3 mb-3">
+    <div class="col-md-4">
+        <div class="card shadow-sm border-0">
+            <div class="card-header"><h6 class="mb-0"><i class="bi bi-calendar3 me-2 text-info"></i>Plan 3: Weekly Disagg</h6></div>
+            <div class="card-body small">
+                <div class="d-flex justify-content-between mb-1"><span>QTY_SALE_QTY</span><strong>@Model.Plan3.Rows.ToString("N0")</strong></div>
+                <div class="d-flex justify-content-between mb-1"><span>QTY_DISP_QTY</span><strong>@((int)Model.Plan3.Qty1).ToString("N0")</strong></div>
+                <div class="d-flex justify-content-between mb-1"><span>WEEK_CALENDAR</span><strong>@Model.Plan3.Categories</strong></div>
+                <div class="d-flex justify-content-between"><span>Last Run</span><strong>@(Model.Plan3.LastRun?.ToString("dd-MMM HH:mm") ?? "—")</strong></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card shadow-sm border-0">
+            <div class="card-header"><h6 class="mb-0"><i class="bi bi-layers me-2" style="color:#D97706;"></i>Plan 6-7: Sub-Level</h6></div>
+            <div class="card-body small">
+                <div class="d-flex justify-content-between mb-1"><span>SUB_LEVEL_TRF_PLAN</span><strong>@Model.Plan6.Rows.ToString("N0")</strong></div>
+                <div class="d-flex justify-content-between mb-1"><span>SUB_LEVEL_PP_PLAN</span><strong>@Model.Plan7.Rows.ToString("N0")</strong></div>
+                <div class="d-flex justify-content-between"><span>Last TRF Run</span><strong>@(Model.Plan6.LastRun?.ToString("dd-MMM HH:mm") ?? "—")</strong></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card shadow-sm border-0">
+            <div class="card-header"><h6 class="mb-0"><i class="bi bi-robot me-2"></i>Plan 8: ARS</h6></div>
+            <div class="card-body small">
+                <div class="d-flex justify-content-between mb-1"><span>API</span><code>ars-v2retail-api.azurewebsites.net</code></div>
+                <div class="d-flex justify-content-between mb-1"><span>Performance</span><strong>&lt;6 min for 1M pairs</strong></div>
+                <div class="d-flex justify-content-between"><span>Status</span><span id="arsStatus"><span class="badge bg-secondary">—</span></span></div>
+                <a href="/ArsStatus" class="btn btn-outline-dark btn-sm w-100 mt-2"><i class="bi bi-box-arrow-up-right me-1"></i>Open ARS</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+@if (Model.DivisionData.Any())
+{
+    <text>
+    new Chart(document.getElementById('chartDiv'), {
+        type: 'bar',
+        data: {
+            labels: [@Html.Raw(string.Join(",", Model.DivisionData.Select(d => $"'{d.Name}'")))],
+            datasets: [{
+                label: 'Budget (Cr)', data: [@string.Join(",", Model.DivisionData.Select(d => (d.BgtVal / 10000000m).ToString("F2")))],
+                backgroundColor: '#8B5CF6'
+            }, {
+                label: 'LYSP (Cr)', data: [@string.Join(",", Model.DivisionData.Select(d => (d.LyspVal / 10000000m).ToString("F2")))],
+                backgroundColor: '#CBD5E1'
+            }]
+        },
+        options: { responsive: true, plugins: { legend: { position: 'bottom' } }, scales: { y: { beginAtZero: true } } }
+    });
+    </text>
+}
+
+// Check ARS
+fetch('/ArsStatus/CheckHealth').then(r=>r.json()).then(d=>{
+    document.getElementById('arsStatus').innerHTML = d.online ? '<span class="badge bg-success">Online</span>' : '<span class="badge bg-danger">Offline</span>';
+}).catch(()=>{});
+</script>
+}

@@ -1,0 +1,100 @@
+@{ ViewData["Title"] = "Allocation Bulk Upload"; }
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+        <h3 class="mb-1"><i class="bi bi-upload me-2" style="color:#E67E22;"></i>Allocation Bulk Upload</h3>
+        <small class="text-muted">Upload Excel/CSV data to ARS Allocation tables (datav2 database)</small>
+    </div>
+</div>
+
+<div class="row g-3">
+    <!-- Upload Form -->
+    <div class="col-lg-7">
+        <div class="card shadow-sm border-0" style="border-left:4px solid #E67E22 !important;">
+            <div class="card-header"><h6 class="mb-0"><i class="bi bi-cloud-upload me-2"></i>Upload Data</h6></div>
+            <div class="card-body">
+                <form asp-action="Upload" method="post" enctype="multipart/form-data">
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Select Table</label>
+                        <select name="table" class="form-select" id="tableSelect" required>
+                            <option value="">-- Choose Table --</option>
+                            @if (ViewBag.Tables != null)
+                            {
+                                foreach (var t in (Dictionary<string, string>)ViewBag.Tables)
+                                {
+                                    <option value="@t.Key">@t.Value</option>
+                                }
+                            }
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Excel File (.xlsx)</label>
+                        <input type="file" name="file" class="form-control" accept=".xlsx,.xls" required />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Upload Mode</label>
+                        <div class="d-flex gap-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="mode" value="Replace" id="modeReplace" checked>
+                                <label class="form-check-label" for="modeReplace"><strong>Replace</strong> <small class="text-muted">(truncate + insert)</small></label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="mode" value="Append" id="modeAppend">
+                                <label class="form-check-label" for="modeAppend"><strong>Append</strong> <small class="text-muted">(add to existing)</small></label>
+                            </div>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn text-white" style="background:#E67E22;"><i class="bi bi-upload me-1"></i>Upload</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Table Status + Downloads -->
+    <div class="col-lg-5">
+        <div class="card shadow-sm border-0">
+            <div class="card-header"><h6 class="mb-0"><i class="bi bi-database me-2"></i>Table Status</h6></div>
+            <div class="card-body p-0">
+                <table class="table table-sm table-bordered mb-0 small">
+                    <thead class="table-dark"><tr><th>Table</th><th class="text-end">Rows</th><th class="text-center">Sample</th><th class="text-center">Download</th></tr></thead>
+                    <tbody>
+                        @if (ViewBag.Tables != null && ViewBag.Counts != null)
+                        {
+                            var counts = (Dictionary<string, int>)ViewBag.Counts;
+                            foreach (var t in (Dictionary<string, string>)ViewBag.Tables)
+                            {
+                                var rows = counts.GetValueOrDefault(t.Key);
+                                <tr>
+                                    <td>
+                                        <span class="fw-semibold">@t.Key</span><br>
+                                        <small class="text-muted">@t.Value</small>
+                                    </td>
+                                    <td class="text-end align-middle">
+                                        <span class="badge @(rows > 0 ? "bg-success" : "bg-danger")">@rows.ToString("N0")</span>
+                                    </td>
+                                    <td class="text-center align-middle">
+                                        <a href="@Url.Action("DownloadSample", new { table = t.Key })" class="btn btn-outline-primary btn-sm py-0 px-2" title="Download Sample Excel">
+                                            <i class="bi bi-file-earmark-excel"></i>
+                                        </a>
+                                    </td>
+                                    <td class="text-center align-middle">
+                                        @if (rows > 0)
+                                        {
+                                            <a href="@Url.Action("DownloadData", new { table = t.Key })" class="btn btn-outline-success btn-sm py-0 px-2" title="Download CSV">
+                                                <i class="bi bi-download"></i>
+                                            </a>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted">—</span>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
