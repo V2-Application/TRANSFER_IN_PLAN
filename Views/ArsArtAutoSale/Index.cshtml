@@ -5,7 +5,7 @@
     <h3 class="mb-0"><i class="bi bi-box-seam me-2" style="color:#e67e22;"></i>ARS Article Auto Sale</h3>
     <div class="d-flex gap-2">
         <a asp-action="Create" class="btn btn-primary btn-sm"><i class="bi bi-plus-circle me-1"></i>Add</a>
-        <a asp-action="ExportCsv" asp-route-st="@ViewBag.St" asp-route-genArt="@ViewBag.GenArt" asp-route-clr="@ViewBag.Clr" class="btn btn-success btn-sm"><i class="bi bi-download me-1"></i>CSV</a>
+        <a asp-action="ExportCsv" asp-route-st="@ViewBag.St" asp-route-genArt="@ViewBag.GenArt" asp-route-clr="@ViewBag.Clr" asp-route-mj="@ViewBag.Mj" class="btn btn-success btn-sm"><i class="bi bi-download me-1"></i>CSV</a>
     </div>
 </div>
 
@@ -28,7 +28,11 @@
             <select name="clr" class="form-select form-select-sm"><option value="">-- All --</option>
                 @foreach (var c in (ViewBag.Colors as IEnumerable<string> ?? new List<string>())) { <option value="@c" selected="@(c == ViewBag.Clr?.ToString())">@c</option> }
             </select></div>
-        <div class="col-md-2"><label class="form-label small fw-semibold mb-0">Page Size</label>
+        <div class="col-md-2"><label class="form-label small fw-semibold mb-0">Major Category</label>
+            <select name="mj" class="form-select form-select-sm"><option value="">-- All --</option>
+                @foreach (var m in (ViewBag.MajCats as IEnumerable<string> ?? new List<string>())) { <option value="@m" selected="@(m == ViewBag.Mj?.ToString())">@m</option> }
+            </select></div>
+        <div class="col-md-1"><label class="form-label small fw-semibold mb-0">Page Size</label>
             <select name="pageSize" class="form-select form-select-sm">
                 @foreach (var ps in new[] { 50, 100, 250, 500 }) { <option value="@ps" selected="@(ViewBag.PageSize?.ToString() == ps.ToString())">@ps</option> }
             </select></div>
@@ -43,13 +47,13 @@
 
 <div class="card shadow-sm border-0"><div class="card-body p-0"><div class="table-responsive">
     <table class="table table-hover table-bordered table-sm mb-0 small" id="dataTable">
-        <thead class="table-dark"><tr><th>ST</th><th>GEN-ART</th><th>CLR</th><th class="text-end">CM-REM-DAYS</th><th class="text-end">NM-DAYS</th><th class="text-end">CM-AUTO-SALE-Q</th><th class="text-end">NM-AUTO-SALE-Q</th><th class="text-end" style="background:#1B5E20;">CM PD Sale</th><th class="text-end" style="background:#1B5E20;">NM PD Sale</th><th class="text-center">Actions</th></tr></thead>
+        <thead class="table-dark"><tr><th>ST</th><th>GEN-ART</th><th>CLR</th><th>MJ</th><th class="text-end">CM-REM-DAYS</th><th class="text-end">NM-DAYS</th><th class="text-end">CM-AUTO-SALE-Q</th><th class="text-end">NM-AUTO-SALE-Q</th><th class="text-end" style="background:#1B5E20;">CM PD Sale</th><th class="text-end" style="background:#1B5E20;">NM PD Sale</th><th class="text-center">Actions</th></tr></thead>
         <tbody>
             @foreach (var item in Model)
             {
                 <tr>
                     <td class="fw-semibold text-primary">@item.St</td>
-                    <td>@item.GenArt</td><td>@item.Clr</td>
+                    <td>@item.GenArt</td><td>@item.Clr</td><td>@item.Mj</td>
                     <td class="text-end">@((item.CmRemDays ?? 0).ToString("N2"))</td>
                     <td class="text-end">@((item.NmDays ?? 0).ToString("N2"))</td>
                     <td class="text-end">@((item.CmAutoSaleQ ?? 0).ToString("N4"))</td>
@@ -62,7 +66,7 @@
                     </td>
                 </tr>
             }
-            @if (!Model.Any()) { <tr><td colspan="10" class="text-center text-muted py-3">No data.</td></tr> }
+            @if (!Model.Any()) { <tr><td colspan="11" class="text-center text-muted py-3">No data.</td></tr> }
         </tbody>
     </table>
 </div></div></div>
@@ -70,7 +74,7 @@
 @if (ViewBag.TotalCount != null && ViewBag.PageSize != null) { var totalPages = (int)Math.Ceiling((double)(int)ViewBag.TotalCount / (int)ViewBag.PageSize); if (totalPages > 1) {
     <nav class="mt-2"><ul class="pagination pagination-sm justify-content-center flex-wrap">
         @for (int p = Math.Max(1, (int)ViewBag.Page - 4); p <= Math.Min(totalPages, (int)ViewBag.Page + 4); p++)
-        { <li class="page-item @(p == (int)ViewBag.Page ? "active" : "")"><a class="page-link" href="@Url.Action("Index", new { st = ViewBag.St, genArt = ViewBag.GenArt, clr = ViewBag.Clr, page = p, pageSize = ViewBag.PageSize })">@p</a></li> }
+        { <li class="page-item @(p == (int)ViewBag.Page ? "active" : "")"><a class="page-link" href="@Url.Action("Index", new { st = ViewBag.St, genArt = ViewBag.GenArt, clr = ViewBag.Clr, mj = ViewBag.Mj, page = p, pageSize = ViewBag.PageSize })">@p</a></li> }
     </ul></nav> } }
 
 @section Scripts { <script>$(function(){ if($('#dataTable tbody tr').length > 0 && !$('#dataTable tbody .text-muted').length){ $('#dataTable').DataTable({paging:false,ordering:true,searching:true,dom:'lrtip'}); } });</script> }

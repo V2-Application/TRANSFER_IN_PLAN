@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Data.SqlClient;
 using OfficeOpenXml;
 using OfficeOpenXml.Style;
+using Snowflake.Data.Client;
 using System.Data;
 using System.Diagnostics;
 using System.Text;
@@ -11,12 +11,12 @@ namespace TRANSFER_IN_PLAN.Controllers;
 
 public class ArsBulkUploadController : Controller
 {
-    private readonly string _connStr;
+    private readonly string _sfConnStr;
     private readonly ILogger<ArsBulkUploadController> _logger;
 
     public ArsBulkUploadController(IConfiguration config, ILogger<ArsBulkUploadController> logger)
     {
-        _connStr = config.GetConnectionString("DataV2Database")!;
+        _sfConnStr = config.GetConnectionString("Snowflake")!;
         _logger = logger;
         ExcelPackage.LicenseContext = LicenseContext.NonCommercial;
     }
@@ -28,17 +28,17 @@ public class ArsBulkUploadController : Controller
     {
         var tables = GetAllTables();
         var counts = new Dictionary<string, int>();
-        await using var conn = new SqlConnection(_connStr);
+        await using var conn = new SnowflakeDbConnection { ConnectionString = _sfConnStr };
         await conn.OpenAsync();
         foreach (var t in tables)
         {
             try
             {
                 await using var cmd = conn.CreateCommand();
-                cmd.CommandText = $"SELECT COUNT(1) FROM {GetSqlTableName(t.Key)} WITH (NOLOCK)";
-                counts[t.Key] = (int)(await cmd.ExecuteScalarAsync() ?? 0);
+                cmd.CommandText = $"SELECT COUNT(1) FROM {GetSnowflakeTableName(t.Key)}";
+                counts[t.Key] = Convert.ToInt32(await cmd.ExecuteScalarAsync() ?? 0);
             }
-            catch { counts[t.Key] = 0; }
+            catch (Exception ex) { _logger.LogWarning("BulkUpload count failed for {Table}: {Err}", t.Key, ex.Message); counts[t.Key] = 0; }
         }
         ViewBag.Tables = tables;
         ViewBag.Counts = counts;
@@ -46,7 +46,7 @@ public class ArsBulkUploadController : Controller
     }
 
     // ──────────────────────────────────────────────────────────
-    //  UPLOAD — SqlBulkCopy
+    //  UPLOAD — Batch INSERT to Snowflake
     // ──────────────────────────────────────────────────────────
     [HttpPost, ValidateAntiForgeryToken]
     [RequestSizeLimit(500_000_000)]
@@ -55,10 +55,10 @@ public class ArsBulkUploadController : Controller
         if (file == null || file.Length == 0)
         { TempData["ErrorMessage"] = "Please select a file."; return RedirectToAction(nameof(Index)); }
 
-        var sqlTableName = GetSqlTableName(table);
-        var sqlColumns = GetSqlColumns(table);
+        var sfTableName = GetSnowflakeTableName(table);
+        var sfColumns = GetSnowflakeColumns(table);
         var colTypes = GetColumnTypes(table);
-        if (sqlTableName == null || sqlColumns == null)
+        if (sfTableName == null || sfColumns == null)
         { TempData["ErrorMessage"] = "Unknown table."; return RedirectToAction(nameof(Index)); }
 
         var sw = Stopwatch.StartNew();
@@ -70,8 +70,8 @@ public class ArsBulkUploadController : Controller
 
             using var package = new ExcelPackage(stream);
             var dt = new DataTable();
-            for (int i = 0; i < sqlColumns.Length; i++)
-                dt.Columns.Add(sqlColumns[i], colTypes.Length > i ? colTypes[i] : typeof(string));
+            for (int i = 0; i < sfColumns.Length; i++)
+                dt.Columns.Add(sfColumns[i], colTypes.Length > i ? colTypes[i] : typeof(string));
 
             foreach (var ws in package.Workbook.Worksheets)
             {
@@ -81,7 +81,7 @@ public class ArsBulkUploadController : Controller
                 {
                     var dr = dt.NewRow();
                     bool hasData = false;
-                    for (int col = 0; col < sqlColumns.Length && col < ws.Dimension.End.Column; col++)
+                    for (int col = 0; col < sfColumns.Length && col < ws.Dimension.End.Column; col++)
                     {
                         var val = ws.Cells[row, col + 1].Value;
                         if (val != null) hasData = true;
@@ -90,7 +90,24 @@ public class ArsBulkUploadController : Controller
                             if (val == null) dr[col] = DBNull.Value;
                             else if (dt.Columns[col].DataType == typeof(decimal)) dr[col] = Convert.ToDecimal(val);
                             else if (dt.Columns[col].DataType == typeof(int)) dr[col] = Convert.ToInt32(val);
-                            else if (dt.Columns[col].DataType == typeof(DateTime)) dr[col] = Convert.ToDateTime(val);
+                            else if (dt.Columns[col].DataType == typeof(DateTime))
+                            {
+                                // Handle: DateTime, OLE double (42883), or string "28-05-2017" / "28-04-2026"
+                                if (val is DateTime dtv) dr[col] = dtv;
+                                else if (val is double dv) dr[col] = DateTime.FromOADate(dv);
+                                else
+                                {
+                                    var s = val.ToString()?.Trim() ?? "";
+                                    // Try dd-MM-yyyy first (Indian format), then other formats
+                                    var fmts = new[] { "dd-MM-yyyy", "dd/MM/yyyy", "yyyy-MM-dd", "d-M-yyyy" };
+                                    if (DateTime.TryParseExact(s, fmts, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var parsed))
+                                        dr[col] = parsed;
+                                    else if (DateTime.TryParse(s, out var parsed2))
+                                        dr[col] = parsed2;
+                                    else
+                                        dr[col] = DBNull.Value;
+                                }
+                            }
                             else dr[col] = val.ToString()?.Trim() ?? "";
                         }
                         catch { dr[col] = DBNull.Value; }
@@ -99,26 +116,119 @@ public class ArsBulkUploadController : Controller
                 }
             }
 
-            await using var conn = new SqlConnection(_connStr);
-            await conn.OpenAsync();
-
-            if (mode == "Replace")
+            // ── Snowflake bulk load: Write CSV temp file → PUT → COPY INTO ──
+            var tempCsv = Path.Combine(Path.GetTempPath(), $"ars_upload_{Guid.NewGuid():N}.csv");
+            try
             {
-                await using var cmd = conn.CreateCommand();
-                cmd.CommandText = $"TRUNCATE TABLE {sqlTableName}";
-                await cmd.ExecuteNonQueryAsync();
+                // Write DataTable to CSV
+                await using (var csvWriter = new StreamWriter(tempCsv, false, Encoding.UTF8))
+                {
+                    // Header
+                    await csvWriter.WriteLineAsync(string.Join(",", sfColumns));
+                    // Data rows
+                    foreach (DataRow dr in dt.Rows)
+                    {
+                        var line = new StringBuilder();
+                        for (int ci = 0; ci < sfColumns.Length; ci++)
+                        {
+                            if (ci > 0) line.Append(',');
+                            if (dr[ci] == DBNull.Value || dr[ci] == null)
+                                line.Append("");
+                            else
+                            {
+                                var raw = dr[ci];
+                                string val;
+                                // Force date formatting for DateTime columns
+                                if (raw is DateTime dtVal)
+                                    val = dtVal.ToString("yyyy-MM-dd");
+                                else if (colTypes.Length > ci && colTypes[ci] == typeof(DateTime))
+                                {
+                                    if (raw is double dbl)
+                                        val = DateTime.FromOADate(dbl).ToString("yyyy-MM-dd");
+                                    else
+                                    {
+                                        var s = raw.ToString() ?? "";
+                                        var fmts = new[] { "dd-MM-yyyy", "dd/MM/yyyy", "yyyy-MM-dd", "d-M-yyyy" };
+                                        if (DateTime.TryParseExact(s, fmts, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var p))
+                                            val = p.ToString("yyyy-MM-dd");
+                                        else
+                                            val = s;
+                                    }
+                                }
+                                else
+                                    val = raw.ToString() ?? "";
+
+                                if (val.Contains(',') || val.Contains('"') || val.Contains('\n'))
+                                    line.Append('"').Append(val.Replace("\"", "\"\"")).Append('"');
+                                else
+                                    line.Append(val);
+                            }
+                        }
+                        await csvWriter.WriteLineAsync(line.ToString());
+                    }
+                }
+
+                await using var conn = new SnowflakeDbConnection { ConnectionString = _sfConnStr };
+                await conn.OpenAsync();
+
+                if (mode == "Replace")
+                {
+                    using var delCmd = conn.CreateCommand();
+                    delCmd.CommandText = $"DELETE FROM {sfTableName}";
+                    delCmd.CommandTimeout = 60;
+                    await Task.Run(() => delCmd.ExecuteNonQuery());
+                }
+
+                // PUT file to Snowflake internal stage (SYNC only — Snowflake driver limitation)
+                var stageName = $"@%{sfTableName}";
+                using (var putCmd = conn.CreateCommand())
+                {
+                    putCmd.CommandText = $"PUT 'file://{tempCsv.Replace("\\", "/")}' {stageName} AUTO_COMPRESS=TRUE OVERWRITE=TRUE";
+                    putCmd.CommandTimeout = 300;
+                    await Task.Run(() => putCmd.ExecuteNonQuery());
+                }
+
+                // COPY INTO table from stage (SYNC)
+                int inserted = 0, rowsParsed = 0, rowsLoaded = 0, errorsSeen = 0;
+                string firstError = "";
+                using (var copyCmd = conn.CreateCommand())
+                {
+                    var colList = string.Join(",", sfColumns);
+                    copyCmd.CommandText = $@"COPY INTO {sfTableName} ({colList})
+                        FROM {stageName}
+                        FILE_FORMAT = (TYPE=CSV SKIP_HEADER=1 FIELD_OPTIONALLY_ENCLOSED_BY='""' NULL_IF=('') EMPTY_FIELD_AS_NULL=TRUE)
+                        PURGE = TRUE
+                        ON_ERROR = 'CONTINUE'";
+                    copyCmd.CommandTimeout = 300;
+                    using var rdr = await Task.Run(() => copyCmd.ExecuteReader());
+                    while (rdr.Read())
+                    {
+                        for (int i = 0; i < rdr.FieldCount; i++)
+                        {
+                            var colName = rdr.GetName(i).ToUpperInvariant();
+                            if (colName == "ROWS_PARSED" && !rdr.IsDBNull(i))
+                                rowsParsed += Convert.ToInt32(rdr.GetValue(i));
+                            if (colName == "ROWS_LOADED" && !rdr.IsDBNull(i))
+                                rowsLoaded += Convert.ToInt32(rdr.GetValue(i));
+                            if (colName == "ERRORS_SEEN" && !rdr.IsDBNull(i))
+                                errorsSeen += Convert.ToInt32(rdr.GetValue(i));
+                            if (colName == "FIRST_ERROR" && !rdr.IsDBNull(i))
+                                firstError = rdr.GetValue(i)?.ToString() ?? "";
+                        }
+                    }
+                    inserted = rowsLoaded;
+                }
+
+                sw.Stop();
+                if (errorsSeen > 0)
+                    TempData["ErrorMessage"] = $"Upload partial: {rowsLoaded:N0} loaded, {errorsSeen} errors of {rowsParsed:N0} parsed in {sw.ElapsedMilliseconds}ms. First error: {firstError}";
+                else
+                    TempData["SuccessMessage"] = $"Uploaded {rowsLoaded:N0} rows to {table} via Snowflake COPY in {sw.ElapsedMilliseconds}ms ({mode} mode). Parsed: {rowsParsed:N0}";
             }
-
-            using var bulkCopy = new SqlBulkCopy(conn, SqlBulkCopyOptions.TableLock, null);
-            bulkCopy.DestinationTableName = sqlTableName;
-            bulkCopy.BulkCopyTimeout = 600;
-            bulkCopy.BatchSize = 50000;
-            for (int i = 0; i < sqlColumns.Length; i++)
-                bulkCopy.ColumnMappings.Add(i, sqlColumns[i]);
-            await bulkCopy.WriteToServerAsync(dt);
-
-            sw.Stop();
-            TempData["SuccessMessage"] = $"Uploaded {dt.Rows.Count:N0} rows to {table} in {sw.ElapsedMilliseconds}ms ({mode} mode).";
+            finally
+            {
+                if (System.IO.File.Exists(tempCsv)) System.IO.File.Delete(tempCsv);
+            }
         }
         catch (Exception ex)
         {
@@ -156,21 +266,22 @@ public class ArsBulkUploadController : Controller
     }
 
     // ──────────────────────────────────────────────────────────
-    //  DOWNLOAD DATA (CSV)
+    //  DOWNLOAD DATA (CSV) — from Snowflake
     // ──────────────────────────────────────────────────────────
     public async Task DownloadData(string table)
     {
-        var sqlTableName = GetSqlTableName(table);
+        var sfTableName = GetSnowflakeTableName(table);
+        var sfColumns = GetSnowflakeColumns(table);
         var headers = GetHeaders(table);
-        if (sqlTableName == null || headers == null) { Response.StatusCode = 400; return; }
+        if (sfTableName == null || headers == null) { Response.StatusCode = 400; return; }
 
         Response.ContentType = "text/csv";
         Response.Headers.Append("Content-Disposition", $"attachment; filename={table}.csv");
 
-        await using var conn = new SqlConnection(_connStr);
+        await using var conn = new SnowflakeDbConnection { ConnectionString = _sfConnStr };
         await conn.OpenAsync();
         await using var cmd = conn.CreateCommand();
-        cmd.CommandText = $"SELECT * FROM {sqlTableName} WITH (NOLOCK)";
+        cmd.CommandText = $"SELECT {string.Join(",", sfColumns!)} FROM {sfTableName} ORDER BY 1";
         cmd.CommandTimeout = 300;
 
         await using var writer = new StreamWriter(Response.Body, Encoding.UTF8, leaveOpen: true);
@@ -194,32 +305,35 @@ public class ArsBulkUploadController : Controller
     }
 
     // ──────────────────────────────────────────────────────────
-    //  TABLE MAPPINGS
+    //  TABLE MAPPINGS (Snowflake)
     // ──────────────────────────────────────────────────────────
     private static Dictionary<string, string> GetAllTables() => new()
     {
-        ["ArsDisplayMaster"] = "Display Master (ST x MJ → DISP_Q)",
+        ["ArsDisplayMaster"] = "Display Master (ST x MJ → DISP_Q, ACC_DENSITY)",
         ["ArsAutoSale"] = "MJ Auto Sale (ST x MJ → CM/NM Sale)",
-        ["ArsArtAutoSale"] = "Article Auto Sale (ST x ART x CLR → CM/NM Sale)",
+        ["ArsArtAutoSale"] = "Article Auto Sale (ST x ART x CLR x MJ → Sale, ART_TAG)",
+        ["ArsArtAging"] = "Article Aging (GEN_ART x CLR → AGING_DAYS)",
         ["ArsHoldDays"] = "Hold Days Master (ST x MJ → HOLD_DAYS)",
         ["ArsStMaster"] = "Store Master (ST_CD → RDC, Hub, Cover Days, Intra)",
     };
 
-    private string? GetSqlTableName(string table) => table switch
+    private string? GetSnowflakeTableName(string table) => table switch
     {
-        "ArsDisplayMaster" => "[dbo].[ARS_ST_MJ_DISPLAY_MASTER]",
-        "ArsAutoSale"      => "[dbo].[ARS_ST_MJ_AUTO_SALE]",
-        "ArsArtAutoSale"   => "[dbo].[ARS_ST_ART_AUTO_SALE]",
-        "ArsHoldDays"      => "[dbo].[ARS_HOLD_DAYS_MASTER]",
-        "ArsStMaster"      => "[dbo].[ARS_ST_MASTER]",
+        "ArsDisplayMaster" => "ARS_ST_MJ_DISPLAY_MASTER",
+        "ArsAutoSale"      => "ARS_ST_MJ_AUTO_SALE",
+        "ArsArtAutoSale"   => "ARS_ST_ART_AUTO_SALE",
+        "ArsArtAging"      => "ARS_ART_AGING",
+        "ArsHoldDays"      => "ARS_HOLD_DAYS_MASTER",
+        "ArsStMaster"      => "ARS_ST_MASTER",
         _ => null
     };
 
-    private string[]? GetSqlColumns(string table) => table switch
+    private string[]? GetSnowflakeColumns(string table) => table switch
     {
-        "ArsDisplayMaster" => new[] { "ST", "MJ", "ST_MJ_DISP_Q" },
-        "ArsAutoSale"      => new[] { "ST", "MJ", "CM-REM-DAYS", "NM-DAYS", "CM-AUTO-SALE-Q", "NM-AUTO-SALE-Q" },
-        "ArsArtAutoSale"   => new[] { "ST", "GEN-ART", "CLR", "CM-REM-DAYS", "NM-DAYS", "CM-AUTO-SALE-Q", "NM-AUTO-SALE-Q" },
+        "ArsDisplayMaster" => new[] { "ST", "MJ", "ST_MJ_DISP_Q", "ACC_DENSITY" },
+        "ArsAutoSale"      => new[] { "ST", "MJ", "CM_REM_DAYS", "NM_DAYS", "CM_AUTO_SALE_Q", "NM_AUTO_SALE_Q" },
+        "ArsArtAutoSale"   => new[] { "ST", "GEN_ART", "CLR", "MJ", "CM_REM_DAYS", "NM_DAYS", "CM_AUTO_SALE_Q", "NM_AUTO_SALE_Q", "ART_TAG" },
+        "ArsArtAging"      => new[] { "GEN_ART", "CLR", "AGING_DAYS" },
         "ArsHoldDays"      => new[] { "ST", "MJ", "HOLD_DAYS" },
         "ArsStMaster"      => new[] { "ST_CD", "ST_NM", "HUB_CD", "HUB_NM", "DIRECT_HUB", "TAGGED_RDC", "DH24_DC_TO_HUB_INTRA", "DH24_HUB_TO_ST_INTRA", "DW01_DC_TO_HUB_INTRA", "DW01_HUB_TO_ST_INTRA", "ST_OP_DT", "ST_STAT", "SALE_COVER_DAYS", "PRD_DAYS" },
         _ => null
@@ -227,9 +341,10 @@ public class ArsBulkUploadController : Controller
 
     private string[]? GetHeaders(string table) => table switch
     {
-        "ArsDisplayMaster" => new[] { "ST", "MJ", "ST_MJ_DISP_Q" },
-        "ArsAutoSale"      => new[] { "ST", "MJ", "CM-REM-DAYS", "NM-DAYS", "CM-AUTO-SALE-Q", "NM-AUTO-SALE-Q" },
-        "ArsArtAutoSale"   => new[] { "ST", "GEN-ART", "CLR", "CM-REM-DAYS", "NM-DAYS", "CM-AUTO-SALE-Q", "NM-AUTO-SALE-Q" },
+        "ArsDisplayMaster" => new[] { "ST", "MJ", "ST_MJ_DISP_Q", "ACC_DENSITY" },
+        "ArsAutoSale"      => new[] { "ST", "MJ", "CM_REM_DAYS", "NM_DAYS", "CM_AUTO_SALE_Q", "NM_AUTO_SALE_Q" },
+        "ArsArtAutoSale"   => new[] { "ST", "GEN_ART", "CLR", "MJ", "CM_REM_DAYS", "NM_DAYS", "CM_AUTO_SALE_Q", "NM_AUTO_SALE_Q", "ART_TAG" },
+        "ArsArtAging"      => new[] { "GEN_ART", "CLR", "AGING_DAYS" },
         "ArsHoldDays"      => new[] { "ST", "MJ", "HOLD_DAYS" },
         "ArsStMaster"      => new[] { "ST_CD", "ST_NM", "HUB_CD", "HUB_NM", "DIRECT_HUB", "TAGGED_RDC", "DH24_DC_TO_HUB_INTRA", "DH24_HUB_TO_ST_INTRA", "DW01_DC_TO_HUB_INTRA", "DW01_HUB_TO_ST_INTRA", "ST_OP_DT", "ST_STAT", "SALE_COVER_DAYS", "PRD_DAYS" },
         _ => null
@@ -237,9 +352,10 @@ public class ArsBulkUploadController : Controller
 
     private Type[] GetColumnTypes(string table) => table switch
     {
-        "ArsDisplayMaster" => new[] { typeof(string), typeof(string), typeof(decimal) },
+        "ArsDisplayMaster" => new[] { typeof(string), typeof(string), typeof(decimal), typeof(decimal) },
         "ArsAutoSale"      => new[] { typeof(string), typeof(string), typeof(decimal), typeof(decimal), typeof(decimal), typeof(decimal) },
-        "ArsArtAutoSale"   => new[] { typeof(string), typeof(string), typeof(string), typeof(decimal), typeof(decimal), typeof(decimal), typeof(decimal) },
+        "ArsArtAutoSale"   => new[] { typeof(string), typeof(string), typeof(string), typeof(string), typeof(decimal), typeof(decimal), typeof(decimal), typeof(decimal), typeof(string) },
+        "ArsArtAging"      => new[] { typeof(string), typeof(string), typeof(int) },
         "ArsHoldDays"      => new[] { typeof(string), typeof(string), typeof(decimal) },
         "ArsStMaster"      => new[] { typeof(string), typeof(string), typeof(string), typeof(string), typeof(string), typeof(string), typeof(decimal), typeof(decimal), typeof(decimal), typeof(decimal), typeof(DateTime), typeof(string), typeof(decimal), typeof(decimal) },
         _ => Array.Empty<Type>()
@@ -247,9 +363,10 @@ public class ArsBulkUploadController : Controller
 
     private object[] GetSampleRow(string table) => table switch
     {
-        "ArsDisplayMaster" => new object[] { "HB05", "M_JEANS", 25.5 },
+        "ArsDisplayMaster" => new object[] { "HB05", "M_JEANS", 25.5, 12.0 },
         "ArsAutoSale"      => new object[] { "HB05", "M_JEANS", 15, 30, 120.5, 95.3 },
-        "ArsArtAutoSale"   => new object[] { "HB05", "1130140482", "BLK", 15, 30, 8.5, 6.2 },
+        "ArsArtAutoSale"   => new object[] { "HB05", "1130140482", "BLK", "M_JEANS", 15, 30, 8.5, 6.2, "" },
+        "ArsArtAging"      => new object[] { "1130140482", "BLK", 180 },
         "ArsHoldDays"      => new object[] { "HB05", "M_JEANS", 20 },
         "ArsStMaster"      => new object[] { "HB05", "PTN", "DB03", "PATNA", "DB03", "DH24", 2, 1, 3, 2, "2012-05-01", "OLD", 2, 3 },
         _ => Array.Empty<object>()

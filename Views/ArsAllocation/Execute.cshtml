@@ -16,7 +16,7 @@
                     <tbody>
                         @{ var tables = new[] {
                             ("Store Stock (ET_STOCK_DATA)", (int)(ViewBag.StockRows ?? 0)),
-                            ("MSA Stock (VIEW_ET_MSA_STOCK)", (int)(ViewBag.MsaRows ?? 0)),
+                            ("MSA Stock (ET_MSA_STOCK)", (int)(ViewBag.MsaRows ?? 0)),
                             ("Display Master", (int)(ViewBag.DisplayRows ?? 0)),
                             ("MJ Auto Sale", (int)(ViewBag.AutoSaleRows ?? 0)),
                             ("Article Auto Sale", (int)(ViewBag.ArtSaleRows ?? 0)),
@@ -129,7 +129,7 @@ async function pollStatus() {
     document.getElementById('elapsed').textContent = d.elapsedSeconds > 0 ? d.elapsedSeconds + 's' : '';
 
     // Progress bar
-    const pcts = { 'Initializing': 5, 'Logging': 10, 'Preparing': 30, 'Allocating': 70, 'Finalizing': 90, 'Done': 100, 'Error': 100 };
+    const pcts = { 'Initializing': 5, 'Logging': 10, 'Running': 50, 'Done': 100, 'Error': 100 };
     document.getElementById('progressBar').style.width = (pcts[d.phase] || 0) + '%';
     if (d.phase === 'Error') document.getElementById('progressBar').classList.add('bg-danger');
 

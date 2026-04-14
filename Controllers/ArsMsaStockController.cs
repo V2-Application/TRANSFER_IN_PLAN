@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Data.SqlClient;
+using Snowflake.Data.Client;
+using System.Data;
 using System.Text;
 
 namespace TRANSFER_IN_PLAN.Controllers;
@@ -7,58 +8,82 @@ namespace TRANSFER_IN_PLAN.Controllers;
 public class ArsMsaStockController : Controller
 {
     private readonly string _connStr;
-    public ArsMsaStockController(IConfiguration config) => _connStr = config.GetConnectionString("DataV2Database")!;
+    public ArsMsaStockController(IConfiguration config) => _connStr = config.GetConnectionString("Snowflake")!;
+
+    private SnowflakeDbConnection OpenConn()
+    {
+        var conn = new SnowflakeDbConnection { ConnectionString = _connStr };
+        conn.Open();
+        return conn;
+    }
 
     public async Task<IActionResult> Index(string? storeCode, string? articleNumber, string? mcCode, string sortCol = "STORE_CODE", string sortDir = "ASC", int page = 1, int pageSize = 100)
     {
-        var where = new StringBuilder("WHERE 1=1");
-        var parms = new List<SqlParameter>();
-        if (!string.IsNullOrEmpty(storeCode)) { where.Append(" AND STORE_CODE = @s"); parms.Add(new SqlParameter("@s", storeCode)); }
-        if (!string.IsNullOrEmpty(articleNumber)) { where.Append(" AND Article_Number = @a"); parms.Add(new SqlParameter("@a", articleNumber)); }
-        if (!string.IsNullOrEmpty(mcCode)) { where.Append(" AND MC_CODE = @mc"); parms.Add(new SqlParameter("@mc", mcCode)); }
+        var where = new StringBuilder(" AND MSA_STOCK_DATE = CURRENT_DATE() - 1");
+        var parms = new List<SnowflakeDbParameter>();
+        int pIdx = 0;
 
-        var validCols = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "STORE_CODE", "Article_Number", "QTY", "VAL", "MC_CODE", "MSA_Stock_Date" };
+        if (!string.IsNullOrEmpty(storeCode))
+        {
+            where.Append(" AND STORE_CODE = ?");
+            parms.Add(new SnowflakeDbParameter { ParameterName = (++pIdx).ToString(), Value = storeCode, DbType = DbType.String });
+        }
+        if (!string.IsNullOrEmpty(articleNumber))
+        {
+            where.Append(" AND ARTICLE_NUMBER = ?");
+            parms.Add(new SnowflakeDbParameter { ParameterName = (++pIdx).ToString(), Value = articleNumber, DbType = DbType.String });
+        }
+        if (!string.IsNullOrEmpty(mcCode))
+        {
+            where.Append(" AND MC_CODE = ?");
+            parms.Add(new SnowflakeDbParameter { ParameterName = (++pIdx).ToString(), Value = mcCode, DbType = DbType.String });
+        }
+
+        string filter = " WHERE " + where.ToString()[5..];
+
+        var validCols = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "STORE_CODE", "ARTICLE_NUMBER", "QTY", "VAL", "MC_CODE", "MSA_STOCK_DATE" };
         if (!validCols.Contains(sortCol)) sortCol = "STORE_CODE";
         var dir = sortDir == "DESC" ? "DESC" : "ASC";
 
-        await using var conn = new SqlConnection(_connStr);
-        await conn.OpenAsync();
+        using var conn = OpenConn();
 
         // Total count
-        await using (var cmd = conn.CreateCommand())
+        using (var cmd = conn.CreateCommand())
         {
-            cmd.CommandText = $"SELECT COUNT(1) FROM dbo.VIEW_ET_MSA_STOCK WITH (NOLOCK) {where}";
-            parms.ForEach(p => cmd.Parameters.Add(Clone(p)));
-            ViewBag.TotalCount = (int)(await cmd.ExecuteScalarAsync() ?? 0);
+            cmd.CommandText = $"SELECT COUNT(1) FROM ET_MSA_STOCK{filter}";
+            foreach (var p in parms) cmd.Parameters.Add(CloneParam(p));
+            ViewBag.TotalCount = Convert.ToInt32(await Task.Run(() => cmd.ExecuteScalar()));
         }
 
         // KPIs
-        await using (var cmd = conn.CreateCommand())
+        using (var cmd = conn.CreateCommand())
         {
-            cmd.CommandText = $"SELECT COUNT(DISTINCT STORE_CODE), COUNT(DISTINCT Article_Number), COUNT(DISTINCT MC_CODE), ISNULL(SUM(QTY),0), ISNULL(SUM(VAL),0), MAX(MSA_Stock_Date) FROM dbo.VIEW_ET_MSA_STOCK WITH (NOLOCK) {where}";
-            parms.ForEach(p => cmd.Parameters.Add(Clone(p)));
-            await using var r = await cmd.ExecuteReaderAsync();
-            if (await r.ReadAsync())
+            cmd.CommandText = $"SELECT COUNT(DISTINCT STORE_CODE), COUNT(DISTINCT ARTICLE_NUMBER), COUNT(DISTINCT MC_CODE), NVL(SUM(QTY),0), NVL(SUM(VAL),0), MAX(MSA_STOCK_DATE) FROM ET_MSA_STOCK{filter}";
+            foreach (var p in parms) cmd.Parameters.Add(CloneParam(p));
+            using var r = await Task.Run(() => cmd.ExecuteReader());
+            if (r.Read())
             {
-                ViewBag.TotalStores = r.GetInt32(0); ViewBag.TotalArticles = r.GetInt32(1);
-                ViewBag.TotalMcCodes = r.GetInt32(2);
-                ViewBag.TotalQty = r.GetDecimal(3); ViewBag.TotalVal = r.GetDecimal(4);
-                ViewBag.MsaDate = r.IsDBNull(5) ? null : r.GetDateTime(5).ToString("dd-MMM-yyyy");
+                ViewBag.TotalStores = Convert.ToInt32(r.GetValue(0));
+                ViewBag.TotalArticles = Convert.ToInt32(r.GetValue(1));
+                ViewBag.TotalMcCodes = Convert.ToInt32(r.GetValue(2));
+                ViewBag.TotalQty = Convert.ToDecimal(r.GetValue(3));
+                ViewBag.TotalVal = Convert.ToDecimal(r.GetValue(4));
+                ViewBag.MsaDate = r.IsDBNull(5) ? null : Convert.ToDateTime(r.GetValue(5)).ToString("dd-MMM-yyyy");
             }
         }
 
         // Data
         int offset = (page - 1) * pageSize;
         var rows = new List<Dictionary<string, object?>>();
-        await using (var cmd = conn.CreateCommand())
+        using (var cmd = conn.CreateCommand())
         {
-            cmd.CommandText = $@"SELECT Article_Number, STORE_CODE, LOCATION, LGNUM, LGTYP, LGPLA, MEINS, VAL, PPK_QTY, QTY, VEMNG2, MC_CODE, ATTYP, ERDAT, KUNNR, LPTYP, MSA_Stock_Date
-                FROM dbo.VIEW_ET_MSA_STOCK WITH (NOLOCK) {where}
-                ORDER BY [{sortCol}] {dir}
-                OFFSET {offset} ROWS FETCH NEXT {pageSize} ROWS ONLY";
-            parms.ForEach(p => cmd.Parameters.Add(Clone(p)));
-            await using var r = await cmd.ExecuteReaderAsync();
-            while (await r.ReadAsync())
+            cmd.CommandText = $@"SELECT ARTICLE_NUMBER, STORE_CODE, LOCATION, LGNUM, LGTYP, LGPLA, MEINS, VAL, PPK_QTY, QTY, VEMNG2, MC_CODE, ATTYP, ERDAT, KUNNR, LPTYP, MSA_STOCK_DATE
+                FROM ET_MSA_STOCK{filter}
+                ORDER BY {sortCol} {dir}
+                LIMIT {pageSize} OFFSET {offset}";
+            foreach (var p in parms) cmd.Parameters.Add(CloneParam(p));
+            using var r = await Task.Run(() => cmd.ExecuteReader());
+            while (r.Read())
             {
                 var row = new Dictionary<string, object?>();
                 for (int i = 0; i < r.FieldCount; i++)
@@ -68,7 +93,8 @@ public class ArsMsaStockController : Controller
         }
 
         // Dropdowns
-        ViewBag.StoreList = await GetDistinctAsync("STORE_CODE"); ViewBag.McCodeList = await GetDistinctAsync("MC_CODE");
+        ViewBag.StoreList = await GetDistinctAsync("STORE_CODE");
+        ViewBag.McCodeList = await GetDistinctAsync("MC_CODE");
         ViewBag.Rows = rows; ViewBag.Page = page; ViewBag.PageSize = pageSize;
         ViewBag.SortCol = sortCol; ViewBag.SortDir = dir;
         ViewBag.StoreCode = storeCode; ViewBag.ArticleNumber = articleNumber; ViewBag.McCode = mcCode;
@@ -77,23 +103,39 @@ public class ArsMsaStockController : Controller
 
     public async Task ExportCsv(string? storeCode, string? articleNumber, string? mcCode)
     {
-        var where = new StringBuilder("WHERE 1=1");
-        if (!string.IsNullOrEmpty(storeCode)) where.Append($" AND STORE_CODE = '{storeCode}'");
-        if (!string.IsNullOrEmpty(articleNumber)) where.Append($" AND Article_Number = '{articleNumber}'");
-        if (!string.IsNullOrEmpty(mcCode)) where.Append($" AND MC_CODE = '{mcCode}'");
+        var where = new StringBuilder(" AND MSA_STOCK_DATE = CURRENT_DATE() - 1");
+        var parms = new List<SnowflakeDbParameter>();
+        int pIdx = 0;
+
+        if (!string.IsNullOrEmpty(storeCode))
+        {
+            where.Append(" AND STORE_CODE = ?");
+            parms.Add(new SnowflakeDbParameter { ParameterName = (++pIdx).ToString(), Value = storeCode, DbType = DbType.String });
+        }
+        if (!string.IsNullOrEmpty(articleNumber))
+        {
+            where.Append(" AND ARTICLE_NUMBER = ?");
+            parms.Add(new SnowflakeDbParameter { ParameterName = (++pIdx).ToString(), Value = articleNumber, DbType = DbType.String });
+        }
+        if (!string.IsNullOrEmpty(mcCode))
+        {
+            where.Append(" AND MC_CODE = ?");
+            parms.Add(new SnowflakeDbParameter { ParameterName = (++pIdx).ToString(), Value = mcCode, DbType = DbType.String });
+        }
+
+        string filter = " WHERE " + where.ToString()[5..];
 
         Response.ContentType = "text/csv";
-        Response.Headers.Append("Content-Disposition", "attachment; filename=VIEW_ET_MSA_STOCK.csv");
+        Response.Headers.Append("Content-Disposition", "attachment; filename=ET_MSA_STOCK.csv");
         await using var writer = new StreamWriter(Response.Body, Encoding.UTF8, leaveOpen: true);
-        await writer.WriteLineAsync("Article_Number,STORE_CODE,LOCATION,LGNUM,LGTYP,LGPLA,MEINS,VAL,PPK_QTY,QTY,VEMNG2,MC_CODE,ATTYP,ERDAT,KUNNR,LPTYP,MSA_Stock_Date");
+        await writer.WriteLineAsync("ARTICLE_NUMBER,STORE_CODE,LOCATION,LGNUM,LGTYP,LGPLA,MEINS,VAL,PPK_QTY,QTY,VEMNG2,MC_CODE,ATTYP,ERDAT,KUNNR,LPTYP,MSA_STOCK_DATE");
 
-        await using var conn = new SqlConnection(_connStr);
-        await conn.OpenAsync();
-        await using var cmd = conn.CreateCommand();
-        cmd.CommandText = $"SELECT Article_Number,STORE_CODE,LOCATION,LGNUM,LGTYP,LGPLA,MEINS,VAL,PPK_QTY,QTY,VEMNG2,MC_CODE,ATTYP,ERDAT,KUNNR,LPTYP,MSA_Stock_Date FROM dbo.VIEW_ET_MSA_STOCK WITH (NOLOCK) {where} ORDER BY STORE_CODE,Article_Number";
-        cmd.CommandTimeout = 300;
-        await using var r = await cmd.ExecuteReaderAsync();
-        while (await r.ReadAsync())
+        using var conn = OpenConn();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = $"SELECT ARTICLE_NUMBER,STORE_CODE,LOCATION,LGNUM,LGTYP,LGPLA,MEINS,VAL,PPK_QTY,QTY,VEMNG2,MC_CODE,ATTYP,ERDAT,KUNNR,LPTYP,MSA_STOCK_DATE FROM ET_MSA_STOCK{filter} ORDER BY STORE_CODE,ARTICLE_NUMBER";
+        foreach (var p in parms) cmd.Parameters.Add(p);
+        using var r = await Task.Run(() => cmd.ExecuteReader());
+        while (r.Read())
         {
             var sb = new StringBuilder();
             for (int i = 0; i < r.FieldCount; i++)
@@ -111,15 +153,14 @@ public class ArsMsaStockController : Controller
     private async Task<List<string>> GetDistinctAsync(string col)
     {
         var list = new List<string>();
-        await using var conn = new SqlConnection(_connStr);
-        await conn.OpenAsync();
-        await using var cmd = conn.CreateCommand();
-        cmd.CommandText = $"SELECT DISTINCT [{col}] FROM dbo.VIEW_ET_MSA_STOCK WITH (NOLOCK) WHERE [{col}] IS NOT NULL ORDER BY 1";
-        cmd.CommandTimeout = 60;
-        await using var r = await cmd.ExecuteReaderAsync();
-        while (await r.ReadAsync()) list.Add(r.GetString(0));
+        using var conn = OpenConn();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = $"SELECT DISTINCT {col} FROM ET_MSA_STOCK WHERE MSA_STOCK_DATE = CURRENT_DATE() - 1 AND {col} IS NOT NULL ORDER BY 1";
+        using var r = await Task.Run(() => cmd.ExecuteReader());
+        while (r.Read()) list.Add(r.GetString(0));
         return list;
     }
 
-    private static SqlParameter Clone(SqlParameter p) => new(p.ParameterName, p.SqlDbType) { Value = p.Value };
+    private static SnowflakeDbParameter CloneParam(SnowflakeDbParameter src) =>
+        new() { ParameterName = src.ParameterName, Value = src.Value, DbType = src.DbType };
 }

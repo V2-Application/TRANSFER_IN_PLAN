@@ -387,4 +387,14 @@ public class SnowflakeService
             _ => decimal.TryParse(val?.ToString(), out var p) ? p : 0m
         };
     }
+
+    // ───────────────────────────────────────────────────────
+    //  ARS Snowflake Connection Helper
+    // ───────────────────────────────────────────────────────
+    public SnowflakeDbConnection CreateArsConnection()
+    {
+        var conn = new SnowflakeDbConnection();
+        conn.ConnectionString = SnowflakeConnStr;
+        return conn;
+    }
 }

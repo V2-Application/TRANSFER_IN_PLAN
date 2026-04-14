@@ -327,6 +327,7 @@
     var isRef = refTables.some(function(t){ return path.indexOf('/'+t) !== -1; });
     var isCont = contPages.some(function(t){ return path.indexOf('/'+t) !== -1; });
     var isPlan = planPages.some(function(t){ return path.toLowerCase().indexOf('/'+t.toLowerCase()) !== -1; });
+    var isRfc = rfcPages.some(function(t){ return path.toLowerCase().indexOf('/'+t.toLowerCase()) !== -1; });
     // Desktop sidebar
     if(isRef){ var el=document.getElementById('refTablesMenu'); if(el) el.classList.add('show'); }
     if(isCont){ var el=document.getElementById('contMenu'); if(el) el.classList.add('show'); }

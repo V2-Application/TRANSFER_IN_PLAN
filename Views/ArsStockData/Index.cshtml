@@ -1,7 +1,7 @@
 @{ ViewData["Title"] = "Store Stock (ET_STOCK_DATA)";
    var rows = ViewBag.Rows as List<Dictionary<string, object?>> ?? new();
-   var cols = new[] { "MATNR", "WERKS", "LGORT", "CHARG", "MEINS", "LABST", "TRAME", "LABST_DMBTR", "TRAME_DMBTR", "V_MENGE", "V_DMBTR", "stock_Date" };
-   var sortable = new HashSet<string> { "WERKS", "MATNR", "LGORT", "LABST", "TRAME", "stock_Date" };
+   var cols = new[] { "MATNR", "WERKS", "LGORT", "CHARG", "MEINS", "LABST", "TRAME", "LABST_DMBTR", "TRAME_DMBTR", "V_MENGE", "V_DMBTR", "STOCK_DATE" };
+   var sortable = new HashSet<string> { "WERKS", "MATNR", "LGORT", "LABST", "TRAME", "STOCK_DATE" };
    string sc = ViewBag.SortCol; string sd = ViewBag.SortDir;
    string NextDir(string c) => c == sc && sd == "ASC" ? "DESC" : "ASC";
    string Arrow(string c) => c == sc ? (sd == "ASC" ? " ▲" : " ▼") : ""; }

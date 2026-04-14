@@ -1,4 +1,5 @@
-using Microsoft.Data.SqlClient;
+using Snowflake.Data.Client;
+using System.Text.Json;
 
 namespace TRANSFER_IN_PLAN.Services;
 
@@ -56,87 +57,54 @@ public class ArsAllocationJobService
 
     private async Task RunAllocationAsync()
     {
-        var connStr = _config.GetConnectionString("DataV2Database")!;
+        var sfConnStr = _config.GetConnectionString("Snowflake")!;
 
         try
         {
-            _logger.LogInformation("ARS Allocation: Starting run {RunId}", RunId);
+            _logger.LogInformation("ARS Allocation: Starting run {RunId} on Snowflake", RunId);
 
-            // Use a single connection so temp tables persist across SPs
-            await using var conn = new SqlConnection(connStr);
+            await using var conn = new SnowflakeDbConnection { ConnectionString = sfConnStr };
             await conn.OpenAsync();
 
-            // ── Phase 1: Create Run Log ──
+            // ── Phase 1: Create Run Log in Snowflake ──
             lock (_lock) { Phase = "Logging"; Status = "Creating run log..."; }
+
             await using (var cmd = conn.CreateCommand())
             {
-                cmd.CommandText = "INSERT INTO dbo.ARS_RUN_LOG (RUN_ID, STATUS) VALUES (@r, 'RUNNING')";
-                cmd.Parameters.AddWithValue("@r", RunId);
+                cmd.CommandText = "INSERT INTO ARS_RUN_LOG (RUN_ID, STATUS, STARTED_DT) VALUES (:1, 'RUNNING', CURRENT_TIMESTAMP())";
+                var p = cmd.CreateParameter();
+                p.ParameterName = "1";
+                p.Value = RunId;
+                cmd.Parameters.Add(p);
                 await cmd.ExecuteNonQueryAsync();
             }
 
-            // ── Phase 2: Prepare Data ──
-            lock (_lock) { Phase = "Preparing"; Status = "Preparing data (stock pivot, MBQ, classification)..."; }
-            _logger.LogInformation("ARS: Phase 2 — Prepare Data");
+            // ── Phase 2: Call Snowflake SP (PREPARE + ALLOCATE + FINALIZE) ──
+            lock (_lock) { Phase = "Running"; Status = "Running allocation SP on Snowflake (prepare → allocate → finalize)..."; }
+            _logger.LogInformation("ARS: Calling SP_ARS_ALLOCATION_RUN on Snowflake");
 
             await using (var cmd = conn.CreateCommand())
             {
-                cmd.CommandText = "EXEC dbo.SP_ARS_PREPARE_DATA @RunId = @r";
-                cmd.Parameters.AddWithValue("@r", RunId);
-                cmd.CommandTimeout = 300;
+                // Pass RunId inline — it's internally generated (ARS-yyyyMMdd-HHmmss), safe from injection
+                cmd.CommandText = $"CALL SP_ARS_ALLOCATION_RUN('{RunId}')";
+                cmd.CommandTimeout = 600; // 10 min
 
                 await using var rdr = await cmd.ExecuteReaderAsync();
                 if (await rdr.ReadAsync())
                 {
-                    PreparedRows = rdr.GetInt32(0);
-                    StoresProcessed = rdr.GetInt32(1);
-                    LCount = rdr.GetInt32(3);
-                    MixCount = rdr.GetInt32(4);
-                    OldCount = rdr.GetInt32(5);
-                }
-            }
+                    // SP returns a VARIANT (JSON object)
+                    var resultJson = rdr.GetString(0);
+                    var result = JsonDocument.Parse(resultJson).RootElement;
 
-            lock (_lock) { Status = $"Prepared {PreparedRows:N0} rows ({StoresProcessed} stores, L:{LCount} MIX:{MixCount} OLD:{OldCount})"; }
-            _logger.LogInformation("ARS: Prepared {Rows} rows, {Stores} stores", PreparedRows, StoresProcessed);
-
-            // ── Phase 3: Allocate ──
-            lock (_lock) { Phase = "Allocating"; Status = "Running allocation algorithm (iterative per store)..."; }
-            _logger.LogInformation("ARS: Phase 3 — Allocate");
-
-            await using (var cmd = conn.CreateCommand())
-            {
-                cmd.CommandText = "EXEC dbo.SP_ARS_ALLOCATE @RunId = @r";
-                cmd.Parameters.AddWithValue("@r", RunId);
-                cmd.CommandTimeout = 600; // 10 min for 600 stores
-
-                await using var rdr = await cmd.ExecuteReaderAsync();
-                if (await rdr.ReadAsync())
-                {
-                    AllocatedCount = rdr.GetInt32(1);
-                    HeldCount = rdr.GetInt32(2);
-                    var totalAlcQty = rdr.GetDecimal(3);
-                    var totalHoldQty = rdr.GetDecimal(4);
-                    lock (_lock) { Status = $"Allocated: {AllocatedCount:N0} articles, Held: {HeldCount:N0} (Qty: {totalAlcQty:N0} alc + {totalHoldQty:N0} hold)"; }
-                }
-            }
-
-            _logger.LogInformation("ARS: Allocated {Alc}, Held {Held}", AllocatedCount, HeldCount);
-
-            // ── Phase 4: Finalize ──
-            lock (_lock) { Phase = "Finalizing"; Status = "Finalizing — NEW-L tagging, writing output..."; }
-            _logger.LogInformation("ARS: Phase 4 — Finalize");
-
-            await using (var cmd = conn.CreateCommand())
-            {
-                cmd.CommandText = "EXEC dbo.SP_ARS_FINALIZE @RunId = @r";
-                cmd.Parameters.AddWithValue("@r", RunId);
-                cmd.CommandTimeout = 300;
-
-                await using var rdr = await cmd.ExecuteReaderAsync();
-                if (await rdr.ReadAsync())
-                {
-                    OutputRows = rdr.GetInt32(0);
-                    NewLCount = rdr.GetInt32(3);
+                    PreparedRows    = GetInt(result, "prepared_rows");
+                    StoresProcessed = GetInt(result, "stores");
+                    AllocatedCount  = GetInt(result, "allocated_count");
+                    HeldCount       = GetInt(result, "held_count");
+                    OutputRows      = GetInt(result, "output_rows");
+                    LCount          = GetInt(result, "l_count");
+                    MixCount        = GetInt(result, "mix_count");
+                    OldCount        = GetInt(result, "old_count");
+                    NewLCount       = GetInt(result, "new_l_count");
                 }
             }
 
@@ -149,7 +117,7 @@ public class ArsAllocationJobService
                 var elapsed = CompletedAt.Value - StartedAt!.Value;
                 Status = $"Completed in {elapsed.TotalMinutes:N1} min — {OutputRows:N0} rows, {AllocatedCount:N0} allocated, {HeldCount:N0} held, {NewLCount:N0} NEW-L (Run: {RunId})";
             }
-            _logger.LogInformation("ARS: Completed. {Output} rows, {Elapsed}", OutputRows, (CompletedAt!.Value - StartedAt!.Value));
+            _logger.LogInformation("ARS: Completed. {Output} rows in {Elapsed}", OutputRows, (CompletedAt!.Value - StartedAt!.Value));
         }
         catch (Exception ex)
         {
@@ -166,16 +134,26 @@ public class ArsAllocationJobService
             // Update run log with error
             try
             {
-                await using var conn2 = new SqlConnection(connStr);
+                await using var conn2 = new SnowflakeDbConnection { ConnectionString = sfConnStr };
                 await conn2.OpenAsync();
                 await using var cmd = conn2.CreateCommand();
-                cmd.CommandText = "UPDATE dbo.ARS_RUN_LOG SET STATUS='FAILED', ERROR_MSG=@e, COMPLETED_DT=GETDATE() WHERE RUN_ID=@r";
-                cmd.Parameters.AddWithValue("@r", RunId);
-                cmd.Parameters.AddWithValue("@e", ErrorMessage ?? "Unknown error");
+                cmd.CommandText = "UPDATE ARS_RUN_LOG SET STATUS='FAILED', ERROR_MSG=:1, COMPLETED_DT=CURRENT_TIMESTAMP() WHERE RUN_ID=:2";
+                var p1 = cmd.CreateParameter(); p1.ParameterName = "1"; p1.Value = ErrorMessage ?? "Unknown error"; cmd.Parameters.Add(p1);
+                var p2 = cmd.CreateParameter(); p2.ParameterName = "2"; p2.Value = RunId; cmd.Parameters.Add(p2);
                 await cmd.ExecuteNonQueryAsync();
             }
             catch { /* ignore logging errors */ }
         }
+    }
+
+    private static int GetInt(JsonElement el, string prop)
+    {
+        if (el.TryGetProperty(prop, out var val))
+        {
+            if (val.ValueKind == JsonValueKind.Number) return val.GetInt32();
+            if (val.ValueKind == JsonValueKind.String && int.TryParse(val.GetString(), out var i)) return i;
+        }
+        return 0;
     }
 
     public object GetStatus() => new

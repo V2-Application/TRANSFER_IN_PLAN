@@ -22,6 +22,10 @@ public class ArsStMjDisplayMaster
     [Column("ST_MJ_DISP_Q")]
     [Precision(18, 4)]
     public decimal? StMjDispQ { get; set; }
+
+    [Column("ACC_DENSITY")]
+    [Precision(18, 4)]
+    public decimal? AccDensity { get; set; }
 }
 
 [Table("ARS_ST_MJ_AUTO_SALE")]
@@ -39,19 +43,19 @@ public class ArsStMjAutoSale
     [StringLength(100)]
     public string Mj { get; set; } = "";
 
-    [Column("CM-REM-DAYS")]
+    [Column("CM_REM_DAYS")]
     [Precision(18, 4)]
     public decimal? CmRemDays { get; set; }
 
-    [Column("NM-DAYS")]
+    [Column("NM_DAYS")]
     [Precision(18, 4)]
     public decimal? NmDays { get; set; }
 
-    [Column("CM-AUTO-SALE-Q")]
+    [Column("CM_AUTO_SALE_Q")]
     [Precision(18, 4)]
     public decimal? CmAutoSaleQ { get; set; }
 
-    [Column("NM-AUTO-SALE-Q")]
+    [Column("NM_AUTO_SALE_Q")]
     [Precision(18, 4)]
     public decimal? NmAutoSaleQ { get; set; }
 
@@ -72,7 +76,7 @@ public class ArsStArtAutoSale
     [StringLength(20)]
     public string St { get; set; } = "";
 
-    [Column("GEN-ART")]
+    [Column("GEN_ART")]
     [StringLength(50)]
     public string GenArt { get; set; } = "";
 
@@ -80,26 +84,53 @@ public class ArsStArtAutoSale
     [StringLength(50)]
     public string Clr { get; set; } = "";
 
-    [Column("CM-REM-DAYS")]
+    [Column("MJ")]
+    [StringLength(100)]
+    public string? Mj { get; set; }
+
+    [Column("CM_REM_DAYS")]
     [Precision(18, 4)]
     public decimal? CmRemDays { get; set; }
 
-    [Column("NM-DAYS")]
+    [Column("NM_DAYS")]
     [Precision(18, 4)]
     public decimal? NmDays { get; set; }
 
-    [Column("CM-AUTO-SALE-Q")]
+    [Column("CM_AUTO_SALE_Q")]
     [Precision(18, 4)]
     public decimal? CmAutoSaleQ { get; set; }
 
-    [Column("NM-AUTO-SALE-Q")]
+    [Column("NM_AUTO_SALE_Q")]
     [Precision(18, 4)]
     public decimal? NmAutoSaleQ { get; set; }
+
+    [Column("ART_TAG")]
+    [StringLength(20)]
+    public string? ArtTag { get; set; }
 
     [NotMapped]
     public decimal CmPdSaleQ => CmRemDays > 0 ? (CmAutoSaleQ ?? 0) / (CmRemDays ?? 1) : 0;
     [NotMapped]
     public decimal NmPdSaleQ => NmDays > 0 ? (NmAutoSaleQ ?? 0) / (NmDays ?? 1) : 0;
+}
+
+[Table("ARS_ART_AGING")]
+public class ArsArtAging
+{
+    [Key]
+    [Column("ID")]
+    public int Id { get; set; }
+
+    [Column("GEN_ART")]
+    [StringLength(50)]
+    public string GenArt { get; set; } = "";
+
+    [Column("CLR")]
+    [StringLength(50)]
+    public string Clr { get; set; } = "";
+
+    [Column("AGING_DAYS")]
+    public int? AgingDays { get; set; }
 }
 
 [Table("ARS_HOLD_DAYS_MASTER")]
@@ -177,15 +208,15 @@ public class EtStockData
     [Precision(18, 4)]
     public decimal? VDmbtr { get; set; }
 
-    [Column("stock_Date")]
+    [Column("STOCK_DATE")]
     public DateTime? StockDate { get; set; }
 }
 
-[Table("VIEW_ET_MSA_STOCK")]
+[Table("ET_MSA_STOCK")]
 public class ViewEtMsaStock
 {
     [Key]
-    [Column("Article_Number")]
+    [Column("ARTICLE_NUMBER")]
     [StringLength(50)]
     public string ArticleNumber { get; set; } = "";
 
@@ -249,7 +280,7 @@ public class ViewEtMsaStock
     [StringLength(20)]
     public string? Lptyp { get; set; }
 
-    [Column("MSA_Stock_Date")]
+    [Column("MSA_STOCK_DATE")]
     public DateTime? MsaStockDate { get; set; }
 }
 

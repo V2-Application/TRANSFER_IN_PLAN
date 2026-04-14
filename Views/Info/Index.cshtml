@@ -56,6 +56,7 @@
     <li class="nav-item"><a class="nav-link" data-bs-toggle="pill" href="#tabSubLevel"><i class="bi bi-layers me-1"></i>Sub-Level Plans</a></li>
     <li class="nav-item"><a class="nav-link" data-bs-toggle="pill" href="#tabDatabase"><i class="bi bi-database me-1"></i>Database</a></li>
     <li class="nav-item"><a class="nav-link" data-bs-toggle="pill" href="#tabFeatures"><i class="bi bi-gear me-1"></i>Features</a></li>
+    <li class="nav-item"><a class="nav-link" data-bs-toggle="pill" href="#tabAllocation"><i class="bi bi-boxes me-1" style="color:#E67E22;"></i>Allocation</a></li>
     <li class="nav-item"><a class="nav-link" data-bs-toggle="pill" href="#tabChanges"><i class="bi bi-clock-history me-1"></i>Change Log</a></li>
 </ul>
 
@@ -1209,7 +1210,223 @@ TRANSFER_IN_PLAN/ <span class="comment">(ASP.NET Core 8.0 MVC)</span><br>
 </div>
 
 <!-- ╔══════════════════════════════════════════════════════════════════╗ -->
-<!-- ║  TAB 8: CHANGE LOG                                              ║ -->
+<!-- ║  TAB 8: ALLOCATION (ARS)                                        ║ -->
+<!-- ╚══════════════════════════════════════════════════════════════════╝ -->
+<div class="tab-pane fade" id="tabAllocation">
+
+    <!-- Overview -->
+    <div class="card shadow-sm mb-3">
+        <div class="card-header" style="background:#E67E2220;"><h5 class="card-title mb-0" style="color:#E67E22;"><i class="bi bi-boxes me-2"></i>ARS Allocation — Overview</h5></div>
+        <div class="card-body small">
+            <p><strong>Purpose:</strong> For OLD-L articles, determine which articles to allocate to which stores, how much quantity, and manage hold/replenishment — all at the <strong>Article (GEN-ART + CLR)</strong> level across 600+ stores.</p>
+            <p><strong>Database:</strong> Snowflake (<code>V2RETAIL.GOLD</code>) — no SQL Server dependency.</p>
+            <p><strong>SP:</strong> <code>SP_ARS_ALLOCATION_RUN</code> (JavaScript, 10 steps) — runs Prepare → Classify → Allocate → Finalize in one call.</p>
+        </div>
+    </div>
+
+    <!-- Input Tables -->
+    <div class="card shadow-sm mb-3">
+        <div class="card-header" style="background:#E67E2220;"><h5 class="card-title mb-0" style="color:#E67E22;"><i class="bi bi-database me-2"></i>Input Tables (8 + 2 SAP)</h5></div>
+        <div class="card-body p-0 small">
+            <div class="table-responsive">
+                <table class="table table-sm table-bordered mb-0">
+                    <thead class="table-dark"><tr><th>Table</th><th>Key</th><th>Purpose</th><th>Key Columns</th></tr></thead>
+                    <tbody>
+                        <tr><td class="fw-bold"><code>ARS_ST_MJ_DISPLAY_MASTER</code></td><td>ST + MJ</td><td>Display qty + article density per store x major category</td><td>ST, MJ, ST_MJ_DISP_Q, <strong>ACC_DENSITY</strong></td></tr>
+                        <tr><td class="fw-bold"><code>ARS_ST_MJ_AUTO_SALE</code></td><td>ST + MJ</td><td>Auto sale at MJ level (CM + NM)</td><td>ST, MJ, CM_REM_DAYS, NM_DAYS, CM_AUTO_SALE_Q, NM_AUTO_SALE_Q</td></tr>
+                        <tr><td class="fw-bold"><code>ARS_ST_ART_AUTO_SALE</code></td><td>ST + GEN_ART + CLR + MJ</td><td>Auto sale at article level + C-ART tag</td><td>ST, GEN_ART, CLR, MJ, CM/NM sale, <strong>ART_TAG</strong></td></tr>
+                        <tr><td class="fw-bold"><code>ARS_ART_AGING</code></td><td>GEN_ART + CLR</td><td>Article aging in days</td><td>GEN_ART, CLR, <strong>AGING_DAYS</strong></td></tr>
+                        <tr><td class="fw-bold"><code>ARS_HOLD_DAYS_MASTER</code></td><td>ST + MJ</td><td>Hold days per store x category</td><td>ST, MJ, HOLD_DAYS</td></tr>
+                        <tr><td class="fw-bold"><code>ARS_ST_MASTER</code></td><td>ST_CD</td><td>Store master with RDC, hub, cover/transit days</td><td>ST_CD, TAGGED_RDC, SALE_COVER_DAYS, PRD_DAYS, DH24/DW01 transit days</td></tr>
+                        <tr class="table-light"><td class="fw-bold"><code>ET_STOCK_DATA</code></td><td>WERKS + MATNR + LGORT</td><td>SAP store stock (latest date, pivoted by LGORT, aggregated to 10-digit GEN_ART)</td><td>WERKS→ST, LEFT(LTRIM(MATNR,'0'),10)→GEN_ART, LABST</td></tr>
+                        <tr class="table-light"><td class="fw-bold"><code>ET_MSA_STOCK</code></td><td>KUNNR + MATNR</td><td>MSA warehouse stock (latest date, aggregated to 10-digit GEN_ART)</td><td>KUNNR→ST, LEFT(LTRIM(MATNR,'0'),10)→GEN_ART, VEMNG→QTY</td></tr>
+                        <tr class="table-info"><td class="fw-bold"><code>SZ_COUNT</code> <span class="badge bg-secondary mini-badge">computed</span></td><td>GEN_ART</td><td>Count of distinct CLR variants with (MSA + Store stock) > 0</td><td>Computed at runtime from ET_STOCK_DATA + ET_MSA_STOCK</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- 7-Rule Classification -->
+    <div class="card shadow-sm mb-3">
+        <div class="card-header" style="background:#E67E2220;"><h5 class="card-title mb-0" style="color:#E67E22;"><i class="bi bi-funnel me-2"></i>Article Classification (7 Rules — Priority Order)</h5></div>
+        <div class="card-body p-0 small">
+            <div class="table-responsive">
+                <table class="table table-sm table-bordered mb-0">
+                    <thead class="table-dark"><tr><th style="width:40px;">#</th><th>Rule</th><th>Class</th><th>Allocated?</th><th>Source</th></tr></thead>
+                    <tbody>
+                        <tr class="table-warning"><td class="fw-bold">1</td><td>AGING_DAYS > 360</td><td><span class="badge bg-secondary">MIX-ART</span> (X-ART)</td><td>No</td><td><code>ARS_ART_AGING</code> table</td></tr>
+                        <tr class="table-warning"><td class="fw-bold">2</td><td>ART_TAG = 'C-ART' (clearance)</td><td><span class="badge bg-secondary">MIX-ART</span> (X-ART)</td><td>No</td><td><code>ARS_ST_ART_AUTO_SALE.ART_TAG</code></td></tr>
+                        <tr class="table-warning"><td class="fw-bold">3</td><td>MSA >= 50 but SZ_COUNT <= 2 (too few sizes)</td><td><span class="badge bg-secondary">MIX-ART</span> (X-ART)</td><td>No</td><td>SZ_COUNT computed from stock+MSA</td></tr>
+                        <tr class="table-warning"><td class="fw-bold">4</td><td>Stock &lt; 60% ACC_DENSITY AND MSA &lt; 50</td><td><span class="badge bg-secondary">MIX-ART</span></td><td>No</td><td>Stock + MSA data</td></tr>
+                        <tr class="table-success"><td class="fw-bold">5</td><td>Stock >= 60% ACC_DENSITY</td><td><span class="badge bg-success">L-ART</span></td><td>Yes (if REQ > 0)</td><td>Stock vs density</td></tr>
+                        <tr class="table-primary"><td class="fw-bold">6</td><td>TTL_ST_STK_Q > 0</td><td><span class="badge bg-warning text-dark">OLD-ART</span></td><td>Yes (priority)</td><td>Stock data</td></tr>
+                        <tr class="table-info"><td class="fw-bold">7</td><td>ELSE (not in store stock, first allocation)</td><td><span class="badge bg-info">NEW-L</span></td><td>Tagged only</td><td>Post-classification</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="p-2"><small class="text-muted">Rules evaluated top-to-bottom. First match wins. Post-allocation: MIX-ART articles with REM_MSA > 0 where MJ still has demand are re-tagged as NEW-L.</small></div>
+        </div>
+    </div>
+
+    <!-- Complete Algorithm -->
+    <div class="card shadow-sm mb-3">
+        <div class="card-header" style="background:#E67E2220;"><h5 class="card-title mb-0" style="color:#E67E22;"><i class="bi bi-cpu me-2"></i>Complete Algorithm (10 Steps)</h5></div>
+        <div class="card-body small">
+            <div class="algo-block">
+<span class="keyword">═══ STEP 1: PIVOT STOCK BY LGORT ═══</span><br>
+<span class="formula">TTL_ST_STK_Q</span> = SUM of LABST where LGORT IN (0001, 0002, 0004, 0006, HUB_INTRA, HUB_PRD, INTRA, PRD)<br>
+<span class="comment">-- From ET_STOCK_DATA, aggregated to LEFT(LTRIM(MATNR,'0'), 10) = 10-digit generic article</span><br><br>
+
+<span class="keyword">═══ STEP 2: LOAD MSA ═══</span><br>
+<span class="formula">MSA_QTY</span> = SUM(VEMNG) from ET_MSA_STOCK, aggregated to 10-digit generic article<br>
+<span class="comment">-- KUNNR = store code, LEFT(LTRIM(MATNR,'0'), 10) = generic article</span><br><br>
+
+<span class="keyword">═══ STEP 3: COMPUTE SZ_COUNT (per GEN_ART) ═══</span><br>
+<span class="formula">SZ_COUNT</span> = COUNT(DISTINCT CLR_variant) WHERE (store_stock + MSA_stock) > 0<br>
+<span class="comment">-- CLR variant = SUBSTRING(LTRIM(MATNR,'0'), 11) from both stock tables</span><br>
+<span class="comment">-- Used for Rule 3: MSA>=50 but only 1-2 sizes → MIX-ART</span><br><br>
+
+<span class="keyword">═══ STEP 4: STORE MASTER → TTL_ALC_DAYS ═══</span><br>
+<span class="formula">INTRA_DAYS</span> = IF TAGGED_RDC='DW01' THEN DW01_DC+DW01_HUB ELSE DH24_DC+DH24_HUB<br>
+<span class="formula">TTL_ALC_DAYS</span> = SALE_COVER_DAYS + PRD_DAYS + INTRA_DAYS<br><br>
+
+<span class="keyword">═══ STEP 5: DISPLAY + HOLD + MJ SALE ═══</span><br>
+<span class="formula">CM_PD_SALE_Q</span> = CM_AUTO_SALE_Q / CM_REM_DAYS<br>
+<span class="formula">NM_PD_SALE_Q</span> = NM_AUTO_SALE_Q / NM_DAYS<br>
+<span class="formula">ST_MJ_ALC_SALE_Q_PD</span> = MIN(ALC_DAYS+HOLD_DAYS, CM_REM_DAYS) × CM_PD<br>
+&nbsp;&nbsp;&nbsp;&nbsp;+ GREATEST((ALC_DAYS+HOLD_DAYS) - CM_REM_DAYS, 0) × NM_PD<br>
+<span class="formula">ST_MJ_MBQ</span> = ST_MJ_DISP_Q + ST_MJ_ALC_SALE_Q_PD<br><br>
+
+<span class="keyword">═══ STEP 6: ARTICLE-LEVEL SALE ═══</span><br>
+<span class="formula">ART_AUTO_SALE_PD</span> = same crossover formula at article level<br>
+<span class="comment">-- From ARS_ST_ART_AUTO_SALE (CM/NM per GEN_ART+CLR), also carries ART_TAG</span><br><br>
+
+<span class="keyword">═══ STEP 7: BUILD PREPARED + 7-RULE CLASSIFY ═══</span><br>
+<span class="formula">ART_MBQ</span> = ACC_DENSITY + ART_AUTO_SALE_PD × TTL_ALC_DAYS<br>
+<span class="formula">ART_HOLD_MBQ</span> = ACC_DENSITY + ART_AUTO_SALE_PD × (TTL_ALC_DAYS + HOLD_DAYS)<br>
+<span class="formula">ST_ART_REQ</span> = MAX(ART_MBQ - TTL_ST_STK_Q, 0)<br>
+<span class="formula">ST_ART_HOLD_REQ</span> = MAX(ART_HOLD_MBQ - TTL_ST_STK_Q, 0)<br>
+<span class="formula">ST_MJ_REQ</span> = MAX(ST_MJ_MBQ - SUM(TTL_ST_STK_Q per ST+MJ), 0)<br><br>
+<span class="keyword">Classification (7 rules, first match wins):</span><br>
+&nbsp;&nbsp;<span class="formula">Rule 1:</span> AGING_DAYS > 360 → MIX-ART (X-ART: aged out)<br>
+&nbsp;&nbsp;<span class="formula">Rule 2:</span> ART_TAG = 'C-ART' → MIX-ART (X-ART: clearance)<br>
+&nbsp;&nbsp;<span class="formula">Rule 3:</span> MSA >= 50 AND SZ_COUNT <= 2 → MIX-ART (X-ART: too few sizes)<br>
+&nbsp;&nbsp;<span class="formula">Rule 4:</span> STK &lt; 60% ACC_DENSITY AND MSA &lt; 50 → MIX-ART<br>
+&nbsp;&nbsp;<span class="formula">Rule 5:</span> STK >= 60% ACC_DENSITY → L-ART (well-stocked)<br>
+&nbsp;&nbsp;<span class="formula">Rule 6:</span> TTL_ST_STK_Q > 0 → OLD-ART (understocked, MSA available)<br>
+&nbsp;&nbsp;<span class="formula">Rule 7:</span> ELSE → NEW-L (not in store stock)<br><br>
+
+<span class="keyword">═══ STEP 8: ALLOCATE (Window-Function, MJ-Budget Safe) ═══</span><br>
+<span class="comment">-- Only for L-ART and OLD-ART with MSA > 0 and REQ > 0</span><br>
+<span class="comment">-- Priority: highest ST_ART_REQ first within each ST+MJ group</span><br>
+<span class="formula">WANT_Q</span> = LEAST(MSA_QTY, ST_ART_REQ) per article<br>
+<span class="formula">PREV_CUM_WANT</span> = running SUM of prior articles' WANT_Q<br>
+<span class="formula">MJ_REMAINING</span> = MAX(0, ST_MJ_REQ - PREV_CUM_WANT)<br>
+<span class="formula">ART_ALC_Q</span> = LEAST(WANT_Q, MJ_REMAINING)<br>
+<span class="formula">ART_HOLD_Q</span> = LEAST(MSA - ALC_Q, HOLD_REQ - ALC_Q) when both > 0<br>
+<span class="formula">REM_MSA</span> = MSA_QTY - ART_ALC_Q - ART_HOLD_Q<br>
+<span class="comment">-- Guarantees total allocation per ST+MJ never exceeds ST_MJ_REQ</span><br><br>
+
+<span class="keyword">═══ STEP 9: NEW-L POST-TAGGING ═══</span><br>
+<span class="comment">-- After allocation, MIX articles with remaining MSA where MJ has unmet demand</span><br>
+IF ART_CLASS = 'MIX-ART' AND REM_MSA > 0 AND (ST_MJ_MBQ - TTL_ALC) > 0<br>
+&nbsp;&nbsp;THEN <span class="formula">ART_CLASS = 'NEW-L'</span><br><br>
+
+<span class="keyword">═══ STEP 10: WRITE OUTPUT ═══</span><br>
+DELETE FROM <span class="formula">ARS_ALLOCATION_OUTPUT</span> (full replace)<br>
+INSERT all 41 columns + CREATED_DT<br>
+UPDATE <span class="formula">ARS_RUN_LOG</span> with stats
+            </div>
+        </div>
+    </div>
+
+    <!-- All Output Columns -->
+    <div class="card shadow-sm mb-3">
+        <div class="card-header" style="background:#E67E2220;"><h5 class="card-title mb-0" style="color:#E67E22;"><i class="bi bi-table me-2"></i>ARS_ALLOCATION_OUTPUT — All 42 Columns</h5></div>
+        <div class="card-body p-0 small">
+            <div class="table-responsive">
+                <table class="table table-sm table-bordered mb-0 formula-table">
+                    <thead class="table-dark"><tr><th>#</th><th>Column</th><th>Formula / Source</th><th>Type</th></tr></thead>
+                    <tbody>
+                        <tr><td>1</td><th>ID</th><td>Auto-increment</td><td><span class="badge badge-static">Static</span></td></tr>
+                        <tr><td>2</td><th>RUN_ID</th><td>Unique run identifier (ARS-yyyyMMdd-HHmmss)</td><td><span class="badge badge-static">Static</span></td></tr>
+                        <tr><td>3-6</td><th>ST, ST_NM, TAGGED_RDC, HUB_CD</th><td>From ARS_ST_MASTER</td><td><span class="badge badge-input">Input</span></td></tr>
+                        <tr><td>7</td><th>MJ</th><td>Major Category from ARS_ST_MJ_DISPLAY_MASTER</td><td><span class="badge badge-input">Input</span></td></tr>
+                        <tr><td>8</td><th>GEN_ART</th><td>LEFT(LTRIM(MATNR,'0'), 10) — 10-digit generic article</td><td><span class="badge badge-input">Input</span></td></tr>
+                        <tr><td>9</td><th>CLR</th><td>Color from ARS_ST_ART_AUTO_SALE</td><td><span class="badge badge-input">Input</span></td></tr>
+                        <tr><td>10</td><th>SZ</th><td>Size (reserved)</td><td><span class="badge badge-input">Input</span></td></tr>
+                        <tr class="key-formula"><td>11</td><th>ART_CLASS</th><td><strong>7-rule classification</strong>: MIX-ART (rules 1-4) → L-ART (rule 5) → OLD-ART (rule 6) → NEW-L (rule 7 + post-tag)</td><td><span class="badge badge-derived">Derived</span></td></tr>
+                        <tr class="key-formula"><td>12</td><th>TTL_ST_STK_Q</th><td><strong>SUM(0001+0002+0004+0006+HUB_INTRA+HUB_PRD+INTRA+PRD)</strong></td><td><span class="badge badge-derived">Derived</span></td></tr>
+                        <tr><td>13-20</td><th>STK_0001..STK_PRD</th><td>Pivoted stock by LGORT from ET_STOCK_DATA</td><td><span class="badge badge-input">Input</span></td></tr>
+                        <tr><td>21</td><th>MSA_QTY</th><td>SUM(VEMNG) from ET_MSA_STOCK (aggregated to 10-digit)</td><td><span class="badge badge-input">Input</span></td></tr>
+                        <tr class="key-formula"><td>22</td><th>TTL_ALC_DAYS</th><td><strong>SALE_COVER + PRD_DAYS + INTRA_DAYS</strong></td><td><span class="badge badge-derived">Derived</span></td></tr>
+                        <tr><td>23</td><th>HOLD_DAYS</th><td>From ARS_HOLD_DAYS_MASTER</td><td><span class="badge badge-input">Input</span></td></tr>
+                        <tr><td>24</td><th>CM_PD_SALE_Q</th><td>CM_AUTO_SALE_Q / CM_REM_DAYS (MJ-level per-day)</td><td><span class="badge badge-derived">Derived</span></td></tr>
+                        <tr><td>25</td><th>NM_PD_SALE_Q</th><td>NM_AUTO_SALE_Q / NM_DAYS (MJ-level per-day)</td><td><span class="badge badge-derived">Derived</span></td></tr>
+                        <tr><td>26</td><th>ART_AUTO_SALE_PD</th><td>CM/NM crossover at article level over allocation period</td><td><span class="badge badge-derived">Derived</span></td></tr>
+                        <tr><td>27</td><th>ACC_DENSITY</th><td>Per-article density from ARS_ST_MJ_DISPLAY_MASTER</td><td><span class="badge badge-input">Input</span></td></tr>
+                        <tr><td>28</td><th>ST_MJ_DISP_Q</th><td>Category display quantity from ARS_ST_MJ_DISPLAY_MASTER</td><td><span class="badge badge-input">Input</span></td></tr>
+                        <tr class="key-formula"><td>29</td><th>ST_MJ_MBQ</th><td><strong>ST_MJ_DISP_Q + MJ_sale_over_period</strong></td><td><span class="badge badge-derived">Derived</span></td></tr>
+                        <tr class="key-formula"><td>30</td><th>ART_MBQ</th><td><strong>ACC_DENSITY + ART_SALE_PD × TTL_ALC_DAYS</strong></td><td><span class="badge badge-derived">Derived</span></td></tr>
+                        <tr class="key-formula"><td>31</td><th>ART_HOLD_MBQ</th><td><strong>ACC_DENSITY + ART_SALE_PD × (TTL_ALC_DAYS + HOLD_DAYS)</strong></td><td><span class="badge badge-derived">Derived</span></td></tr>
+                        <tr><td>32</td><th>VAR_ART_MBQ</th><td>Variant-level MBQ (reserved)</td><td><span class="badge badge-static">Reserved</span></td></tr>
+                        <tr><td>33</td><th>VAR_ART_HOLD_MBQ</th><td>Variant-level hold MBQ (reserved)</td><td><span class="badge badge-static">Reserved</span></td></tr>
+                        <tr class="key-formula"><td>34</td><th>ST_MJ_REQ</th><td><strong>MAX(ST_MJ_MBQ - SUM(TTL_STK per ST+MJ), 0)</strong> — MJ-level cap</td><td><span class="badge badge-derived">Derived</span></td></tr>
+                        <tr class="key-formula"><td>35</td><th>ST_ART_REQ</th><td><strong>MAX(ART_MBQ - TTL_ST_STK_Q, 0)</strong></td><td><span class="badge badge-derived">Derived</span></td></tr>
+                        <tr><td>36</td><th>ST_ART_HOLD_REQ</th><td>MAX(ART_HOLD_MBQ - TTL_ST_STK_Q, 0)</td><td><span class="badge badge-derived">Derived</span></td></tr>
+                        <tr><td>37</td><th>ST_VAR_ART_REQ</th><td>Variant-level requirement (reserved)</td><td><span class="badge badge-static">Reserved</span></td></tr>
+                        <tr><td>38</td><th>ST_VAR_ART_HOLD_REQ</th><td>Variant-level hold requirement (reserved)</td><td><span class="badge badge-static">Reserved</span></td></tr>
+                        <tr class="key-formula"><td>39</td><th>ART_ALC_Q</th><td><strong>LEAST(WANT_Q, MJ_REMAINING)</strong> — window-function, MJ-budget safe</td><td><span class="badge badge-chain">Allocation</span></td></tr>
+                        <tr class="key-formula"><td>40</td><th>ART_HOLD_Q</th><td><strong>LEAST(MSA - ALC_Q, HOLD_REQ - ALC_Q)</strong></td><td><span class="badge badge-chain">Allocation</span></td></tr>
+                        <tr><td>41</td><th>REM_MSA</th><td>MSA_QTY - ART_ALC_Q - ART_HOLD_Q</td><td><span class="badge badge-chain">Allocation</span></td></tr>
+                        <tr><td>42</td><th>CREATED_DT</th><td>CURRENT_TIMESTAMP() at run time</td><td><span class="badge badge-static">Static</span></td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Execution -->
+    <div class="card shadow-sm mb-3">
+        <div class="card-header" style="background:#E67E2220;"><h5 class="card-title mb-0" style="color:#E67E22;"><i class="bi bi-lightning me-2"></i>Execution</h5></div>
+        <div class="card-body small">
+            <div class="table-responsive">
+                <table class="table table-sm table-bordered mb-0">
+                    <thead class="table-dark"><tr><th>Step</th><th>What</th><th>Where</th></tr></thead>
+                    <tbody>
+                        <tr><td class="fw-bold">1. Upload Masters</td><td>Display (+ ACC_DENSITY), MJ Auto Sale, Art Auto Sale (+ ART_TAG), Art Aging, Hold Days, Store Master</td><td>Allocation → Bulk Upload (Snowflake PUT/COPY)</td></tr>
+                        <tr><td class="fw-bold">2. SAP Stock (auto)</td><td>ET_STOCK_DATA + ET_MSA_STOCK loaded daily via SAP RFC</td><td>SAP RFC → Snowflake</td></tr>
+                        <tr><td class="fw-bold">3. Execute</td><td>Click "Start Allocation" → calls <code>SP_ARS_ALLOCATION_RUN</code></td><td>Allocation → Execute (background job, polled 3s)</td></tr>
+                        <tr><td class="fw-bold">4. Output</td><td>View all 41 columns with filters (Store, MJ, Classification), sort, pagination, CSV</td><td>Allocation → Output (color-coded column groups)</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="alert alert-warning py-2 mt-2 mb-0"><i class="bi bi-exclamation-triangle me-1"></i><strong>Stock Date:</strong> Both ET_STOCK_DATA and ET_MSA_STOCK use <code>MAX(date)</code> filter. SZ_COUNT is computed at runtime from stock+MSA.</div>
+        </div>
+    </div>
+
+    <!-- Notes -->
+    <div class="card shadow-sm">
+        <div class="card-header" style="background:#E67E2220;"><h5 class="card-title mb-0" style="color:#E67E22;"><i class="bi bi-sticky me-2"></i>Business Notes</h5></div>
+        <div class="card-body small">
+            <ul class="mb-0">
+                <li><strong>HOLD</strong> for articles active for replenishment (15-20 days, then consume HOLD-Q for ARS)</li>
+                <li><strong>90 DAYS STR CAP</strong> to be applied on HOLD-MBQ</li>
+                <li><strong>RNG_SEG STR</strong> to be used for SALE calculation of NEW OPTION</li>
+                <li>IF ST-STK-Q > 0, use AUTO-SALE @@ VAR_ART level ELSE use OPTION SALE</li>
+                <li><strong>EXCESS-STK in OLD-L ART</strong> (more than 2-IROD) NOT to be considered during MJ-REQ calculation</li>
+                <li><strong>REM_MSA</strong> after ALC & HOLD to be used for NEW-L tagging</li>
+                <li>AUTO SALE MJ-STR to be used in LISTING for SALE PER OPTION</li>
+                <li>1ST DISPATCH QTY to be discussed with management</li>
+                <li><strong>MJ Budget Cap</strong>: Window-function allocation ensures total ALC per ST+MJ never exceeds ST_MJ_REQ (highest REQ articles allocated first)</li>
+            </ul>
+        </div>
+    </div>
+</div>
+
+<!-- ╔══════════════════════════════════════════════════════════════════╗ -->
+<!-- ║  TAB 9: CHANGE LOG                                              ║ -->
 <!-- ╚══════════════════════════════════════════════════════════════════╝ -->
 <div class="tab-pane fade" id="tabChanges">
     <div class="card shadow-sm">
