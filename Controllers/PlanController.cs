@@ -1,7 +1,8 @@
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
+using Snowflake.Data.Client;
+using System.Data;
 using System.Text;
-using TRANSFER_IN_PLAN.Data;
+using TRANSFER_IN_PLAN.Helpers;
 using TRANSFER_IN_PLAN.Models;
 using TRANSFER_IN_PLAN.Services;
 
@@ -9,14 +10,14 @@ namespace TRANSFER_IN_PLAN.Controllers;
 
 public class PlanController : Controller
 {
-    private readonly PlanningDbContext _context;
+    private readonly string _sfConnStr;
     private readonly PlanService _planService;
     private readonly PlanJobService _jobService;
     private readonly ILogger<PlanController> _logger;
 
-    public PlanController(PlanningDbContext context, PlanService planService, PlanJobService jobService, ILogger<PlanController> logger)
+    public PlanController(IConfiguration config, PlanService planService, PlanJobService jobService, ILogger<PlanController> logger)
     {
-        _context = context;
+        _sfConnStr = config.GetConnectionString("Snowflake")!;
         _planService = planService;
         _jobService = jobService;
         _logger = logger;
@@ -24,40 +25,66 @@ public class PlanController : Controller
 
     public async Task<IActionResult> Execute()
     {
-        ViewBag.WeekCalendars = await _context.WeekCalendars.OrderBy(w => w.WeekId).ToListAsync();
-        ViewBag.TotalStores = await _context.StoreMasters.Select(x => x.StCd).Distinct().CountAsync();
-        ViewBag.TotalCategories = await _context.BinCapacities.Select(x => x.MajCat).Distinct().CountAsync();
-        ViewBag.TrfInRows = await _context.TrfInPlans.CountAsync();
-        ViewBag.PpRows = await _context.PurchasePlans.CountAsync();
-        ViewBag.StoreCodes = await _context.StoreMasters.Select(x => x.StCd).Where(x => x != null).Distinct().OrderBy(x => x).ToListAsync();
-        ViewBag.MajCats = await _context.ProductHierarchies.Select(x => x.MajCatNm).Where(x => x != null && x != "NA").Distinct().OrderBy(x => x).ToListAsync();
+        await using var conn = await SnowflakeCrudHelper.OpenAsync(_sfConnStr);
+
+        // Load week calendars
+        var weekCals = new List<WeekCalendar>();
+        await using (var cmd = conn.CreateCommand())
+        {
+            cmd.CommandText = "SELECT WEEK_ID, WEEK_SEQ, FY_WEEK, FY_YEAR, CAL_YEAR, YEAR_WEEK, WK_ST_DT, WK_END_DT FROM WEEK_CALENDAR ORDER BY WEEK_ID";
+            await using var r = await cmd.ExecuteReaderAsync();
+            while (await r.ReadAsync())
+                weekCals.Add(new WeekCalendar
+                {
+                    WeekId = SnowflakeCrudHelper.Int(r, 0),
+                    WeekSeq = SnowflakeCrudHelper.Int(r, 1),
+                    FyWeek = SnowflakeCrudHelper.Int(r, 2),
+                    FyYear = SnowflakeCrudHelper.Int(r, 3),
+                    CalYear = SnowflakeCrudHelper.Int(r, 4),
+                    YearWeek = SnowflakeCrudHelper.StrNull(r, 5),
+                    WkStDt = SnowflakeCrudHelper.DateNull(r, 6),
+                    WkEndDt = SnowflakeCrudHelper.DateNull(r, 7)
+                });
+        }
+        ViewBag.WeekCalendars = weekCals;
+
+        ViewBag.TotalStores = Convert.ToInt32(await SnowflakeCrudHelper.ScalarAsync(conn, "SELECT COUNT(DISTINCT ST_CD) FROM MASTER_ST_MASTER") ?? 0);
+        ViewBag.TotalCategories = Convert.ToInt32(await SnowflakeCrudHelper.ScalarAsync(conn, "SELECT COUNT(DISTINCT MAJ_CAT) FROM MASTER_BIN_CAPACITY") ?? 0);
+        ViewBag.TrfInRows = await SnowflakeCrudHelper.CountAsync(conn, "TRF_IN_PLAN");
+        ViewBag.PpRows = await SnowflakeCrudHelper.CountAsync(conn, "PURCHASE_PLAN");
+        ViewBag.StoreCodes = await SnowflakeCrudHelper.DistinctAsync(conn, "MASTER_ST_MASTER", "ST_CD");
+        ViewBag.MajCats = await SnowflakeCrudHelper.DistinctAsync(conn, "MASTER_PRODUCT_HIERARCHY", "MAJ_CAT_NM", "MAJ_CAT_NM != 'NA'");
+
         return View(new SpExecutionParams());
     }
 
     [HttpGet]
     public async Task<IActionResult> Progress()
     {
-        // Use raw SQL with NOLOCK to avoid blocking the running SP
-        var connStr = _context.Database.GetConnectionString()!;
         int trfRows = 0, ppRows = 0, storesProcessed = 0, totalStores = 0;
-        using (var conn = new Microsoft.Data.SqlClient.SqlConnection(connStr))
+        await using var conn = await SnowflakeCrudHelper.OpenAsync(_sfConnStr);
+
+        await using (var cmd = conn.CreateCommand())
         {
-            await conn.OpenAsync();
-            using var cmd = conn.CreateCommand();
-            cmd.CommandText = @"
-                SELECT COUNT(*) FROM dbo.TRF_IN_PLAN WITH (NOLOCK);
-                SELECT COUNT(DISTINCT ST_CD) FROM dbo.TRF_IN_PLAN WITH (NOLOCK);
-                SELECT COUNT(*) FROM dbo.PURCHASE_PLAN WITH (NOLOCK);
-                SELECT COUNT(DISTINCT [ST CD]) FROM dbo.MASTER_ST_MASTER WITH (NOLOCK);";
-            using var reader = await cmd.ExecuteReaderAsync();
-            if (await reader.ReadAsync()) trfRows = reader.GetInt32(0);
-            await reader.NextResultAsync();
-            if (await reader.ReadAsync()) storesProcessed = reader.GetInt32(0);
-            await reader.NextResultAsync();
-            if (await reader.ReadAsync()) ppRows = reader.GetInt32(0);
-            await reader.NextResultAsync();
-            if (await reader.ReadAsync()) totalStores = reader.GetInt32(0);
+            cmd.CommandText = "SELECT COUNT(*) FROM TRF_IN_PLAN";
+            trfRows = Convert.ToInt32(await cmd.ExecuteScalarAsync() ?? 0);
         }
+        await using (var cmd = conn.CreateCommand())
+        {
+            cmd.CommandText = "SELECT COUNT(DISTINCT ST_CD) FROM TRF_IN_PLAN";
+            storesProcessed = Convert.ToInt32(await cmd.ExecuteScalarAsync() ?? 0);
+        }
+        await using (var cmd = conn.CreateCommand())
+        {
+            cmd.CommandText = "SELECT COUNT(*) FROM PURCHASE_PLAN";
+            ppRows = Convert.ToInt32(await cmd.ExecuteScalarAsync() ?? 0);
+        }
+        await using (var cmd = conn.CreateCommand())
+        {
+            cmd.CommandText = "SELECT COUNT(DISTINCT ST_CD) FROM MASTER_ST_MASTER";
+            totalStores = Convert.ToInt32(await cmd.ExecuteScalarAsync() ?? 0);
+        }
+
         return Json(new { trfRows, ppRows, storesProcessed, totalStores });
     }
 
@@ -101,31 +128,51 @@ public class PlanController : Controller
             TempData["ErrorMessage"] = "Execution failed: " + (ex.InnerException?.Message ?? ex.Message);
         }
 
-        ViewBag.WeekCalendars = await _context.WeekCalendars.OrderBy(w => w.WeekId).ToListAsync();
+        // Reload week calendars for the view
+        await using var conn = await SnowflakeCrudHelper.OpenAsync(_sfConnStr);
+        var weekCals = new List<WeekCalendar>();
+        await using (var cmd = conn.CreateCommand())
+        {
+            cmd.CommandText = "SELECT WEEK_ID, WEEK_SEQ, FY_WEEK, FY_YEAR, CAL_YEAR, YEAR_WEEK, WK_ST_DT, WK_END_DT FROM WEEK_CALENDAR ORDER BY WEEK_ID";
+            await using var r = await cmd.ExecuteReaderAsync();
+            while (await r.ReadAsync())
+                weekCals.Add(new WeekCalendar
+                {
+                    WeekId = SnowflakeCrudHelper.Int(r, 0),
+                    WeekSeq = SnowflakeCrudHelper.Int(r, 1),
+                    FyWeek = SnowflakeCrudHelper.Int(r, 2),
+                    FyYear = SnowflakeCrudHelper.Int(r, 3),
+                    CalYear = SnowflakeCrudHelper.Int(r, 4),
+                    YearWeek = SnowflakeCrudHelper.StrNull(r, 5),
+                    WkStDt = SnowflakeCrudHelper.DateNull(r, 6),
+                    WkEndDt = SnowflakeCrudHelper.DateNull(r, 7)
+                });
+        }
+        ViewBag.WeekCalendars = weekCals;
+
         return View(parameters);
     }
 
     [HttpGet]
     public async Task<IActionResult> Output(int? fyYear, int? fyWeek, string? majCat, string? stCd, int page = 1, int pageSize = 100)
     {
-        var query = _context.TrfInPlans.AsQueryable();
-        if (fyYear.HasValue) query = query.Where(x => x.FyYear == fyYear);
-        if (fyWeek.HasValue) query = query.Where(x => x.FyWeek == fyWeek);
-        if (!string.IsNullOrEmpty(majCat)) { var cats = majCat.Split(',', StringSplitOptions.RemoveEmptyEntries); query = query.Where(x => cats.Contains(x.MajCat)); }
-        if (!string.IsNullOrEmpty(stCd)) { var stores = stCd.Split(',', StringSplitOptions.RemoveEmptyEntries); query = query.Where(x => stores.Contains(x.StCd)); }
+        await using var conn = await SnowflakeCrudHelper.OpenAsync(_sfConnStr);
 
-        ViewBag.TotalCount = await query.CountAsync();
+        var (where, parms) = BuildSnowflakeFilter(fyYear, fyWeek, majCat, stCd);
+
+        ViewBag.TotalCount = await SnowflakeCrudHelper.CountAsync(conn, "TRF_IN_PLAN", where, parms);
         ViewBag.Page = page;
         ViewBag.PageSize = pageSize;
         ViewBag.FyYear = fyYear;
         ViewBag.FyWeek = fyWeek;
         ViewBag.MajCat = majCat;
         ViewBag.StCd = stCd;
-        ViewBag.Categories = await _context.TrfInPlans.Select(x => x.MajCat).Distinct().OrderBy(x => x).ToListAsync();
-        ViewBag.StoreCodes = await _context.TrfInPlans.Select(x => x.StCd).Distinct().OrderBy(x => x).ToListAsync();
+        ViewBag.Categories = await SnowflakeCrudHelper.DistinctAsync(conn, "TRF_IN_PLAN", "MAJ_CAT");
+        ViewBag.StoreCodes = await SnowflakeCrudHelper.DistinctAsync(conn, "TRF_IN_PLAN", "ST_CD");
 
-        var data = await query.OrderBy(x => x.StCd).ThenBy(x => x.MajCat)
-            .Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();
+        var data = await SnowflakeCrudHelper.PagedQueryAsync(conn, "TRF_IN_PLAN", AllSelectCols, where, parms,
+            "ST_CD, MAJ_CAT", page, pageSize, MapTrfInPlan);
+
         _logger.LogInformation("TrfInPlan Output: {Count} rows returned", data.Count);
         return View(data);
     }
@@ -168,43 +215,48 @@ public class PlanController : Controller
         "SEG","DIV","SUB_DIV","MAJ_CAT_NM","SSN"
     };
 
-    // All columns we need (no CREATED_DT, CREATED_BY, WK_ST_DT, WK_END_DT bloat)
+    // All columns we need (Snowflake — no brackets, no dbo prefix)
     private static readonly string AllSelectCols =
-        "[ID],[FY_YEAR],[FY_WEEK],[WEEK_ID]," +
-        string.Join(",", IdCols.Select(c => $"[{c}]")) + "," +
-        string.Join(",", MetricCols.Select(c => $"[{c}]"));
+        "ID, FY_YEAR, FY_WEEK, WEEK_ID, " +
+        string.Join(", ", IdCols) + ", " +
+        string.Join(", ", MetricCols);
 
-    private (string sql, List<Microsoft.Data.SqlClient.SqlParameter> prms) BuildFilterSql(
-        int? fyYear, int? fyWeek, string? majCat, string? stCd, string orderBy)
+    private (string? where, List<SnowflakeDbParameter> parms) BuildSnowflakeFilter(
+        int? fyYear, int? fyWeek, string? majCat, string? stCd)
     {
-        var where = new List<string>();
-        var prms = new List<Microsoft.Data.SqlClient.SqlParameter>();
-        if (fyYear.HasValue) { where.Add("[FY_YEAR]=@fy"); prms.Add(new("@fy", fyYear.Value)); }
-        if (fyWeek.HasValue) { where.Add("[FY_WEEK]=@fw"); prms.Add(new("@fw", fyWeek.Value)); }
+        var conditions = new List<string>();
+        var parms = new List<SnowflakeDbParameter>();
+        int idx = 0;
+        if (fyYear.HasValue) { idx++; conditions.Add("FY_YEAR = ?"); parms.Add(SnowflakeCrudHelper.Param(idx.ToString(), fyYear.Value, DbType.Int32)); }
+        if (fyWeek.HasValue) { idx++; conditions.Add("FY_WEEK = ?"); parms.Add(SnowflakeCrudHelper.Param(idx.ToString(), fyWeek.Value, DbType.Int32)); }
         if (!string.IsNullOrEmpty(majCat))
         {
             var cats = majCat.Split(',', StringSplitOptions.RemoveEmptyEntries);
-            if (cats.Length == 1) { where.Add("[MAJ_CAT]=@mc"); prms.Add(new("@mc", majCat)); }
+            if (cats.Length == 1) { idx++; conditions.Add("MAJ_CAT = ?"); parms.Add(SnowflakeCrudHelper.Param(idx.ToString(), cats[0].Trim())); }
             else
             {
-                var inList = string.Join(",", cats.Select((c, i) => $"@mc{i}"));
-                where.Add($"[MAJ_CAT] IN ({inList})");
-                for (int i = 0; i < cats.Length; i++) prms.Add(new($"@mc{i}", cats[i].Trim()));
+                var inList = string.Join(",", cats.Select(c => { idx++; parms.Add(SnowflakeCrudHelper.Param(idx.ToString(), c.Trim())); return "?"; }));
+                conditions.Add($"MAJ_CAT IN ({inList})");
             }
         }
         if (!string.IsNullOrEmpty(stCd))
         {
             var stores = stCd.Split(',', StringSplitOptions.RemoveEmptyEntries);
-            if (stores.Length == 1) { where.Add("[ST_CD]=@st"); prms.Add(new("@st", stCd)); }
+            if (stores.Length == 1) { idx++; conditions.Add("ST_CD = ?"); parms.Add(SnowflakeCrudHelper.Param(idx.ToString(), stores[0].Trim())); }
             else
             {
-                var inList = string.Join(",", stores.Select((s, i) => $"@st{i}"));
-                where.Add($"[ST_CD] IN ({inList})");
-                for (int i = 0; i < stores.Length; i++) prms.Add(new($"@st{i}", stores[i].Trim()));
+                var inList = string.Join(",", stores.Select(s => { idx++; parms.Add(SnowflakeCrudHelper.Param(idx.ToString(), s.Trim())); return "?"; }));
+                conditions.Add($"ST_CD IN ({inList})");
             }
         }
-        var w = where.Count > 0 ? " WHERE " + string.Join(" AND ", where) : "";
-        return ($"SELECT {AllSelectCols} FROM dbo.TRF_IN_PLAN WITH (NOLOCK){w} ORDER BY {orderBy}", prms);
+        return (conditions.Count > 0 ? string.Join(" AND ", conditions) : null, parms);
+    }
+
+    private (string sql, string whereClause) BuildFullQuerySql(int? fyYear, int? fyWeek, string? majCat, string? stCd, string orderBy)
+    {
+        var (where, _) = BuildSnowflakeFilter(fyYear, fyWeek, majCat, stCd);
+        var whereStr = string.IsNullOrEmpty(where) ? "" : " WHERE " + where;
+        return ($"SELECT {AllSelectCols} FROM TRF_IN_PLAN{whereStr} ORDER BY {orderBy}", whereStr);
     }
 
     [HttpGet]
@@ -213,20 +265,19 @@ public class PlanController : Controller
         Response.ContentType = "text/csv";
         Response.Headers.Append("Content-Disposition", $"attachment; filename=TrfInPlan_{fyYear}_{fyWeek}.csv");
 
-        var (sql, prms) = BuildFilterSql(fyYear, fyWeek, majCat, stCd, "[ID]");
-        var connStr = _context.Database.GetConnectionString()!;
+        var (where, parms) = BuildSnowflakeFilter(fyYear, fyWeek, majCat, stCd);
+        var whereStr = string.IsNullOrEmpty(where) ? "" : " WHERE " + where;
+        var sql = $"SELECT {AllSelectCols} FROM TRF_IN_PLAN{whereStr} ORDER BY ID";
 
         await using var writer = new StreamWriter(Response.Body, Encoding.UTF8, 65536);
-        // Header
         await writer.WriteLineAsync("Id,StCd,StNm,RdcCd,RdcNm,HubCd,HubNm,Area,MajCat,Seg,Div,SubDiv,MajCatNm,Ssn,FyYear,FyWeek,"
             + string.Join(",", MetricCols));
 
-        await using var conn = new Microsoft.Data.SqlClient.SqlConnection(connStr);
-        await conn.OpenAsync();
+        await using var conn = await SnowflakeCrudHelper.OpenAsync(_sfConnStr);
         await using var cmd = conn.CreateCommand();
         cmd.CommandText = sql;
         cmd.CommandTimeout = 600;
-        cmd.Parameters.AddRange(prms.ToArray());
+        foreach (var p in parms) cmd.Parameters.Add(SnowflakeCrudHelper.CloneParam(p));
 
         await using var reader = await cmd.ExecuteReaderAsync();
         int count = 0;
@@ -254,31 +305,23 @@ public class PlanController : Controller
     [HttpGet]
     public async Task<IActionResult> ExportPivotCsv(int? fyYear, int? fyWeek, string? majCat, string? stCd)
     {
-        // Pivot export works with or without filters
-
         Response.ContentType = "text/csv";
         Response.Headers.Append("Content-Disposition", $"attachment; filename=TrfInPlan_Pivot_{fyYear}_{fyWeek}.csv");
 
-        var connStr = _context.Database.GetConnectionString()!;
+        await using var conn = await SnowflakeCrudHelper.OpenAsync(_sfConnStr);
 
         // Step 1: Get distinct weeks
         var weeks = new List<int>();
-        await using (var conn1 = new Microsoft.Data.SqlClient.SqlConnection(connStr))
-        {
-            await conn1.OpenAsync();
-            await using var cmd1 = conn1.CreateCommand();
-            var (baseSql, _) = BuildFilterSql(fyYear, fyWeek, majCat, stCd, "");
-            var whereIdx = baseSql.IndexOf(" WHERE ");
-            var whereClause = whereIdx >= 0 ? baseSql.Substring(whereIdx) : "";
-            var orderIdx = whereClause.IndexOf(" ORDER BY ");
-            if (orderIdx >= 0) whereClause = whereClause.Substring(0, orderIdx);
+        var (where, parms) = BuildSnowflakeFilter(fyYear, fyWeek, majCat, stCd);
+        var whereStr = string.IsNullOrEmpty(where) ? "" : " WHERE " + where;
 
-            cmd1.CommandText = $"SELECT DISTINCT ISNULL([FY_WEEK],0) AS W FROM dbo.TRF_IN_PLAN WITH (NOLOCK){whereClause} ORDER BY W";
+        await using (var cmd1 = conn.CreateCommand())
+        {
+            cmd1.CommandText = $"SELECT DISTINCT NVL(FY_WEEK, 0) AS W FROM TRF_IN_PLAN{whereStr} ORDER BY W";
             cmd1.CommandTimeout = 120;
-            var (_, prms0) = BuildFilterSql(fyYear, fyWeek, majCat, stCd, "");
-            cmd1.Parameters.AddRange(prms0.ToArray());
+            foreach (var p in parms) cmd1.Parameters.Add(SnowflakeCrudHelper.CloneParam(p));
             await using var r1 = await cmd1.ExecuteReaderAsync();
-            while (await r1.ReadAsync()) weeks.Add(r1.GetInt32(0));
+            while (await r1.ReadAsync()) weeks.Add(Convert.ToInt32(r1.GetValue(0)));
         }
 
         var firstWeek = weeks.Count > 0 ? weeks[0] : 0;
@@ -295,17 +338,14 @@ public class PlanController : Controller
         await writer.WriteLineAsync(header.ToString());
 
         // Step 3: Stream rows
-        var (sql, prms2) = BuildFilterSql(fyYear, fyWeek, majCat, stCd, "[ST_CD],[MAJ_CAT],[WEEK_ID]");
+        var (where2, parms2) = BuildSnowflakeFilter(fyYear, fyWeek, majCat, stCd);
+        var whereStr2 = string.IsNullOrEmpty(where2) ? "" : " WHERE " + where2;
+        var sql = $"SELECT {AllSelectCols} FROM TRF_IN_PLAN{whereStr2} ORDER BY ST_CD, MAJ_CAT, WEEK_ID";
 
-        await using var conn = new Microsoft.Data.SqlClient.SqlConnection(connStr);
-        await conn.OpenAsync();
         await using var cmd = conn.CreateCommand();
         cmd.CommandText = sql;
         cmd.CommandTimeout = 600;
-        cmd.Parameters.AddRange(prms2.ToArray());
-
-        // Build index map: PivotMetricCols -> position in MetricCols
-        var pivotIdx = PivotMetricCols.Select(p => Array.IndexOf(MetricCols, p)).ToArray();
+        foreach (var p in parms2) cmd.Parameters.Add(SnowflakeCrudHelper.CloneParam(p));
 
         await using var reader = await cmd.ExecuteReaderAsync();
 
@@ -375,8 +415,9 @@ public class PlanController : Controller
     {
         try
         {
-            await _context.Database.ExecuteSqlRawAsync("TRUNCATE TABLE [dbo].[TRF_IN_PLAN]");
-            _logger.LogInformation("TRF_IN_PLAN truncated");
+            await using var conn = await SnowflakeCrudHelper.OpenAsync(_sfConnStr);
+            await SnowflakeCrudHelper.ExecAsync(conn, "DELETE FROM TRF_IN_PLAN");
+            _logger.LogInformation("TRF_IN_PLAN cleared");
             TempData["SuccessMessage"] = "Transfer In Plan data cleared successfully.";
         }
         catch (Exception ex)
@@ -394,5 +435,52 @@ public class PlanController : Controller
             return "\"" + s.Replace("\"", "\"\"") + "\"";
         return s;
     }
-    }
 
+    private static TrfInPlan MapTrfInPlan(IDataReader r)
+    {
+        return new TrfInPlan
+        {
+            Id = SnowflakeCrudHelper.Int(r, 0),
+            FyYear = SnowflakeCrudHelper.IntNull(r, 1),
+            FyWeek = SnowflakeCrudHelper.IntNull(r, 2),
+            WeekId = SnowflakeCrudHelper.IntNull(r, 3),
+            StCd = SnowflakeCrudHelper.StrNull(r, 4),
+            StNm = SnowflakeCrudHelper.StrNull(r, 5),
+            RdcCd = SnowflakeCrudHelper.StrNull(r, 6),
+            RdcNm = SnowflakeCrudHelper.StrNull(r, 7),
+            HubCd = SnowflakeCrudHelper.StrNull(r, 8),
+            HubNm = SnowflakeCrudHelper.StrNull(r, 9),
+            Area = SnowflakeCrudHelper.StrNull(r, 10),
+            MajCat = SnowflakeCrudHelper.StrNull(r, 11),
+            Seg = SnowflakeCrudHelper.StrNull(r, 12),
+            Div = SnowflakeCrudHelper.StrNull(r, 13),
+            SubDiv = SnowflakeCrudHelper.StrNull(r, 14),
+            MajCatNm = SnowflakeCrudHelper.StrNull(r, 15),
+            Ssn = SnowflakeCrudHelper.StrNull(r, 16),
+            SGrtStkQ = SnowflakeCrudHelper.DecNull(r, 17),
+            WGrtStkQ = SnowflakeCrudHelper.DecNull(r, 18),
+            BgtDispClQ = SnowflakeCrudHelper.DecNull(r, 19),
+            BgtDispClOpt = SnowflakeCrudHelper.DecNull(r, 20),
+            Cm1SaleCoverDay = SnowflakeCrudHelper.DecNull(r, 21),
+            Cm2SaleCoverDay = SnowflakeCrudHelper.DecNull(r, 22),
+            CoverSaleQty = SnowflakeCrudHelper.DecNull(r, 23),
+            BgtStClMbq = SnowflakeCrudHelper.DecNull(r, 24),
+            BgtDispClOptMbq = SnowflakeCrudHelper.DecNull(r, 25),
+            BgtTtlCfOpStkQ = SnowflakeCrudHelper.DecNull(r, 26),
+            NtActQ = SnowflakeCrudHelper.DecNull(r, 27),
+            NetBgtCfStkQ = SnowflakeCrudHelper.DecNull(r, 28),
+            CmBgtSaleQ = SnowflakeCrudHelper.DecNull(r, 29),
+            Cm1BgtSaleQ = SnowflakeCrudHelper.DecNull(r, 30),
+            Cm2BgtSaleQ = SnowflakeCrudHelper.DecNull(r, 31),
+            TrfInStkQ = SnowflakeCrudHelper.DecNull(r, 32),
+            TrfInOptCnt = SnowflakeCrudHelper.DecNull(r, 33),
+            TrfInOptMbq = SnowflakeCrudHelper.DecNull(r, 34),
+            DcMbq = SnowflakeCrudHelper.DecNull(r, 35),
+            BgtTtlCfClStkQ = SnowflakeCrudHelper.DecNull(r, 36),
+            BgtNtActQ = SnowflakeCrudHelper.DecNull(r, 37),
+            NetStClStkQ = SnowflakeCrudHelper.DecNull(r, 38),
+            StClExcessQ = SnowflakeCrudHelper.DecNull(r, 39),
+            StClShortQ = SnowflakeCrudHelper.DecNull(r, 40)
+        };
+    }
+}

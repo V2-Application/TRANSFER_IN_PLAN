@@ -1,8 +1,8 @@
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Data.SqlClient;
-using Microsoft.EntityFrameworkCore;
+using Snowflake.Data.Client;
+using System.Data;
 using System.Text;
-using TRANSFER_IN_PLAN.Data;
+using TRANSFER_IN_PLAN.Helpers;
 using TRANSFER_IN_PLAN.Models;
 using TRANSFER_IN_PLAN.Services;
 
@@ -10,13 +10,13 @@ namespace TRANSFER_IN_PLAN.Controllers;
 
 public class SubLevelController : Controller
 {
-    private readonly PlanningDbContext _context;
+    private readonly string _sfConnStr;
     private readonly ILogger<SubLevelController> _logger;
     private readonly SubLevelJobService _jobService;
 
-    public SubLevelController(PlanningDbContext context, ILogger<SubLevelController> logger, SubLevelJobService jobService)
+    public SubLevelController(IConfiguration config, ILogger<SubLevelController> logger, SubLevelJobService jobService)
     {
-        _context = context;
+        _sfConnStr = config.GetConnectionString("Snowflake")!;
         _logger = logger;
         _jobService = jobService;
     }
@@ -38,9 +38,12 @@ public class SubLevelController : Controller
     // ═════════════════════════════════════════════════════════════
     public async Task<IActionResult> Execute()
     {
-        ViewBag.WeekCalendars = await _context.WeekCalendars.OrderBy(w => w.WeekId).ToListAsync();
-        ViewBag.MajCats = await _context.BinCapacities.Select(x => x.MajCat).Distinct().OrderBy(x => x).ToListAsync();
-        ViewBag.StoreCodes = await _context.StoreMasters.Select(x => x.StCd).Where(x => x != null).Distinct().OrderBy(x => x).ToListAsync();
+        await using var conn = await SnowflakeCrudHelper.OpenAsync(_sfConnStr);
+
+        ViewBag.WeekCalendars = await LoadWeekCalendars(conn);
+        ViewBag.MajCats = await SnowflakeCrudHelper.DistinctAsync(conn, "MASTER_BIN_CAPACITY", "MAJ_CAT");
+        ViewBag.StoreCodes = await SnowflakeCrudHelper.DistinctAsync(conn, "MASTER_ST_MASTER", "ST_CD");
+
         return View();
     }
 
@@ -64,44 +67,39 @@ public class SubLevelController : Controller
     [HttpGet]
     public async Task<IActionResult> ContStatus()
     {
-        var connStr = _context.Database.GetConnectionString()!;
         var result = new List<object>();
-        // All tables the sub-level algorithm needs, grouped by category
         var tables = new[] {
-            // Contribution tables (CONT_PCT per ST_CD + MAJ_CAT + sub-value)
-            ("Contribution", "ST_MAJ_CAT_MACRO_MVGR_PLAN", "MVGR Contribution", "Sale/Display × CONT% for MVGR level"),
-            ("Contribution", "ST_MAJ_CAT_SZ_PLAN",         "Size Contribution", "Sale/Display × CONT% for Size level"),
-            ("Contribution", "ST_MAJ_CAT_SEG_PLAN",        "Segment Contribution", "Sale/Display × CONT% for Segment level"),
-            ("Contribution", "ST_MAJ_CAT_VND_PLAN",        "Vendor Contribution", "Sale/Display × CONT% for Vendor level"),
-            // Sub-level store stock (opening stock per sub-value)
+            // Contribution tables
+            ("Contribution", "ST_MAJ_CAT_MACRO_MVGR_PLAN", "MVGR Contribution", "Sale/Display x CONT% for MVGR level"),
+            ("Contribution", "ST_MAJ_CAT_SZ_PLAN",         "Size Contribution", "Sale/Display x CONT% for Size level"),
+            ("Contribution", "ST_MAJ_CAT_SEG_PLAN",        "Segment Contribution", "Sale/Display x CONT% for Segment level"),
+            ("Contribution", "ST_MAJ_CAT_VND_PLAN",        "Vendor Contribution", "Sale/Display x CONT% for Vendor level"),
+            // Sub-level store stock
             ("Sub Store Stk", "SUB_ST_STK_MVGR", "St Stk MVGR", "Store opening stock for MVGR TRF"),
             ("Sub Store Stk", "SUB_ST_STK_SZ",   "St Stk Size", "Store opening stock for Size TRF"),
             ("Sub Store Stk", "SUB_ST_STK_SEG",  "St Stk Segment", "Store opening stock for Segment TRF"),
             ("Sub Store Stk", "SUB_ST_STK_VND",  "St Stk Vendor", "Store opening stock for Vendor TRF"),
-            // Sub-level DC stock (opening DC stock per sub-value)
+            // Sub-level DC stock
             ("Sub DC Stk", "SUB_DC_STK_MVGR", "DC Stk MVGR", "DC opening stock for MVGR PP"),
             ("Sub DC Stk", "SUB_DC_STK_SZ",   "DC Stk Size", "DC opening stock for Size PP"),
             ("Sub DC Stk", "SUB_DC_STK_SEG",  "DC Stk Segment", "DC opening stock for Segment PP"),
             ("Sub DC Stk", "SUB_DC_STK_VND",  "DC Stk Vendor", "DC opening stock for Vendor PP"),
-            // Reference tables (shared with main plan)
-            ("Reference", "QTY_SALE_QTY",             "Sale Qty",           "Weekly sale forecast × CONT% → sub-level sale"),
-            ("Reference", "QTY_DISP_QTY",             "Display Qty",        "Weekly display qty × CONT% → sub-level display"),
+            // Reference tables
+            ("Reference", "QTY_SALE_QTY",             "Sale Qty",           "Weekly sale forecast x CONT% -> sub-level sale"),
+            ("Reference", "QTY_DISP_QTY",             "Display Qty",        "Weekly display qty x CONT% -> sub-level display"),
             ("Reference", "MASTER_BIN_CAPACITY",       "Bin Capacity",       "MBQ + BIN_CAP per MAJ_CAT for TRF chain"),
-            ("Reference", "MASTER_ST_MASTER",          "Store Master",       "ST_CD → RDC mapping for PP aggregation"),
-            ("Reference", "WEEK_CALENDAR",             "Week Calendar",      "Week ID → FY_YEAR/FY_WEEK mapping"),
-            ("Reference", "MASTER_PRODUCT_HIERARCHY",  "Product Hierarchy",  "MAJ_CAT → SSN for shrinkage calculation"),
+            ("Reference", "MASTER_ST_MASTER",          "Store Master",       "ST_CD -> RDC mapping for PP aggregation"),
+            ("Reference", "WEEK_CALENDAR",             "Week Calendar",      "Week ID -> FY_YEAR/FY_WEEK mapping"),
+            ("Reference", "MASTER_PRODUCT_HIERARCHY",  "Product Hierarchy",  "MAJ_CAT -> SSN for shrinkage calculation"),
         };
-        using var conn = new SqlConnection(connStr);
-        await conn.OpenAsync();
+
+        await using var conn = await SnowflakeCrudHelper.OpenAsync(_sfConnStr);
         foreach (var (cat, tbl, label, logic) in tables)
         {
             int cnt = 0;
             try
             {
-                using var cmd = conn.CreateCommand();
-                cmd.CommandText = $"SELECT COUNT(*) FROM [dbo].[{tbl}] WITH (NOLOCK)";
-                cmd.CommandTimeout = 15;
-                cnt = (int)(await cmd.ExecuteScalarAsync() ?? 0);
+                cnt = await SnowflakeCrudHelper.CountAsync(conn, tbl);
             }
             catch { cnt = -1; }
             result.Add(new { category = cat, table = tbl, label, logic, rows = cnt });
@@ -112,16 +110,11 @@ public class SubLevelController : Controller
     [HttpGet]
     public async Task<IActionResult> PlanStatus()
     {
-        var connStr = _context.Database.GetConnectionString()!;
         var result = new List<object>();
-        using var conn = new SqlConnection(connStr);
-        await conn.OpenAsync();
+        await using var conn = await SnowflakeCrudHelper.OpenAsync(_sfConnStr);
         foreach (var (tbl, plan) in new[] { ("TRF_IN_PLAN", "Transfer In Plan"), ("PURCHASE_PLAN", "Purchase Plan") })
         {
-            using var cmd = conn.CreateCommand();
-            cmd.CommandText = $"SELECT COUNT(*) FROM [dbo].[{tbl}] WITH (NOLOCK)";
-            cmd.CommandTimeout = 30;
-            var cnt = (int)(await cmd.ExecuteScalarAsync() ?? 0);
+            var cnt = await SnowflakeCrudHelper.CountAsync(conn, tbl);
             result.Add(new { plan, rows = cnt });
         }
         return Json(result);
@@ -130,20 +123,18 @@ public class SubLevelController : Controller
     [HttpGet]
     public async Task<IActionResult> SubOutputStatus()
     {
-        var connStr = _context.Database.GetConnectionString()!;
         var result = new List<object>();
-        using var conn = new SqlConnection(connStr);
-        await conn.OpenAsync();
+        await using var conn = await SnowflakeCrudHelper.OpenAsync(_sfConnStr);
         foreach (var (tbl, label) in new[] { ("SUB_LEVEL_TRF_PLAN", "Sub-Level TRF"), ("SUB_LEVEL_PP_PLAN", "Sub-Level PP") })
         {
             try
             {
-                using var cmd = conn.CreateCommand();
-                cmd.CommandText = $"SELECT COUNT(*), MAX([CREATED_DT]) FROM [dbo].[{tbl}] WITH (NOLOCK)";
+                await using var cmd = conn.CreateCommand();
+                cmd.CommandText = $"SELECT COUNT(*), MAX(CREATED_DT) FROM {tbl}";
                 cmd.CommandTimeout = 30;
-                using var r = await cmd.ExecuteReaderAsync();
+                await using var r = await cmd.ExecuteReaderAsync();
                 if (await r.ReadAsync())
-                    result.Add(new { table = label, rows = r.GetInt32(0), lastRun = r.IsDBNull(1) ? "" : r.GetDateTime(1).ToString("dd-MMM HH:mm") });
+                    result.Add(new { table = label, rows = SnowflakeCrudHelper.Int(r, 0), lastRun = r.IsDBNull(1) ? "" : Convert.ToDateTime(r.GetValue(1)).ToString("dd-MMM HH:mm") });
             }
             catch { result.Add(new { table = label, rows = 0, lastRun = "" }); }
         }
@@ -153,17 +144,30 @@ public class SubLevelController : Controller
     [HttpGet]
     public async Task<IActionResult> SubOutputStatusByLevel()
     {
-        var connStr = _context.Database.GetConnectionString()!;
         var result = new List<object>();
-        using var conn = new SqlConnection(connStr);
-        await conn.OpenAsync();
+        await using var conn = await SnowflakeCrudHelper.OpenAsync(_sfConnStr);
         foreach (var lv in new[] { "MVGR", "SZ", "SEG", "VND" })
         {
             int trfRows = 0, ppRows = 0; string? lastRun = null;
             try
             {
-                using (var cmd = conn.CreateCommand()) { cmd.CommandText = $"SELECT COUNT(*), MAX([CREATED_DT]) FROM [dbo].[SUB_LEVEL_TRF_PLAN] WITH (NOLOCK) WHERE [LEVEL]='{lv}'"; cmd.CommandTimeout = 30; using var r = await cmd.ExecuteReaderAsync(); if (await r.ReadAsync()) { trfRows = r.GetInt32(0); if (!r.IsDBNull(1)) lastRun = r.GetDateTime(1).ToString("dd-MMM HH:mm"); } }
-                using (var cmd = conn.CreateCommand()) { cmd.CommandText = $"SELECT COUNT(*) FROM [dbo].[SUB_LEVEL_PP_PLAN] WITH (NOLOCK) WHERE [LEVEL]='{lv}'"; cmd.CommandTimeout = 30; ppRows = (int)(await cmd.ExecuteScalarAsync() ?? 0); }
+                await using (var cmd = conn.CreateCommand())
+                {
+                    cmd.CommandText = $"SELECT COUNT(*), MAX(CREATED_DT) FROM SUB_LEVEL_TRF_PLAN WHERE LEVEL = '{lv}'";
+                    cmd.CommandTimeout = 30;
+                    await using var r = await cmd.ExecuteReaderAsync();
+                    if (await r.ReadAsync())
+                    {
+                        trfRows = SnowflakeCrudHelper.Int(r, 0);
+                        if (!r.IsDBNull(1)) lastRun = Convert.ToDateTime(r.GetValue(1)).ToString("dd-MMM HH:mm");
+                    }
+                }
+                await using (var cmd = conn.CreateCommand())
+                {
+                    cmd.CommandText = $"SELECT COUNT(*) FROM SUB_LEVEL_PP_PLAN WHERE LEVEL = '{lv}'";
+                    cmd.CommandTimeout = 30;
+                    ppRows = Convert.ToInt32(await cmd.ExecuteScalarAsync() ?? 0);
+                }
             }
             catch { }
             result.Add(new { level = lv, trfRows, ppRows, lastRun = lastRun ?? "" });
@@ -179,18 +183,19 @@ public class SubLevelController : Controller
     {
         try
         {
+            await using var conn = await SnowflakeCrudHelper.OpenAsync(_sfConnStr);
             if (string.IsNullOrEmpty(level) || level == "all")
             {
-                await _context.Database.ExecuteSqlRawAsync("TRUNCATE TABLE [dbo].[SUB_LEVEL_TRF_PLAN]");
-                await _context.Database.ExecuteSqlRawAsync("TRUNCATE TABLE [dbo].[SUB_LEVEL_PP_PLAN]");
-                _logger.LogInformation("All sub-level data truncated");
+                await SnowflakeCrudHelper.ExecAsync(conn, "DELETE FROM SUB_LEVEL_TRF_PLAN");
+                await SnowflakeCrudHelper.ExecAsync(conn, "DELETE FROM SUB_LEVEL_PP_PLAN");
+                _logger.LogInformation("All sub-level data cleared");
                 TempData["SuccessMessage"] = "All sub-level plan data cleared successfully.";
             }
             else
             {
                 var lv = level.ToUpper();
-                await _context.Database.ExecuteSqlRawAsync($"DELETE FROM [dbo].[SUB_LEVEL_TRF_PLAN] WHERE [LEVEL]='{lv}'");
-                await _context.Database.ExecuteSqlRawAsync($"DELETE FROM [dbo].[SUB_LEVEL_PP_PLAN] WHERE [LEVEL]='{lv}'");
+                await SnowflakeCrudHelper.ExecAsync(conn, $"DELETE FROM SUB_LEVEL_TRF_PLAN WHERE LEVEL = '{lv}'");
+                await SnowflakeCrudHelper.ExecAsync(conn, $"DELETE FROM SUB_LEVEL_PP_PLAN WHERE LEVEL = '{lv}'");
                 _logger.LogInformation("Sub-level data cleared for level {Level}", lv);
                 TempData["SuccessMessage"] = $"Sub-level data cleared for {lv}.";
             }
@@ -204,7 +209,7 @@ public class SubLevelController : Controller
     }
 
     // ═════════════════════════════════════════════════════════════
-    // EXECUTE — GENERATE SUB-LEVEL DATA
+    // EXECUTE — GENERATE SUB-LEVEL DATA (sync, single-level)
     // ═════════════════════════════════════════════════════════════
     [HttpPost, ValidateAntiForgeryToken]
     public async Task<IActionResult> RunGenerate(string[] levels, int startWeekId, int endWeekId, string? storeCode = null, string? majCat = null)
@@ -224,29 +229,33 @@ public class SubLevelController : Controller
 
         try
         {
+            var scParam = string.IsNullOrEmpty(storeCode) ? "NULL" : $"'{storeCode}'";
+            var mcParam = string.IsNullOrEmpty(majCat) ? "NULL" : $"'{majCat}'";
+
+            await using var conn = await SnowflakeCrudHelper.OpenAsync(_sfConnStr);
+
             foreach (var level in levels)
             {
                 var levelKey = level.ToUpper();
                 _logger.LogInformation("SubLevel generating TRF [{Level}] weeks {Start}-{End} store={Store} cat={Cat}", levelKey, startWeekId, endWeekId, storeCode ?? "ALL", majCat ?? "ALL");
 
-                // Call TRF SP
-                var trfParams = new[] {
-                    new SqlParameter("@p0", levelKey),
-                    new SqlParameter("@p1", startWeekId),
-                    new SqlParameter("@p2", endWeekId),
-                    new SqlParameter("@p3", System.Data.SqlDbType.NVarChar, 50) { Value = string.IsNullOrEmpty(storeCode) ? (object)DBNull.Value : storeCode },
-                    new SqlParameter("@p4", System.Data.SqlDbType.NVarChar, 100) { Value = string.IsNullOrEmpty(majCat) ? (object)DBNull.Value : majCat }
-                };
-                await _context.Database.ExecuteSqlRawAsync(
-                    "EXEC SP_GENERATE_SUB_LEVEL_TRF @Level=@p0, @StartWeekID=@p1, @EndWeekID=@p2, @StoreCode=@p3, @MajCat=@p4",
-                    trfParams);
+                // Call TRF SP on Snowflake
+                await using (var cmd = conn.CreateCommand())
+                {
+                    cmd.CommandText = $"CALL SF_SP_GENERATE_SUB_LEVEL_TRF('{levelKey}', {startWeekId}, {endWeekId}, {scParam}, {mcParam})";
+                    cmd.CommandTimeout = 3600;
+                    await cmd.ExecuteNonQueryAsync();
+                }
 
                 _logger.LogInformation("SubLevel generating PP [{Level}]", levelKey);
 
-                // Call PP SP
-                await _context.Database.ExecuteSqlRawAsync(
-                    "EXEC SP_GENERATE_SUB_LEVEL_PP @Level=@p0, @StartWeekID=@p1, @EndWeekID=@p2",
-                    levelKey, startWeekId, endWeekId);
+                // Call PP SP on Snowflake
+                await using (var cmd = conn.CreateCommand())
+                {
+                    cmd.CommandText = $"CALL SF_SP_GENERATE_SUB_LEVEL_PP('{levelKey}', {startWeekId}, {endWeekId}, NULL, {mcParam})";
+                    cmd.CommandTimeout = 3600;
+                    await cmd.ExecuteNonQueryAsync();
+                }
 
                 _logger.LogInformation("SubLevel [{Level}] done", levelKey);
             }
@@ -268,7 +277,7 @@ public class SubLevelController : Controller
     }
 
     // ═════════════════════════════════════════════════════════════
-    // TRANSFER IN — SUB-LEVEL OUTPUT (reads from materialized table)
+    // TRANSFER IN — SUB-LEVEL OUTPUT
     // ═════════════════════════════════════════════════════════════
     [HttpGet]
     public async Task<IActionResult> TrfOutput(string level = "mvgr", string? stCd = null, string? majCat = null,
@@ -283,25 +292,17 @@ public class SubLevelController : Controller
         ViewBag.StCd = stCd; ViewBag.MajCat = majCat; ViewBag.FyYear = fyYear; ViewBag.FyWeek = fyWeek;
         ViewBag.Page = page; ViewBag.PageSize = pageSize; ViewBag.LevelKeys = LevelKeys;
 
-        var connStr = _context.Database.GetConnectionString()!;
-        var clauses = new List<string> { "[LEVEL]=@lv" };
-        var prms = new List<SqlParameter> { new("@lv", levelKey) };
-        if (!string.IsNullOrEmpty(stCd)) { clauses.Add("[ST_CD]=@st"); prms.Add(new("@st", stCd)); }
-        if (!string.IsNullOrEmpty(majCat)) { clauses.Add("[MAJ_CAT]=@mc"); prms.Add(new("@mc", majCat)); }
-        if (fyYear.HasValue) { clauses.Add("[FY_YEAR]=@fy"); prms.Add(new("@fy", fyYear.Value)); }
-        if (fyWeek.HasValue) { clauses.Add("[FY_WEEK]=@fw"); prms.Add(new("@fw", fyWeek.Value)); }
-        var where = "WHERE " + string.Join(" AND ", clauses);
+        var (where, parms) = BuildTrfFilter(levelKey, stCd, majCat, fyYear, fyWeek);
 
-        // Load dropdowns from materialized table
-        using var conn = new SqlConnection(connStr);
-        await conn.OpenAsync();
+        await using var conn = await SnowflakeCrudHelper.OpenAsync(_sfConnStr);
 
+        // Load dropdowns
         ViewBag.StoreCodes = new List<string>();
         ViewBag.Categories = new List<string>();
         try
         {
-            using (var cmd = conn.CreateCommand()) { cmd.CommandText = $"SELECT DISTINCT [ST_CD] FROM [dbo].[SUB_LEVEL_TRF_PLAN] WITH (NOLOCK) WHERE [LEVEL]='{levelKey}' ORDER BY [ST_CD]"; cmd.CommandTimeout = 30; using var r = await cmd.ExecuteReaderAsync(); var list = new List<string>(); while (await r.ReadAsync()) list.Add(r.GetString(0)); ViewBag.StoreCodes = list; }
-            using (var cmd = conn.CreateCommand()) { cmd.CommandText = $"SELECT DISTINCT [MAJ_CAT] FROM [dbo].[SUB_LEVEL_TRF_PLAN] WITH (NOLOCK) WHERE [LEVEL]='{levelKey}' ORDER BY [MAJ_CAT]"; cmd.CommandTimeout = 30; using var r = await cmd.ExecuteReaderAsync(); var list = new List<string>(); while (await r.ReadAsync()) list.Add(r.GetString(0)); ViewBag.Categories = list; }
+            ViewBag.StoreCodes = await SnowflakeCrudHelper.DistinctAsync(conn, "SUB_LEVEL_TRF_PLAN", "ST_CD", $"LEVEL = '{levelKey}'");
+            ViewBag.Categories = await SnowflakeCrudHelper.DistinctAsync(conn, "SUB_LEVEL_TRF_PLAN", "MAJ_CAT", $"LEVEL = '{levelKey}'");
         }
         catch { /* table may not exist yet */ }
 
@@ -310,29 +311,37 @@ public class SubLevelController : Controller
 
         try
         {
-            using (var cmd = conn.CreateCommand())
-            {
-                cmd.CommandText = $"SELECT COUNT(*) FROM [dbo].[SUB_LEVEL_TRF_PLAN] WITH (NOLOCK) {where}";
-                cmd.CommandTimeout = 60;
-                foreach (var p in prms) cmd.Parameters.Add(CloneParam(p));
-                totalCount = (int)(await cmd.ExecuteScalarAsync() ?? 0);
-            }
+            totalCount = await SnowflakeCrudHelper.CountAsync(conn, "SUB_LEVEL_TRF_PLAN", where, parms);
             ViewBag.TotalCount = totalCount;
 
             if (totalCount > 0)
             {
-                using var cmd2 = conn.CreateCommand();
-                cmd2.CommandText = $@"SELECT [ST_CD],[MAJ_CAT],[SUB_VALUE],[CONT_PCT],[FY_YEAR],[FY_WEEK],
-                    [BGT_DISP_CL_Q],[CM_BGT_SALE_Q],[CM1_BGT_SALE_Q],[CM2_BGT_SALE_Q],[COVER_SALE_QTY],
-                    [TRF_IN_STK_Q],[DC_MBQ],[BGT_TTL_CF_OP_STK_Q],[BGT_TTL_CF_CL_STK_Q],[BGT_ST_CL_MBQ],[ST_CL_EXCESS_Q],[ST_CL_SHORT_Q]
-                FROM [dbo].[SUB_LEVEL_TRF_PLAN] WITH (NOLOCK) {where}
-                ORDER BY [ST_CD],[MAJ_CAT],[SUB_VALUE],[FY_WEEK]
-                OFFSET {(page - 1) * pageSize} ROWS FETCH NEXT {pageSize} ROWS ONLY";
-                cmd2.CommandTimeout = 60;
-                foreach (var p in prms) cmd2.Parameters.Add(CloneParam(p));
-                using var reader = await cmd2.ExecuteReaderAsync();
-                while (await reader.ReadAsync())
-                    data.Add(new SubLevelTrfRow { StCd = reader.GetString(0), MajCat = reader.GetString(1), SubLevel = reader.GetString(2), ContPct = reader.GetDecimal(3), FyYear = reader.IsDBNull(4)?0:reader.GetInt32(4), FyWeek = reader.IsDBNull(5)?0:reader.GetInt32(5), BgtDispClQ = reader.GetDecimal(6), CmBgtSaleQ = reader.GetDecimal(7), Cm1BgtSaleQ = reader.GetDecimal(8), Cm2BgtSaleQ = reader.GetDecimal(9), CoverSaleQty = reader.GetDecimal(10), TrfInStkQ = reader.GetDecimal(11), DcMbq = reader.GetDecimal(12), BgtTtlCfOpStkQ = reader.GetDecimal(13), BgtTtlCfClStkQ = reader.GetDecimal(14), BgtStClMbq = reader.GetDecimal(15), StClExcessQ = reader.GetDecimal(16), StClShortQ = reader.GetDecimal(17) });
+                data = await SnowflakeCrudHelper.PagedQueryAsync(conn, "SUB_LEVEL_TRF_PLAN",
+                    "ST_CD, MAJ_CAT, SUB_VALUE, CONT_PCT, FY_YEAR, FY_WEEK, " +
+                    "BGT_DISP_CL_Q, CM_BGT_SALE_Q, CM1_BGT_SALE_Q, CM2_BGT_SALE_Q, COVER_SALE_QTY, " +
+                    "TRF_IN_STK_Q, DC_MBQ, BGT_TTL_CF_OP_STK_Q, BGT_TTL_CF_CL_STK_Q, BGT_ST_CL_MBQ, ST_CL_EXCESS_Q, ST_CL_SHORT_Q",
+                    where, parms, "ST_CD, MAJ_CAT, SUB_VALUE, FY_WEEK", page, pageSize,
+                    r => new SubLevelTrfRow
+                    {
+                        StCd = SnowflakeCrudHelper.Str(r, 0),
+                        MajCat = SnowflakeCrudHelper.Str(r, 1),
+                        SubLevel = SnowflakeCrudHelper.Str(r, 2),
+                        ContPct = SnowflakeCrudHelper.Dec(r, 3),
+                        FyYear = SnowflakeCrudHelper.Int(r, 4),
+                        FyWeek = SnowflakeCrudHelper.Int(r, 5),
+                        BgtDispClQ = SnowflakeCrudHelper.Dec(r, 6),
+                        CmBgtSaleQ = SnowflakeCrudHelper.Dec(r, 7),
+                        Cm1BgtSaleQ = SnowflakeCrudHelper.Dec(r, 8),
+                        Cm2BgtSaleQ = SnowflakeCrudHelper.Dec(r, 9),
+                        CoverSaleQty = SnowflakeCrudHelper.Dec(r, 10),
+                        TrfInStkQ = SnowflakeCrudHelper.Dec(r, 11),
+                        DcMbq = SnowflakeCrudHelper.Dec(r, 12),
+                        BgtTtlCfOpStkQ = SnowflakeCrudHelper.Dec(r, 13),
+                        BgtTtlCfClStkQ = SnowflakeCrudHelper.Dec(r, 14),
+                        BgtStClMbq = SnowflakeCrudHelper.Dec(r, 15),
+                        StClExcessQ = SnowflakeCrudHelper.Dec(r, 16),
+                        StClShortQ = SnowflakeCrudHelper.Dec(r, 17)
+                    });
             }
         }
         catch { ViewBag.TotalCount = 0; ViewBag.NotGenerated = true; }
@@ -341,7 +350,7 @@ public class SubLevelController : Controller
     }
 
     // ═════════════════════════════════════════════════════════════
-    // PURCHASE PLAN — SUB-LEVEL OUTPUT (reads from materialized table)
+    // PURCHASE PLAN — SUB-LEVEL OUTPUT
     // ═════════════════════════════════════════════════════════════
     [HttpGet]
     public async Task<IActionResult> PpOutput(string level = "mvgr", string? rdcCd = null, string? majCat = null,
@@ -356,24 +365,16 @@ public class SubLevelController : Controller
         ViewBag.RdcCd = rdcCd; ViewBag.MajCat = majCat; ViewBag.FyYear = fyYear; ViewBag.FyWeek = fyWeek;
         ViewBag.Page = page; ViewBag.PageSize = pageSize; ViewBag.LevelKeys = LevelKeys;
 
-        var connStr = _context.Database.GetConnectionString()!;
-        var clauses = new List<string> { "[LEVEL]=@lv" };
-        var prms = new List<SqlParameter> { new("@lv", levelKey) };
-        if (!string.IsNullOrEmpty(rdcCd)) { clauses.Add("[RDC_CD]=@rdc"); prms.Add(new("@rdc", rdcCd)); }
-        if (!string.IsNullOrEmpty(majCat)) { clauses.Add("[MAJ_CAT]=@mc"); prms.Add(new("@mc", majCat)); }
-        if (fyYear.HasValue) { clauses.Add("[FY_YEAR]=@fy"); prms.Add(new("@fy", fyYear.Value)); }
-        if (fyWeek.HasValue) { clauses.Add("[FY_WEEK]=@fw"); prms.Add(new("@fw", fyWeek.Value)); }
-        var where = "WHERE " + string.Join(" AND ", clauses);
+        var (where, parms) = BuildPpFilter(levelKey, rdcCd, majCat, fyYear, fyWeek);
 
-        using var conn = new SqlConnection(connStr);
-        await conn.OpenAsync();
+        await using var conn = await SnowflakeCrudHelper.OpenAsync(_sfConnStr);
 
         ViewBag.RdcCodes = new List<string>();
         ViewBag.Categories = new List<string>();
         try
         {
-            using (var cmd = conn.CreateCommand()) { cmd.CommandText = $"SELECT DISTINCT [RDC_CD] FROM [dbo].[SUB_LEVEL_PP_PLAN] WITH (NOLOCK) WHERE [LEVEL]='{levelKey}' ORDER BY [RDC_CD]"; cmd.CommandTimeout = 30; using var r = await cmd.ExecuteReaderAsync(); var list = new List<string>(); while (await r.ReadAsync()) list.Add(r.GetString(0)); ViewBag.RdcCodes = list; }
-            using (var cmd = conn.CreateCommand()) { cmd.CommandText = $"SELECT DISTINCT [MAJ_CAT] FROM [dbo].[SUB_LEVEL_PP_PLAN] WITH (NOLOCK) WHERE [LEVEL]='{levelKey}' ORDER BY [MAJ_CAT]"; cmd.CommandTimeout = 30; using var r = await cmd.ExecuteReaderAsync(); var list = new List<string>(); while (await r.ReadAsync()) list.Add(r.GetString(0)); ViewBag.Categories = list; }
+            ViewBag.RdcCodes = await SnowflakeCrudHelper.DistinctAsync(conn, "SUB_LEVEL_PP_PLAN", "RDC_CD", $"LEVEL = '{levelKey}'");
+            ViewBag.Categories = await SnowflakeCrudHelper.DistinctAsync(conn, "SUB_LEVEL_PP_PLAN", "MAJ_CAT", $"LEVEL = '{levelKey}'");
         }
         catch { }
 
@@ -382,29 +383,37 @@ public class SubLevelController : Controller
 
         try
         {
-            using (var cmd = conn.CreateCommand())
-            {
-                cmd.CommandText = $"SELECT COUNT(*) FROM [dbo].[SUB_LEVEL_PP_PLAN] WITH (NOLOCK) {where}";
-                cmd.CommandTimeout = 60;
-                foreach (var p in prms) cmd.Parameters.Add(CloneParam(p));
-                totalCount = (int)(await cmd.ExecuteScalarAsync() ?? 0);
-            }
+            totalCount = await SnowflakeCrudHelper.CountAsync(conn, "SUB_LEVEL_PP_PLAN", where, parms);
             ViewBag.TotalCount = totalCount;
 
             if (totalCount > 0)
             {
-                using var cmd2 = conn.CreateCommand();
-                cmd2.CommandText = $@"SELECT [RDC_CD],[MAJ_CAT],[SUB_VALUE],[CONT_PCT],[FY_YEAR],[FY_WEEK],
-                    [BGT_DISP_CL_Q],[CW_BGT_SALE_Q],[CW1_BGT_SALE_Q],[CW2_BGT_SALE_Q],[CW3_BGT_SALE_Q],[CW4_BGT_SALE_Q],
-                    [BGT_PUR_Q_INIT],[BGT_DC_CL_STK_Q],[BGT_DC_CL_MBQ],[BGT_DC_MBQ_SALE],[DC_STK_EXCESS_Q],[DC_STK_SHORT_Q]
-                FROM [dbo].[SUB_LEVEL_PP_PLAN] WITH (NOLOCK) {where}
-                ORDER BY [RDC_CD],[MAJ_CAT],[SUB_VALUE],[FY_WEEK]
-                OFFSET {(page - 1) * pageSize} ROWS FETCH NEXT {pageSize} ROWS ONLY";
-                cmd2.CommandTimeout = 60;
-                foreach (var p in prms) cmd2.Parameters.Add(CloneParam(p));
-                using var reader = await cmd2.ExecuteReaderAsync();
-                while (await reader.ReadAsync())
-                    data.Add(new SubLevelPpRow { RdcCd = reader.GetString(0), MajCat = reader.GetString(1), SubLevel = reader.GetString(2), ContPct = reader.GetDecimal(3), FyYear = reader.IsDBNull(4)?0:reader.GetInt32(4), FyWeek = reader.IsDBNull(5)?0:reader.GetInt32(5), BgtDispClQ = reader.GetDecimal(6), CwBgtSaleQ = reader.GetDecimal(7), Cw1BgtSaleQ = reader.GetDecimal(8), Cw2BgtSaleQ = reader.GetDecimal(9), Cw3BgtSaleQ = reader.GetDecimal(10), Cw4BgtSaleQ = reader.GetDecimal(11), BgtPurQInit = reader.GetDecimal(12), BgtDcClStkQ = reader.GetDecimal(13), BgtDcClMbq = reader.GetDecimal(14), BgtDcMbqSale = reader.GetDecimal(15), DcStkExcessQ = reader.GetDecimal(16), DcStkShortQ = reader.GetDecimal(17) });
+                data = await SnowflakeCrudHelper.PagedQueryAsync(conn, "SUB_LEVEL_PP_PLAN",
+                    "RDC_CD, MAJ_CAT, SUB_VALUE, CONT_PCT, FY_YEAR, FY_WEEK, " +
+                    "BGT_DISP_CL_Q, CW_BGT_SALE_Q, CW1_BGT_SALE_Q, CW2_BGT_SALE_Q, CW3_BGT_SALE_Q, CW4_BGT_SALE_Q, " +
+                    "BGT_PUR_Q_INIT, BGT_DC_CL_STK_Q, BGT_DC_CL_MBQ, BGT_DC_MBQ_SALE, DC_STK_EXCESS_Q, DC_STK_SHORT_Q",
+                    where, parms, "RDC_CD, MAJ_CAT, SUB_VALUE, FY_WEEK", page, pageSize,
+                    r => new SubLevelPpRow
+                    {
+                        RdcCd = SnowflakeCrudHelper.Str(r, 0),
+                        MajCat = SnowflakeCrudHelper.Str(r, 1),
+                        SubLevel = SnowflakeCrudHelper.Str(r, 2),
+                        ContPct = SnowflakeCrudHelper.Dec(r, 3),
+                        FyYear = SnowflakeCrudHelper.Int(r, 4),
+                        FyWeek = SnowflakeCrudHelper.Int(r, 5),
+                        BgtDispClQ = SnowflakeCrudHelper.Dec(r, 6),
+                        CwBgtSaleQ = SnowflakeCrudHelper.Dec(r, 7),
+                        Cw1BgtSaleQ = SnowflakeCrudHelper.Dec(r, 8),
+                        Cw2BgtSaleQ = SnowflakeCrudHelper.Dec(r, 9),
+                        Cw3BgtSaleQ = SnowflakeCrudHelper.Dec(r, 10),
+                        Cw4BgtSaleQ = SnowflakeCrudHelper.Dec(r, 11),
+                        BgtPurQInit = SnowflakeCrudHelper.Dec(r, 12),
+                        BgtDcClStkQ = SnowflakeCrudHelper.Dec(r, 13),
+                        BgtDcClMbq = SnowflakeCrudHelper.Dec(r, 14),
+                        BgtDcMbqSale = SnowflakeCrudHelper.Dec(r, 15),
+                        DcStkExcessQ = SnowflakeCrudHelper.Dec(r, 16),
+                        DcStkShortQ = SnowflakeCrudHelper.Dec(r, 17)
+                    });
             }
         }
         catch { ViewBag.TotalCount = 0; ViewBag.NotGenerated = true; }
@@ -426,32 +435,30 @@ public class SubLevelController : Controller
         if (string.IsNullOrEmpty(stCd) && string.IsNullOrEmpty(majCat) && !fyYear.HasValue && !fyWeek.HasValue)
             return BadRequest("At least one filter required.");
 
-        var connStr = _context.Database.GetConnectionString()!;
-        var (where, prms) = BuildTrfWhere(stCd, majCat, fyYear, fyWeek, subCol);
+        var (where, parms) = BuildTrfJoinWhere(stCd, majCat, fyYear, fyWeek);
 
         Response.ContentType = "text/csv";
-        Response.Headers.Append("Content-Disposition", $"attachment; filename=TrfInPlan_{label.Replace(" ","")}_{fyYear}_{fyWeek}.csv");
+        Response.Headers.Append("Content-Disposition", $"attachment; filename=TrfInPlan_{label.Replace(" ", "")}_{fyYear}_{fyWeek}.csv");
 
         await using var writer = new StreamWriter(Response.Body, Encoding.UTF8, 65536);
         await writer.WriteLineAsync($"ST_CD,MAJ_CAT,{subCol},CONT_PCT,FY_YEAR,FY_WEEK,BGT_DISP_CL_Q,CM_BGT_SALE_Q,CM1_BGT_SALE_Q,CM2_BGT_SALE_Q,COVER_SALE_QTY,TRF_IN_STK_Q,DC_MBQ,BGT_TTL_CF_OP_STK_Q,BGT_TTL_CF_CL_STK_Q,BGT_ST_CL_MBQ,ST_CL_EXCESS_Q,ST_CL_SHORT_Q");
 
-        await using var conn = new SqlConnection(connStr);
-        await conn.OpenAsync();
+        await using var conn = await SnowflakeCrudHelper.OpenAsync(_sfConnStr);
         await using var cmd = conn.CreateCommand();
         cmd.CommandText = $@"SELECT
-            t.[ST_CD], t.[MAJ_CAT], c.[{subCol}], c.[CONT_PCT],
-            t.[FY_YEAR], t.[FY_WEEK],
-            ISNULL(t.[BGT_DISP_CL_Q],0)*c.[CONT_PCT], ISNULL(t.[CM_BGT_SALE_Q],0)*c.[CONT_PCT],
-            ISNULL(t.[CM1_BGT_SALE_Q],0)*c.[CONT_PCT], ISNULL(t.[CM2_BGT_SALE_Q],0)*c.[CONT_PCT],
-            ISNULL(t.[COVER_SALE_QTY],0)*c.[CONT_PCT],
-            ISNULL(t.[TRF_IN_STK_Q],0), ISNULL(t.[DC_MBQ],0),
-            ISNULL(t.[BGT_TTL_CF_OP_STK_Q],0), ISNULL(t.[BGT_TTL_CF_CL_STK_Q],0),
-            ISNULL(t.[BGT_ST_CL_MBQ],0), ISNULL(t.[ST_CL_EXCESS_Q],0), ISNULL(t.[ST_CL_SHORT_Q],0)
-        FROM [dbo].[TRF_IN_PLAN] t WITH (NOLOCK)
-        INNER JOIN [dbo].[{contTable}] c ON c.[ST_CD]=t.[ST_CD] AND c.[MAJ_CAT_CD]=t.[MAJ_CAT]
-        {where} ORDER BY t.[ST_CD],t.[MAJ_CAT],c.[{subCol}],t.[FY_WEEK]";
+            t.ST_CD, t.MAJ_CAT, c.{subCol}, c.CONT_PCT,
+            t.FY_YEAR, t.FY_WEEK,
+            NVL(t.BGT_DISP_CL_Q,0)*c.CONT_PCT, NVL(t.CM_BGT_SALE_Q,0)*c.CONT_PCT,
+            NVL(t.CM1_BGT_SALE_Q,0)*c.CONT_PCT, NVL(t.CM2_BGT_SALE_Q,0)*c.CONT_PCT,
+            NVL(t.COVER_SALE_QTY,0)*c.CONT_PCT,
+            NVL(t.TRF_IN_STK_Q,0), NVL(t.DC_MBQ,0),
+            NVL(t.BGT_TTL_CF_OP_STK_Q,0), NVL(t.BGT_TTL_CF_CL_STK_Q,0),
+            NVL(t.BGT_ST_CL_MBQ,0), NVL(t.ST_CL_EXCESS_Q,0), NVL(t.ST_CL_SHORT_Q,0)
+        FROM TRF_IN_PLAN t
+        INNER JOIN {contTable} c ON c.ST_CD = t.ST_CD AND c.MAJ_CAT_CD = t.MAJ_CAT
+        {where} ORDER BY t.ST_CD, t.MAJ_CAT, c.{subCol}, t.FY_WEEK";
         cmd.CommandTimeout = 600;
-        foreach (var p in prms) cmd.Parameters.Add(p);
+        foreach (var p in parms) cmd.Parameters.Add(SnowflakeCrudHelper.CloneParam(p));
 
         await using var reader = await cmd.ExecuteReaderAsync();
         int count = 0;
@@ -483,39 +490,37 @@ public class SubLevelController : Controller
         if (string.IsNullOrEmpty(rdcCd) && string.IsNullOrEmpty(majCat) && !fyYear.HasValue && !fyWeek.HasValue)
             return BadRequest("At least one filter required.");
 
-        var connStr = _context.Database.GetConnectionString()!;
-        var (where, prms) = BuildPpWhere(rdcCd, majCat, fyYear, fyWeek, subCol);
+        var (where, parms) = BuildPpJoinWhere(rdcCd, majCat, fyYear, fyWeek);
 
         Response.ContentType = "text/csv";
-        Response.Headers.Append("Content-Disposition", $"attachment; filename=PP_{label.Replace(" ","")}_{fyYear}_{fyWeek}.csv");
+        Response.Headers.Append("Content-Disposition", $"attachment; filename=PP_{label.Replace(" ", "")}_{fyYear}_{fyWeek}.csv");
 
         await using var writer = new StreamWriter(Response.Body, Encoding.UTF8, 65536);
         await writer.WriteLineAsync($"RDC_CD,MAJ_CAT,{subCol},CONT_PCT,FY_YEAR,FY_WEEK,BGT_DISP_CL_Q,CW_BGT_SALE_Q,CW1_BGT_SALE_Q,CW2_BGT_SALE_Q,CW3_BGT_SALE_Q,CW4_BGT_SALE_Q,BGT_PUR_Q_INIT,BGT_DC_CL_STK_Q,BGT_DC_CL_MBQ,BGT_DC_MBQ_SALE,DC_STK_EXCESS_Q,DC_STK_SHORT_Q");
 
         var cteSql = $@"WITH RdcCont AS (
-            SELECT sm.[RDC_CD], c.[MAJ_CAT_CD], c.[{subCol}], AVG(c.[CONT_PCT]) AS [CONT_PCT]
-            FROM [dbo].[{contTable}] c
-            INNER JOIN [dbo].[MASTER_ST_MASTER] sm ON sm.[ST CD] = c.[ST_CD]
-            GROUP BY sm.[RDC_CD], c.[MAJ_CAT_CD], c.[{subCol}]
+            SELECT sm.RDC_CD, c.MAJ_CAT_CD, c.{subCol}, AVG(c.CONT_PCT) AS CONT_PCT
+            FROM {contTable} c
+            INNER JOIN MASTER_ST_MASTER sm ON sm.ST_CD = c.ST_CD
+            GROUP BY sm.RDC_CD, c.MAJ_CAT_CD, c.{subCol}
         )";
 
-        await using var conn = new SqlConnection(connStr);
-        await conn.OpenAsync();
+        await using var conn = await SnowflakeCrudHelper.OpenAsync(_sfConnStr);
         await using var cmd = conn.CreateCommand();
         cmd.CommandText = $@"{cteSql}
-        SELECT p.[RDC_CD], p.[MAJ_CAT], rc.[{subCol}], rc.[CONT_PCT],
-            p.[FY_YEAR], p.[FY_WEEK],
-            ISNULL(p.[BGT_DISP_CL_Q],0)*rc.[CONT_PCT], ISNULL(p.[CW_BGT_SALE_Q],0)*rc.[CONT_PCT],
-            ISNULL(p.[CW1_BGT_SALE_Q],0)*rc.[CONT_PCT], ISNULL(p.[CW2_BGT_SALE_Q],0)*rc.[CONT_PCT],
-            ISNULL(p.[CW3_BGT_SALE_Q],0)*rc.[CONT_PCT], ISNULL(p.[CW4_BGT_SALE_Q],0)*rc.[CONT_PCT],
-            ISNULL(p.[BGT_PUR_Q_INIT],0), ISNULL(p.[BGT_DC_CL_STK_Q],0),
-            ISNULL(p.[BGT_DC_CL_MBQ],0), ISNULL(p.[BGT_DC_MBQ_SALE],0),
-            ISNULL(p.[DC_STK_EXCESS_Q],0), ISNULL(p.[DC_STK_SHORT_Q],0)
-        FROM [dbo].[PURCHASE_PLAN] p WITH (NOLOCK)
-        INNER JOIN RdcCont rc ON rc.[RDC_CD]=p.[RDC_CD] AND rc.[MAJ_CAT_CD]=p.[MAJ_CAT]
-        {where} ORDER BY p.[RDC_CD],p.[MAJ_CAT],rc.[{subCol}],p.[FY_WEEK]";
+        SELECT p.RDC_CD, p.MAJ_CAT, rc.{subCol}, rc.CONT_PCT,
+            p.FY_YEAR, p.FY_WEEK,
+            NVL(p.BGT_DISP_CL_Q,0)*rc.CONT_PCT, NVL(p.CW_BGT_SALE_Q,0)*rc.CONT_PCT,
+            NVL(p.CW1_BGT_SALE_Q,0)*rc.CONT_PCT, NVL(p.CW2_BGT_SALE_Q,0)*rc.CONT_PCT,
+            NVL(p.CW3_BGT_SALE_Q,0)*rc.CONT_PCT, NVL(p.CW4_BGT_SALE_Q,0)*rc.CONT_PCT,
+            NVL(p.BGT_PUR_Q_INIT,0), NVL(p.BGT_DC_CL_STK_Q,0),
+            NVL(p.BGT_DC_CL_MBQ,0), NVL(p.BGT_DC_MBQ_SALE,0),
+            NVL(p.DC_STK_EXCESS_Q,0), NVL(p.DC_STK_SHORT_Q,0)
+        FROM PURCHASE_PLAN p
+        INNER JOIN RdcCont rc ON rc.RDC_CD = p.RDC_CD AND rc.MAJ_CAT_CD = p.MAJ_CAT
+        {where} ORDER BY p.RDC_CD, p.MAJ_CAT, rc.{subCol}, p.FY_WEEK";
         cmd.CommandTimeout = 600;
-        foreach (var p in prms) cmd.Parameters.Add(p);
+        foreach (var p in parms) cmd.Parameters.Add(SnowflakeCrudHelper.CloneParam(p));
 
         await using var reader = await cmd.ExecuteReaderAsync();
         int count = 0;
@@ -537,7 +542,7 @@ public class SubLevelController : Controller
     }
 
     // ═════════════════════════════════════════════════════════════
-    // PIVOT CSV EXPORTS (one row per ST_CD+MAJ_CAT+SUB_VALUE, weeks as columns)
+    // PIVOT CSV EXPORTS
     // ═════════════════════════════════════════════════════════════
     private static readonly string[] TrfPivotMetrics = {
         "CM_BGT_SALE_Q","BGT_DISP_CL_Q","TRF_IN_STK_Q","DC_MBQ",
@@ -557,30 +562,24 @@ public class SubLevelController : Controller
         var levelKey = level.ToUpper();
         var metricCount = TrfPivotMetrics.Length;
 
-        var connStr = _context.Database.GetConnectionString()!;
         Response.ContentType = "text/csv";
         Response.Headers.Append("Content-Disposition", $"attachment; filename=SubTRF_Pivot_{label.Replace(" ", "")}_{DateTime.Now:yyyyMMdd}.csv");
         await using var writer = new StreamWriter(Response.Body, Encoding.UTF8, 65536);
 
         try
         {
-            await using var conn = new SqlConnection(connStr);
-            await conn.OpenAsync();
+            await using var conn = await SnowflakeCrudHelper.OpenAsync(_sfConnStr);
 
-            var clauses = new List<string> { "[LEVEL]=@lv", "[FY_WEEK] IS NOT NULL" };
-            var prms = new List<SqlParameter> { new("@lv", levelKey) };
-            if (!string.IsNullOrEmpty(stCd)) { clauses.Add("[ST_CD]=@st"); prms.Add(new("@st", stCd)); }
-            if (!string.IsNullOrEmpty(majCat)) { clauses.Add("[MAJ_CAT]=@mc"); prms.Add(new("@mc", majCat)); }
-            var where = "WHERE " + string.Join(" AND ", clauses);
+            var (where, parms) = BuildSubLevelTrfPivotFilter(levelKey, stCd, majCat);
 
             var weeks = new List<int>();
-            using (var cmd = conn.CreateCommand())
+            await using (var cmd = conn.CreateCommand())
             {
-                cmd.CommandText = $"SELECT DISTINCT ISNULL([FY_WEEK],0) FROM [dbo].[SUB_LEVEL_TRF_PLAN] WITH (NOLOCK) {where} ORDER BY 1";
+                cmd.CommandText = $"SELECT DISTINCT NVL(FY_WEEK, 0) FROM SUB_LEVEL_TRF_PLAN WHERE {where} ORDER BY 1";
                 cmd.CommandTimeout = 60;
-                foreach (var p in prms) cmd.Parameters.Add(CloneParam(p));
-                using var r = await cmd.ExecuteReaderAsync();
-                while (await r.ReadAsync()) weeks.Add(r.GetInt32(0));
+                foreach (var p in parms) cmd.Parameters.Add(SnowflakeCrudHelper.CloneParam(p));
+                await using var r = await cmd.ExecuteReaderAsync();
+                while (await r.ReadAsync()) weeks.Add(Convert.ToInt32(r.GetValue(0)));
             }
 
             var hdr = new StringBuilder();
@@ -590,15 +589,16 @@ public class SubLevelController : Controller
                     hdr.Append($",WK{w}_{m}");
             await writer.WriteLineAsync(hdr.ToString());
 
-            using var cmd2 = conn.CreateCommand();
-            cmd2.CommandText = $@"SELECT ISNULL([ST_CD],'NA'),ISNULL([MAJ_CAT],'NA'),ISNULL([SUB_VALUE],'NA'),ISNULL([CONT_PCT],0),ISNULL([FY_WEEK],0),
-                {string.Join(",", TrfPivotMetrics.Select(m => $"ISNULL([{m}],0)"))}
-                FROM [dbo].[SUB_LEVEL_TRF_PLAN] WITH (NOLOCK) {where}
-                ORDER BY [ST_CD],[MAJ_CAT],[SUB_VALUE],[FY_WEEK]";
+            await using var cmd2 = conn.CreateCommand();
+            cmd2.CommandText = $@"SELECT NVL(ST_CD,'NA'), NVL(MAJ_CAT,'NA'), NVL(SUB_VALUE,'NA'), NVL(CONT_PCT,0), NVL(FY_WEEK,0),
+                {string.Join(",", TrfPivotMetrics.Select(m => $"NVL({m},0)"))}
+                FROM SUB_LEVEL_TRF_PLAN WHERE {where}
+                ORDER BY ST_CD, MAJ_CAT, SUB_VALUE, FY_WEEK";
             cmd2.CommandTimeout = 600;
-            foreach (var p in prms) cmd2.Parameters.Add(CloneParam(p));
+            var (_, parms2) = BuildSubLevelTrfPivotFilter(levelKey, stCd, majCat);
+            foreach (var p in parms2) cmd2.Parameters.Add(SnowflakeCrudHelper.CloneParam(p));
 
-            using var reader = await cmd2.ExecuteReaderAsync();
+            await using var reader = await cmd2.ExecuteReaderAsync();
             string? prevKey = null; string[]? idVals = null;
             var weekData = new Dictionary<int, decimal[]>();
             int count = 0;
@@ -606,17 +606,17 @@ public class SubLevelController : Controller
             while (await reader.ReadAsync())
             {
                 var key = $"{reader.GetString(0)}|{reader.GetString(1)}|{reader.GetString(2)}";
-                var week = reader.GetInt32(4);
+                var week = Convert.ToInt32(reader.GetValue(4));
 
                 if (key != prevKey)
                 {
                     if (prevKey != null) { WritePivotLine(writer, idVals!, weeks, weekData, metricCount); count++; if (count % 10000 == 0) await writer.FlushAsync(); }
-                    idVals = new[] { Q(reader.GetString(0)), Q(reader.GetString(1)), Q(reader.GetString(2)), reader.GetDecimal(3).ToString() };
+                    idVals = new[] { Q(reader.GetString(0)), Q(reader.GetString(1)), Q(reader.GetString(2)), Convert.ToDecimal(reader.GetValue(3)).ToString() };
                     weekData.Clear();
                     prevKey = key;
                 }
                 var vals = new decimal[metricCount];
-                for (int i = 0; i < metricCount; i++) vals[i] = reader.GetDecimal(5 + i);
+                for (int i = 0; i < metricCount; i++) vals[i] = Convert.ToDecimal(reader.GetValue(5 + i));
                 weekData[week] = vals;
             }
             if (prevKey != null) WritePivotLine(writer, idVals!, weeks, weekData, metricCount);
@@ -636,30 +636,24 @@ public class SubLevelController : Controller
         var levelKey = level.ToUpper();
         var metricCount = PpPivotMetrics.Length;
 
-        var connStr = _context.Database.GetConnectionString()!;
         Response.ContentType = "text/csv";
         Response.Headers.Append("Content-Disposition", $"attachment; filename=SubPP_Pivot_{label.Replace(" ", "")}_{DateTime.Now:yyyyMMdd}.csv");
         await using var writer = new StreamWriter(Response.Body, Encoding.UTF8, 65536);
 
         try
         {
-            await using var conn = new SqlConnection(connStr);
-            await conn.OpenAsync();
+            await using var conn = await SnowflakeCrudHelper.OpenAsync(_sfConnStr);
 
-            var clauses = new List<string> { "[LEVEL]=@lv", "[FY_WEEK] IS NOT NULL" };
-            var prms = new List<SqlParameter> { new("@lv", levelKey) };
-            if (!string.IsNullOrEmpty(rdcCd)) { clauses.Add("[RDC_CD]=@rdc"); prms.Add(new("@rdc", rdcCd)); }
-            if (!string.IsNullOrEmpty(majCat)) { clauses.Add("[MAJ_CAT]=@mc"); prms.Add(new("@mc", majCat)); }
-            var where = "WHERE " + string.Join(" AND ", clauses);
+            var (where, parms) = BuildSubLevelPpPivotFilter(levelKey, rdcCd, majCat);
 
             var weeks = new List<int>();
-            using (var cmd = conn.CreateCommand())
+            await using (var cmd = conn.CreateCommand())
             {
-                cmd.CommandText = $"SELECT DISTINCT ISNULL([FY_WEEK],0) FROM [dbo].[SUB_LEVEL_PP_PLAN] WITH (NOLOCK) {where} ORDER BY 1";
+                cmd.CommandText = $"SELECT DISTINCT NVL(FY_WEEK, 0) FROM SUB_LEVEL_PP_PLAN WHERE {where} ORDER BY 1";
                 cmd.CommandTimeout = 60;
-                foreach (var p in prms) cmd.Parameters.Add(CloneParam(p));
-                using var r = await cmd.ExecuteReaderAsync();
-                while (await r.ReadAsync()) weeks.Add(r.GetInt32(0));
+                foreach (var p in parms) cmd.Parameters.Add(SnowflakeCrudHelper.CloneParam(p));
+                await using var r = await cmd.ExecuteReaderAsync();
+                while (await r.ReadAsync()) weeks.Add(Convert.ToInt32(r.GetValue(0)));
             }
 
             var hdr = new StringBuilder();
@@ -669,15 +663,16 @@ public class SubLevelController : Controller
                     hdr.Append($",WK{w}_{m}");
             await writer.WriteLineAsync(hdr.ToString());
 
-            using var cmd2 = conn.CreateCommand();
-            cmd2.CommandText = $@"SELECT ISNULL([RDC_CD],'NA'),ISNULL([MAJ_CAT],'NA'),ISNULL([SUB_VALUE],'NA'),ISNULL([CONT_PCT],0),ISNULL([FY_WEEK],0),
-                {string.Join(",", PpPivotMetrics.Select(m => $"ISNULL([{m}],0)"))}
-                FROM [dbo].[SUB_LEVEL_PP_PLAN] WITH (NOLOCK) {where}
-                ORDER BY [RDC_CD],[MAJ_CAT],[SUB_VALUE],[FY_WEEK]";
+            await using var cmd2 = conn.CreateCommand();
+            cmd2.CommandText = $@"SELECT NVL(RDC_CD,'NA'), NVL(MAJ_CAT,'NA'), NVL(SUB_VALUE,'NA'), NVL(CONT_PCT,0), NVL(FY_WEEK,0),
+                {string.Join(",", PpPivotMetrics.Select(m => $"NVL({m},0)"))}
+                FROM SUB_LEVEL_PP_PLAN WHERE {where}
+                ORDER BY RDC_CD, MAJ_CAT, SUB_VALUE, FY_WEEK";
             cmd2.CommandTimeout = 600;
-            foreach (var p in prms) cmd2.Parameters.Add(CloneParam(p));
+            var (_, parms2) = BuildSubLevelPpPivotFilter(levelKey, rdcCd, majCat);
+            foreach (var p in parms2) cmd2.Parameters.Add(SnowflakeCrudHelper.CloneParam(p));
 
-            using var reader = await cmd2.ExecuteReaderAsync();
+            await using var reader = await cmd2.ExecuteReaderAsync();
             string? prevKey = null; string[]? idVals = null;
             var weekData = new Dictionary<int, decimal[]>();
             int count = 0;
@@ -685,17 +680,17 @@ public class SubLevelController : Controller
             while (await reader.ReadAsync())
             {
                 var key = $"{reader.GetString(0)}|{reader.GetString(1)}|{reader.GetString(2)}";
-                var week = reader.GetInt32(4);
+                var week = Convert.ToInt32(reader.GetValue(4));
 
                 if (key != prevKey)
                 {
                     if (prevKey != null) { WritePivotLine(writer, idVals!, weeks, weekData, metricCount); count++; if (count % 10000 == 0) await writer.FlushAsync(); }
-                    idVals = new[] { Q(reader.GetString(0)), Q(reader.GetString(1)), Q(reader.GetString(2)), reader.GetDecimal(3).ToString() };
+                    idVals = new[] { Q(reader.GetString(0)), Q(reader.GetString(1)), Q(reader.GetString(2)), Convert.ToDecimal(reader.GetValue(3)).ToString() };
                     weekData.Clear();
                     prevKey = key;
                 }
                 var vals = new decimal[metricCount];
-                for (int i = 0; i < metricCount; i++) vals[i] = reader.GetDecimal(5 + i);
+                for (int i = 0; i < metricCount; i++) vals[i] = Convert.ToDecimal(reader.GetValue(5 + i));
                 weekData[week] = vals;
             }
             if (prevKey != null) WritePivotLine(writer, idVals!, weeks, weekData, metricCount);
@@ -728,32 +723,98 @@ public class SubLevelController : Controller
         return s;
     }
 
-    // ── WHERE clause builders ───────────────────────────────────
-    private (string where, List<SqlParameter> prms) BuildTrfWhere(
-        string? stCd, string? majCat, int? fyYear, int? fyWeek, string subCol)
+    // ── WHERE clause builders (Snowflake parameterized) ─────────
+
+    private (string where, List<SnowflakeDbParameter> parms) BuildTrfFilter(
+        string levelKey, string? stCd, string? majCat, int? fyYear, int? fyWeek)
     {
-        var clauses = new List<string>();
-        var prms = new List<SqlParameter>();
-        if (!string.IsNullOrEmpty(stCd)) { clauses.Add("t.[ST_CD]=@st"); prms.Add(new("@st", stCd)); }
-        if (!string.IsNullOrEmpty(majCat)) { clauses.Add("t.[MAJ_CAT]=@mc"); prms.Add(new("@mc", majCat)); }
-        if (fyYear.HasValue) { clauses.Add("t.[FY_YEAR]=@fy"); prms.Add(new("@fy", fyYear.Value)); }
-        if (fyWeek.HasValue) { clauses.Add("t.[FY_WEEK]=@fw"); prms.Add(new("@fw", fyWeek.Value)); }
-        var w = clauses.Count > 0 ? "WHERE " + string.Join(" AND ", clauses) : "";
-        return (w, prms);
+        var conditions = new List<string> { "LEVEL = ?" };
+        var parms = new List<SnowflakeDbParameter> { SnowflakeCrudHelper.Param("1", levelKey) };
+        int idx = 1;
+        if (!string.IsNullOrEmpty(stCd)) { idx++; conditions.Add("ST_CD = ?"); parms.Add(SnowflakeCrudHelper.Param(idx.ToString(), stCd)); }
+        if (!string.IsNullOrEmpty(majCat)) { idx++; conditions.Add("MAJ_CAT = ?"); parms.Add(SnowflakeCrudHelper.Param(idx.ToString(), majCat)); }
+        if (fyYear.HasValue) { idx++; conditions.Add("FY_YEAR = ?"); parms.Add(SnowflakeCrudHelper.Param(idx.ToString(), fyYear.Value, DbType.Int32)); }
+        if (fyWeek.HasValue) { idx++; conditions.Add("FY_WEEK = ?"); parms.Add(SnowflakeCrudHelper.Param(idx.ToString(), fyWeek.Value, DbType.Int32)); }
+        return (string.Join(" AND ", conditions), parms);
     }
 
-    private (string where, List<SqlParameter> prms) BuildPpWhere(
-        string? rdcCd, string? majCat, int? fyYear, int? fyWeek, string subCol)
+    private (string where, List<SnowflakeDbParameter> parms) BuildPpFilter(
+        string levelKey, string? rdcCd, string? majCat, int? fyYear, int? fyWeek)
     {
-        var clauses = new List<string>();
-        var prms = new List<SqlParameter>();
-        if (!string.IsNullOrEmpty(rdcCd)) { clauses.Add("p.[RDC_CD]=@rdc"); prms.Add(new("@rdc", rdcCd)); }
-        if (!string.IsNullOrEmpty(majCat)) { clauses.Add("p.[MAJ_CAT]=@mc"); prms.Add(new("@mc", majCat)); }
-        if (fyYear.HasValue) { clauses.Add("p.[FY_YEAR]=@fy"); prms.Add(new("@fy", fyYear.Value)); }
-        if (fyWeek.HasValue) { clauses.Add("p.[FY_WEEK]=@fw"); prms.Add(new("@fw", fyWeek.Value)); }
-        var w = clauses.Count > 0 ? "WHERE " + string.Join(" AND ", clauses) : "";
-        return (w, prms);
+        var conditions = new List<string> { "LEVEL = ?" };
+        var parms = new List<SnowflakeDbParameter> { SnowflakeCrudHelper.Param("1", levelKey) };
+        int idx = 1;
+        if (!string.IsNullOrEmpty(rdcCd)) { idx++; conditions.Add("RDC_CD = ?"); parms.Add(SnowflakeCrudHelper.Param(idx.ToString(), rdcCd)); }
+        if (!string.IsNullOrEmpty(majCat)) { idx++; conditions.Add("MAJ_CAT = ?"); parms.Add(SnowflakeCrudHelper.Param(idx.ToString(), majCat)); }
+        if (fyYear.HasValue) { idx++; conditions.Add("FY_YEAR = ?"); parms.Add(SnowflakeCrudHelper.Param(idx.ToString(), fyYear.Value, DbType.Int32)); }
+        if (fyWeek.HasValue) { idx++; conditions.Add("FY_WEEK = ?"); parms.Add(SnowflakeCrudHelper.Param(idx.ToString(), fyWeek.Value, DbType.Int32)); }
+        return (string.Join(" AND ", conditions), parms);
     }
 
-    private static SqlParameter CloneParam(SqlParameter src) => new(src.ParameterName, src.Value);
+    private (string where, List<SnowflakeDbParameter> parms) BuildTrfJoinWhere(
+        string? stCd, string? majCat, int? fyYear, int? fyWeek)
+    {
+        var conditions = new List<string>();
+        var parms = new List<SnowflakeDbParameter>();
+        int idx = 0;
+        if (!string.IsNullOrEmpty(stCd)) { idx++; conditions.Add("t.ST_CD = ?"); parms.Add(SnowflakeCrudHelper.Param(idx.ToString(), stCd)); }
+        if (!string.IsNullOrEmpty(majCat)) { idx++; conditions.Add("t.MAJ_CAT = ?"); parms.Add(SnowflakeCrudHelper.Param(idx.ToString(), majCat)); }
+        if (fyYear.HasValue) { idx++; conditions.Add("t.FY_YEAR = ?"); parms.Add(SnowflakeCrudHelper.Param(idx.ToString(), fyYear.Value, DbType.Int32)); }
+        if (fyWeek.HasValue) { idx++; conditions.Add("t.FY_WEEK = ?"); parms.Add(SnowflakeCrudHelper.Param(idx.ToString(), fyWeek.Value, DbType.Int32)); }
+        return (conditions.Count > 0 ? "WHERE " + string.Join(" AND ", conditions) : "", parms);
+    }
+
+    private (string where, List<SnowflakeDbParameter> parms) BuildPpJoinWhere(
+        string? rdcCd, string? majCat, int? fyYear, int? fyWeek)
+    {
+        var conditions = new List<string>();
+        var parms = new List<SnowflakeDbParameter>();
+        int idx = 0;
+        if (!string.IsNullOrEmpty(rdcCd)) { idx++; conditions.Add("p.RDC_CD = ?"); parms.Add(SnowflakeCrudHelper.Param(idx.ToString(), rdcCd)); }
+        if (!string.IsNullOrEmpty(majCat)) { idx++; conditions.Add("p.MAJ_CAT = ?"); parms.Add(SnowflakeCrudHelper.Param(idx.ToString(), majCat)); }
+        if (fyYear.HasValue) { idx++; conditions.Add("p.FY_YEAR = ?"); parms.Add(SnowflakeCrudHelper.Param(idx.ToString(), fyYear.Value, DbType.Int32)); }
+        if (fyWeek.HasValue) { idx++; conditions.Add("p.FY_WEEK = ?"); parms.Add(SnowflakeCrudHelper.Param(idx.ToString(), fyWeek.Value, DbType.Int32)); }
+        return (conditions.Count > 0 ? "WHERE " + string.Join(" AND ", conditions) : "", parms);
+    }
+
+    private (string where, List<SnowflakeDbParameter> parms) BuildSubLevelTrfPivotFilter(string levelKey, string? stCd, string? majCat)
+    {
+        var conditions = new List<string> { "LEVEL = ?", "FY_WEEK IS NOT NULL" };
+        var parms = new List<SnowflakeDbParameter> { SnowflakeCrudHelper.Param("1", levelKey) };
+        int idx = 1;
+        if (!string.IsNullOrEmpty(stCd)) { idx++; conditions.Add("ST_CD = ?"); parms.Add(SnowflakeCrudHelper.Param(idx.ToString(), stCd)); }
+        if (!string.IsNullOrEmpty(majCat)) { idx++; conditions.Add("MAJ_CAT = ?"); parms.Add(SnowflakeCrudHelper.Param(idx.ToString(), majCat)); }
+        return (string.Join(" AND ", conditions), parms);
+    }
+
+    private (string where, List<SnowflakeDbParameter> parms) BuildSubLevelPpPivotFilter(string levelKey, string? rdcCd, string? majCat)
+    {
+        var conditions = new List<string> { "LEVEL = ?", "FY_WEEK IS NOT NULL" };
+        var parms = new List<SnowflakeDbParameter> { SnowflakeCrudHelper.Param("1", levelKey) };
+        int idx = 1;
+        if (!string.IsNullOrEmpty(rdcCd)) { idx++; conditions.Add("RDC_CD = ?"); parms.Add(SnowflakeCrudHelper.Param(idx.ToString(), rdcCd)); }
+        if (!string.IsNullOrEmpty(majCat)) { idx++; conditions.Add("MAJ_CAT = ?"); parms.Add(SnowflakeCrudHelper.Param(idx.ToString(), majCat)); }
+        return (string.Join(" AND ", conditions), parms);
+    }
+
+    private static async Task<List<WeekCalendar>> LoadWeekCalendars(SnowflakeDbConnection conn)
+    {
+        var list = new List<WeekCalendar>();
+        await using var cmd = conn.CreateCommand();
+        cmd.CommandText = "SELECT WEEK_ID, WEEK_SEQ, FY_WEEK, FY_YEAR, CAL_YEAR, YEAR_WEEK, WK_ST_DT, WK_END_DT FROM WEEK_CALENDAR ORDER BY WEEK_ID";
+        await using var r = await cmd.ExecuteReaderAsync();
+        while (await r.ReadAsync())
+            list.Add(new WeekCalendar
+            {
+                WeekId = SnowflakeCrudHelper.Int(r, 0),
+                WeekSeq = SnowflakeCrudHelper.Int(r, 1),
+                FyWeek = SnowflakeCrudHelper.Int(r, 2),
+                FyYear = SnowflakeCrudHelper.Int(r, 3),
+                CalYear = SnowflakeCrudHelper.Int(r, 4),
+                YearWeek = SnowflakeCrudHelper.StrNull(r, 5),
+                WkStDt = SnowflakeCrudHelper.DateNull(r, 6),
+                WkEndDt = SnowflakeCrudHelper.DateNull(r, 7)
+            });
+        return list;
+    }
 }

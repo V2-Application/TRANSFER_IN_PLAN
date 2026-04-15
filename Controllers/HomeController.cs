@@ -1,27 +1,53 @@
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
+using System.Data;
 using System.Text;
-using TRANSFER_IN_PLAN.Data;
+using Snowflake.Data.Client;
+using TRANSFER_IN_PLAN.Helpers;
 using TRANSFER_IN_PLAN.Models;
 
 namespace TRANSFER_IN_PLAN.Controllers
 {
     public class HomeController : Controller
     {
-        private readonly PlanningDbContext _context;
+        private readonly string _sfConnStr;
         private readonly ILogger<HomeController> _logger;
         private readonly IMemoryCache _cache;
         private static readonly TimeSpan CacheDuration = TimeSpan.FromSeconds(60);
 
-        public HomeController(PlanningDbContext context, ILogger<HomeController> logger, IMemoryCache cache) { _context = context; _logger = logger; _cache = cache; }
+        public HomeController(IConfiguration config, ILogger<HomeController> logger, IMemoryCache cache)
+        {
+            _sfConnStr = config.GetConnectionString("Snowflake")!;
+            _logger = logger;
+            _cache = cache;
+        }
 
         public async Task<IActionResult> Index(string? rdcCd, string? majCat, string? fyWeek)
         {
             // Drill-down filter dropdowns (cached separately — shared across all users)
-            ViewBag.RdcCodes = await _cache.GetOrCreateAsync("dd_rdc", async e => { e.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(5); return await _context.TrfInPlans.Select(x => x.RdcCd).Where(x => x != null).Distinct().OrderBy(x => x).ToListAsync(); });
-            ViewBag.MajCats = await _cache.GetOrCreateAsync("dd_cat", async e => { e.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(5); return await _context.TrfInPlans.Select(x => x.MajCat).Where(x => x != null).Distinct().OrderBy(x => x).ToListAsync(); });
-            ViewBag.FyWeeks = await _cache.GetOrCreateAsync("dd_wk", async e => { e.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(5); return await _context.TrfInPlans.Select(x => x.FyWeek).Where(x => x != null).Distinct().OrderBy(x => x).ToListAsync(); });
+            ViewBag.RdcCodes = await _cache.GetOrCreateAsync("dd_rdc", async e =>
+            {
+                e.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(5);
+                await using var conn = await SnowflakeCrudHelper.OpenAsync(_sfConnStr);
+                return await SnowflakeCrudHelper.DistinctAsync(conn, "TRF_IN_PLAN", "RDC_CD");
+            });
+            ViewBag.MajCats = await _cache.GetOrCreateAsync("dd_cat", async e =>
+            {
+                e.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(5);
+                await using var conn = await SnowflakeCrudHelper.OpenAsync(_sfConnStr);
+                return await SnowflakeCrudHelper.DistinctAsync(conn, "TRF_IN_PLAN", "MAJ_CAT");
+            });
+            ViewBag.FyWeeks = await _cache.GetOrCreateAsync("dd_wk", async e =>
+            {
+                e.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(5);
+                await using var conn = await SnowflakeCrudHelper.OpenAsync(_sfConnStr);
+                var list = new List<string>();
+                await using var cmd = conn.CreateCommand();
+                cmd.CommandText = "SELECT DISTINCT FY_WEEK FROM TRF_IN_PLAN WHERE FY_WEEK IS NOT NULL ORDER BY FY_WEEK";
+                await using var r = await cmd.ExecuteReaderAsync();
+                while (await r.ReadAsync()) list.Add(Convert.ToInt32(r.GetValue(0)).ToString());
+                return list;
+            });
             ViewBag.SelRdc = rdcCd; ViewBag.SelMajCat = majCat; ViewBag.SelFyWeek = fyWeek;
 
             // Cache key per filter combination
@@ -44,262 +70,412 @@ namespace TRANSFER_IN_PLAN.Controllers
             var ppWhere = "WHERE 1=1";
             if (!string.IsNullOrEmpty(rdcCd))
             {
-                var rdcs = rdcCd.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(v => $"'{v.Replace("'","''").Trim()}'");
+                var rdcs = rdcCd.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(v => $"'{v.Replace("'", "''").Trim()}'");
                 var inList = string.Join(",", rdcs);
-                trfWhere += $" AND [RDC_CD] IN ({inList})";
-                ppWhere += $" AND [RDC_CD] IN ({inList})";
+                trfWhere += $" AND RDC_CD IN ({inList})";
+                ppWhere += $" AND RDC_CD IN ({inList})";
             }
             if (!string.IsNullOrEmpty(majCat))
             {
-                var cats = majCat.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(v => $"'{v.Replace("'","''").Trim()}'");
+                var cats = majCat.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(v => $"'{v.Replace("'", "''").Trim()}'");
                 var inList = string.Join(",", cats);
-                trfWhere += $" AND [MAJ_CAT] IN ({inList})";
-                ppWhere += $" AND [MAJ_CAT] IN ({inList})";
+                trfWhere += $" AND MAJ_CAT IN ({inList})";
+                ppWhere += $" AND MAJ_CAT IN ({inList})";
             }
             if (!string.IsNullOrEmpty(fyWeek))
             {
                 var weeks = fyWeek.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(v => v.Trim()).Where(v => int.TryParse(v, out _));
                 var inList = string.Join(",", weeks);
-                if (!string.IsNullOrEmpty(inList)) { trfWhere += $" AND [FY_WEEK] IN ({inList})"; ppWhere += $" AND [FY_WEEK] IN ({inList})"; }
+                if (!string.IsNullOrEmpty(inList)) { trfWhere += $" AND FY_WEEK IN ({inList})"; ppWhere += $" AND FY_WEEK IN ({inList})"; }
             }
 
             var vm = new DashboardViewModel();
             try
             {
+                await using var conn = await SnowflakeCrudHelper.OpenAsync(_sfConnStr);
+
                 // ===== ALL TRF_IN_PLAN KPIs in ONE query =====
-                var connStr = _context.Database.GetConnectionString()!;
-                using (var conn = new Microsoft.Data.SqlClient.SqlConnection(connStr))
                 {
-                    await conn.OpenAsync();
-                    using var cmd = conn.CreateCommand();
+                    await using var cmd = conn.CreateCommand();
                     cmd.CommandText = @"
                         SELECT
-                            COUNT(DISTINCT [ST_CD]) AS TotalStores,
-                            COUNT(DISTINCT [MAJ_CAT]) AS TotalCategories,
-                            COUNT(DISTINCT [RDC_CD]) AS TotalRdcs,
+                            COUNT(DISTINCT ST_CD) AS TotalStores,
+                            COUNT(DISTINCT MAJ_CAT) AS TotalCategories,
+                            COUNT(DISTINCT RDC_CD) AS TotalRdcs,
                             COUNT(*) AS TotalRows,
-                            MAX([CREATED_DT]) AS LastRun,
-                            ISNULL(SUM([TRF_IN_STK_Q]),0) AS TrfInQty,
-                            ISNULL(SUM([BGT_TTL_CF_OP_STK_Q]),0) AS OpStkQty,
-                            ISNULL(SUM([BGT_TTL_CF_CL_STK_Q]),0) AS ClStkQty,
-                            ISNULL(SUM([CM_BGT_SALE_Q]),0) AS SaleQty,
-                            ISNULL(SUM([ST_CL_SHORT_Q]),0) AS StShortQ,
-                            ISNULL(SUM([ST_CL_EXCESS_Q]),0) AS StExcessQ,
-                            COUNT(DISTINCT CASE WHEN [ST_CL_SHORT_Q] > [BGT_ST_CL_MBQ] * 0.3 THEN [ST_CD] END) AS CritShort,
-                            COUNT(DISTINCT CASE WHEN [ST_CL_EXCESS_Q] > 0 THEN [ST_CD] END) AS ExcessSt,
-                            SUM(CASE WHEN [BGT_TTL_CF_CL_STK_Q] <= 0 AND [CM_BGT_SALE_Q] > 0 THEN 1 ELSE 0 END) AS ZeroStk
-                        FROM [dbo].[TRF_IN_PLAN] WITH (NOLOCK) " + trfWhere;
+                            MAX(CREATED_DT) AS LastRun,
+                            NVL(SUM(TRF_IN_STK_Q),0) AS TrfInQty,
+                            NVL(SUM(BGT_TTL_CF_OP_STK_Q),0) AS OpStkQty,
+                            NVL(SUM(BGT_TTL_CF_CL_STK_Q),0) AS ClStkQty,
+                            NVL(SUM(CM_BGT_SALE_Q),0) AS SaleQty,
+                            NVL(SUM(ST_CL_SHORT_Q),0) AS StShortQ,
+                            NVL(SUM(ST_CL_EXCESS_Q),0) AS StExcessQ,
+                            COUNT(DISTINCT CASE WHEN ST_CL_SHORT_Q > BGT_ST_CL_MBQ * 0.3 THEN ST_CD END) AS CritShort,
+                            COUNT(DISTINCT CASE WHEN ST_CL_EXCESS_Q > 0 THEN ST_CD END) AS ExcessSt,
+                            SUM(CASE WHEN BGT_TTL_CF_CL_STK_Q <= 0 AND CM_BGT_SALE_Q > 0 THEN 1 ELSE 0 END) AS ZeroStk
+                        FROM TRF_IN_PLAN " + trfWhere;
                     cmd.CommandTimeout = 120;
-                    using var r1 = await cmd.ExecuteReaderAsync();
+                    await using var r1 = await cmd.ExecuteReaderAsync();
                     if (await r1.ReadAsync())
                     {
-                        vm.TotalStores = r1.GetInt32(0);
-                        vm.TotalCategories = r1.GetInt32(1);
-                        vm.TotalRdcs = r1.GetInt32(2);
-                        vm.TotalPlanRows = r1.GetInt32(3);
-                        vm.LastExecutionDate = r1.IsDBNull(4) ? null : r1.GetDateTime(4);
-                        vm.TotalTrfInQty = r1.GetDecimal(5);
-                        vm.TotalOpStkQty = r1.GetDecimal(6);
-                        vm.TotalClStkQty = r1.GetDecimal(7);
-                        vm.TotalSaleQty = r1.GetDecimal(8);
-                        vm.TotalStShortQ = r1.GetDecimal(9);
-                        vm.TotalStExcessQ = r1.GetDecimal(10);
-                        vm.CriticalShortStores = r1.GetInt32(11);
-                        vm.ExcessStores = r1.GetInt32(12);
-                        vm.ZeroStockStoreCategories = r1.GetInt32(13);
+                        vm.TotalStores = SnowflakeCrudHelper.Int(r1, 0);
+                        vm.TotalCategories = SnowflakeCrudHelper.Int(r1, 1);
+                        vm.TotalRdcs = SnowflakeCrudHelper.Int(r1, 2);
+                        vm.TotalPlanRows = SnowflakeCrudHelper.Int(r1, 3);
+                        vm.LastExecutionDate = SnowflakeCrudHelper.DateNull(r1, 4);
+                        vm.TotalTrfInQty = SnowflakeCrudHelper.Dec(r1, 5);
+                        vm.TotalOpStkQty = SnowflakeCrudHelper.Dec(r1, 6);
+                        vm.TotalClStkQty = SnowflakeCrudHelper.Dec(r1, 7);
+                        vm.TotalSaleQty = SnowflakeCrudHelper.Dec(r1, 8);
+                        vm.TotalStShortQ = SnowflakeCrudHelper.Dec(r1, 9);
+                        vm.TotalStExcessQ = SnowflakeCrudHelper.Dec(r1, 10);
+                        vm.CriticalShortStores = SnowflakeCrudHelper.Int(r1, 11);
+                        vm.ExcessStores = SnowflakeCrudHelper.Int(r1, 12);
+                        vm.ZeroStockStoreCategories = SnowflakeCrudHelper.Int(r1, 13);
                     }
                 }
 
                 // ===== ALL PURCHASE_PLAN KPIs in ONE query =====
-                using (var conn = new Microsoft.Data.SqlClient.SqlConnection(connStr))
                 {
-                    await conn.OpenAsync();
-                    using var cmd = conn.CreateCommand();
+                    await using var cmd = conn.CreateCommand();
                     cmd.CommandText = @"
                         SELECT
                             COUNT(*) AS TotalRows,
-                            ISNULL(SUM([BGT_PUR_Q_INIT]),0) AS PurQty,
-                            ISNULL(SUM([DC_STK_SHORT_Q]),0) AS DcShort,
-                            ISNULL(SUM([DC_STK_EXCESS_Q]),0) AS DcExcess,
-                            ISNULL(SUM([ST_STK_SHORT_Q]),0) AS StShort,
-                            ISNULL(SUM([ST_STK_EXCESS_Q]),0) AS StExcess,
-                            ISNULL(SUM([CO_STK_SHORT_Q]),0) AS CoShort,
-                            ISNULL(SUM([CO_STK_EXCESS_Q]),0) AS CoExcess,
-                            ISNULL(SUM([POS_PO_RAISED]),0) AS PosPO,
-                            ISNULL(SUM([NEG_PO_RAISED]),0) AS NegPO,
-                            ISNULL(SUM([DEL_PEND_Q]),0) AS DelPend,
-                            ISNULL(SUM([TTL_TRF_OUT_Q]),0) AS TrfOut,
-                            (SELECT COUNT(DISTINCT CONCAT([RDC_CD],'|',[MAJ_CAT])) FROM [dbo].[PURCHASE_PLAN] WITH (NOLOCK) " + ppWhere + @" AND [DC_STK_SHORT_Q] > 0) AS DcShortCat,
-                            (SELECT COUNT(DISTINCT CONCAT([RDC_CD],'|',[MAJ_CAT])) FROM [dbo].[PURCHASE_PLAN] WITH (NOLOCK) " + ppWhere + @" AND [DC_STK_EXCESS_Q] > 0) AS DcExcessCat
-                        FROM [dbo].[PURCHASE_PLAN] WITH (NOLOCK) " + ppWhere;
+                            NVL(SUM(BGT_PUR_Q_INIT),0) AS PurQty,
+                            NVL(SUM(DC_STK_SHORT_Q),0) AS DcShort,
+                            NVL(SUM(DC_STK_EXCESS_Q),0) AS DcExcess,
+                            NVL(SUM(ST_STK_SHORT_Q),0) AS StShort,
+                            NVL(SUM(ST_STK_EXCESS_Q),0) AS StExcess,
+                            NVL(SUM(CO_STK_SHORT_Q),0) AS CoShort,
+                            NVL(SUM(CO_STK_EXCESS_Q),0) AS CoExcess,
+                            NVL(SUM(POS_PO_RAISED),0) AS PosPO,
+                            NVL(SUM(NEG_PO_RAISED),0) AS NegPO,
+                            NVL(SUM(DEL_PEND_Q),0) AS DelPend,
+                            NVL(SUM(TTL_TRF_OUT_Q),0) AS TrfOut,
+                            (SELECT COUNT(DISTINCT CONCAT(RDC_CD,'|',MAJ_CAT)) FROM PURCHASE_PLAN " + ppWhere + @" AND DC_STK_SHORT_Q > 0) AS DcShortCat,
+                            (SELECT COUNT(DISTINCT CONCAT(RDC_CD,'|',MAJ_CAT)) FROM PURCHASE_PLAN " + ppWhere + @" AND DC_STK_EXCESS_Q > 0) AS DcExcessCat
+                        FROM PURCHASE_PLAN " + ppWhere;
                     cmd.CommandTimeout = 120;
-                    using var r2 = await cmd.ExecuteReaderAsync();
+                    await using var r2 = await cmd.ExecuteReaderAsync();
                     if (await r2.ReadAsync())
                     {
-                        vm.TotalPurchasePlanRows = r2.GetInt32(0);
-                        vm.TotalPurchaseQty = r2.GetDecimal(1);
-                        vm.TotalDcStkShortQ = r2.GetDecimal(2);
-                        vm.TotalDcStkExcessQ = r2.GetDecimal(3);
-                        vm.TotalStStkShortQ = r2.GetDecimal(4);
-                        vm.TotalStStkExcessQ = r2.GetDecimal(5);
-                        vm.TotalCoShortQ = r2.GetDecimal(6);
-                        vm.TotalCoExcessQ = r2.GetDecimal(7);
-                        vm.TotalPosPO = r2.GetDecimal(8);
-                        vm.TotalNegPO = r2.GetDecimal(9);
-                        vm.TotalDelPendQ = r2.GetDecimal(10);
-                        vm.TotalTrfOutQ = r2.GetDecimal(11);
-                        vm.DcShortCategories = r2.GetInt32(12);
-                        vm.DcExcessCategories = r2.GetInt32(13);
+                        vm.TotalPurchasePlanRows = SnowflakeCrudHelper.Int(r2, 0);
+                        vm.TotalPurchaseQty = SnowflakeCrudHelper.Dec(r2, 1);
+                        vm.TotalDcStkShortQ = SnowflakeCrudHelper.Dec(r2, 2);
+                        vm.TotalDcStkExcessQ = SnowflakeCrudHelper.Dec(r2, 3);
+                        vm.TotalStStkShortQ = SnowflakeCrudHelper.Dec(r2, 4);
+                        vm.TotalStStkExcessQ = SnowflakeCrudHelper.Dec(r2, 5);
+                        vm.TotalCoShortQ = SnowflakeCrudHelper.Dec(r2, 6);
+                        vm.TotalCoExcessQ = SnowflakeCrudHelper.Dec(r2, 7);
+                        vm.TotalPosPO = SnowflakeCrudHelper.Dec(r2, 8);
+                        vm.TotalNegPO = SnowflakeCrudHelper.Dec(r2, 9);
+                        vm.TotalDelPendQ = SnowflakeCrudHelper.Dec(r2, 10);
+                        vm.TotalTrfOutQ = SnowflakeCrudHelper.Dec(r2, 11);
+                        vm.DcShortCategories = SnowflakeCrudHelper.Int(r2, 12);
+                        vm.DcExcessCategories = SnowflakeCrudHelper.Int(r2, 13);
                     }
                 }
 
-                // ===== APPLY FILTERS =====
-                var trfQ = _context.TrfInPlans.AsQueryable();
-                var ppQ = _context.PurchasePlans.AsQueryable();
-                if (!string.IsNullOrEmpty(rdcCd)) { var rdcs = rdcCd.Split(',', StringSplitOptions.RemoveEmptyEntries); trfQ = trfQ.Where(x => rdcs.Contains(x.RdcCd)); ppQ = ppQ.Where(x => rdcs.Contains(x.RdcCd)); }
-                if (!string.IsNullOrEmpty(majCat)) { var cats = majCat.Split(',', StringSplitOptions.RemoveEmptyEntries); trfQ = trfQ.Where(x => cats.Contains(x.MajCat)); ppQ = ppQ.Where(x => cats.Contains(x.MajCat)); }
-                if (!string.IsNullOrEmpty(fyWeek)) { var weeks = fyWeek.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(w => int.TryParse(w, out var v) ? v : (int?)null).Where(w => w.HasValue).Select(w => w!.Value).ToList(); trfQ = trfQ.Where(x => weeks.Contains(x.FyWeek ?? 0)); ppQ = ppQ.Where(x => weeks.Contains(x.FyWeek ?? 0)); }
-
                 // ===== TRANSFER IN: CATEGORY SUMMARY (Top 15) =====
-                vm.CategorySummary = await trfQ
-                    .GroupBy(x => x.MajCat)
-                    .Select(g => new CategorySummary
+                {
+                    await using var cmd = conn.CreateCommand();
+                    cmd.CommandText = @"
+                        SELECT MAJ_CAT,
+                               NVL(SUM(TRF_IN_STK_Q),0),
+                               NVL(SUM(ST_CL_SHORT_Q),0),
+                               NVL(SUM(ST_CL_EXCESS_Q),0),
+                               NVL(SUM(CM_BGT_SALE_Q),0),
+                               COUNT(*)
+                        FROM TRF_IN_PLAN " + trfWhere + @"
+                        GROUP BY MAJ_CAT
+                        ORDER BY NVL(SUM(TRF_IN_STK_Q),0) DESC
+                        LIMIT 15";
+                    cmd.CommandTimeout = 120;
+                    await using var r = await cmd.ExecuteReaderAsync();
+                    while (await r.ReadAsync())
                     {
-                        MajCat = g.Key,
-                        TotalTrfInQty = g.Sum(x => x.TrfInStkQ ?? 0),
-                        TotalShortQ = g.Sum(x => x.StClShortQ ?? 0),
-                        TotalExcessQ = g.Sum(x => x.StClExcessQ ?? 0),
-                        TotalSaleQ = g.Sum(x => x.CmBgtSaleQ ?? 0),
-                        RowCount = g.Count()
-                    })
-                    .OrderByDescending(x => x.TotalTrfInQty).Take(15).ToListAsync();
+                        vm.CategorySummary.Add(new CategorySummary
+                        {
+                            MajCat = SnowflakeCrudHelper.StrNull(r, 0),
+                            TotalTrfInQty = SnowflakeCrudHelper.Dec(r, 1),
+                            TotalShortQ = SnowflakeCrudHelper.Dec(r, 2),
+                            TotalExcessQ = SnowflakeCrudHelper.Dec(r, 3),
+                            TotalSaleQ = SnowflakeCrudHelper.Dec(r, 4),
+                            RowCount = SnowflakeCrudHelper.Int(r, 5)
+                        });
+                    }
+                }
 
                 // ===== TRANSFER IN: WEEKLY TREND =====
-                vm.WeeklySummary = await trfQ
-                    .GroupBy(x => new { x.FyYear, x.FyWeek })
-                    .Select(g => new WeeklySummary
+                {
+                    await using var cmd = conn.CreateCommand();
+                    cmd.CommandText = @"
+                        SELECT NVL(FY_YEAR,0), NVL(FY_WEEK,0),
+                               NVL(SUM(TRF_IN_STK_Q),0),
+                               NVL(SUM(CM_BGT_SALE_Q),0),
+                               NVL(SUM(BGT_TTL_CF_OP_STK_Q),0),
+                               NVL(SUM(BGT_TTL_CF_CL_STK_Q),0),
+                               COUNT(*)
+                        FROM TRF_IN_PLAN " + trfWhere + @"
+                        GROUP BY FY_YEAR, FY_WEEK
+                        ORDER BY NVL(FY_YEAR,0), NVL(FY_WEEK,0)";
+                    cmd.CommandTimeout = 120;
+                    await using var r = await cmd.ExecuteReaderAsync();
+                    while (await r.ReadAsync())
                     {
-                        FyYear = g.Key.FyYear ?? 0,
-                        FyWeek = g.Key.FyWeek ?? 0,
-                        TotalTrfInQty = g.Sum(x => x.TrfInStkQ ?? 0),
-                        TotalSaleQty = g.Sum(x => x.CmBgtSaleQ ?? 0),
-                        TotalOpStk = g.Sum(x => x.BgtTtlCfOpStkQ ?? 0),
-                        TotalClStk = g.Sum(x => x.BgtTtlCfClStkQ ?? 0),
-                        RowCount = g.Count()
-                    })
-                    .OrderBy(x => x.FyYear).ThenBy(x => x.FyWeek).ToListAsync();
+                        vm.WeeklySummary.Add(new WeeklySummary
+                        {
+                            FyYear = SnowflakeCrudHelper.Int(r, 0),
+                            FyWeek = SnowflakeCrudHelper.Int(r, 1),
+                            TotalTrfInQty = SnowflakeCrudHelper.Dec(r, 2),
+                            TotalSaleQty = SnowflakeCrudHelper.Dec(r, 3),
+                            TotalOpStk = SnowflakeCrudHelper.Dec(r, 4),
+                            TotalClStk = SnowflakeCrudHelper.Dec(r, 5),
+                            RowCount = SnowflakeCrudHelper.Int(r, 6)
+                        });
+                    }
+                }
 
-                // ===== TRANSFER IN: TOP SHORT/EXCESS STORES =====
-                vm.TopShortStores = await trfQ
-                    .Where(x => x.StClShortQ > 0)
-                    .GroupBy(x => new { x.StCd, x.StNm, x.MajCat })
-                    .Select(g => new StoreMetric
+                // ===== TRANSFER IN: TOP SHORT STORES =====
+                {
+                    await using var cmd = conn.CreateCommand();
+                    cmd.CommandText = @"
+                        SELECT ST_CD, ST_NM, MAJ_CAT, NVL(SUM(ST_CL_SHORT_Q),0) AS QTY
+                        FROM TRF_IN_PLAN " + trfWhere + @" AND ST_CL_SHORT_Q > 0
+                        GROUP BY ST_CD, ST_NM, MAJ_CAT
+                        ORDER BY QTY DESC
+                        LIMIT 10";
+                    cmd.CommandTimeout = 120;
+                    await using var r = await cmd.ExecuteReaderAsync();
+                    while (await r.ReadAsync())
                     {
-                        StCd = g.Key.StCd, StNm = g.Key.StNm, MajCat = g.Key.MajCat,
-                        Quantity = g.Sum(x => x.StClShortQ ?? 0)
-                    })
-                    .OrderByDescending(x => x.Quantity).Take(10).ToListAsync();
+                        vm.TopShortStores.Add(new StoreMetric
+                        {
+                            StCd = SnowflakeCrudHelper.StrNull(r, 0),
+                            StNm = SnowflakeCrudHelper.StrNull(r, 1),
+                            MajCat = SnowflakeCrudHelper.StrNull(r, 2),
+                            Quantity = SnowflakeCrudHelper.Dec(r, 3)
+                        });
+                    }
+                }
 
-                vm.TopExcessStores = await trfQ
-                    .Where(x => x.StClExcessQ > 0)
-                    .GroupBy(x => new { x.StCd, x.StNm, x.MajCat })
-                    .Select(g => new StoreMetric
+                // ===== TRANSFER IN: TOP EXCESS STORES =====
+                {
+                    await using var cmd = conn.CreateCommand();
+                    cmd.CommandText = @"
+                        SELECT ST_CD, ST_NM, MAJ_CAT, NVL(SUM(ST_CL_EXCESS_Q),0) AS QTY
+                        FROM TRF_IN_PLAN " + trfWhere + @" AND ST_CL_EXCESS_Q > 0
+                        GROUP BY ST_CD, ST_NM, MAJ_CAT
+                        ORDER BY QTY DESC
+                        LIMIT 10";
+                    cmd.CommandTimeout = 120;
+                    await using var r = await cmd.ExecuteReaderAsync();
+                    while (await r.ReadAsync())
                     {
-                        StCd = g.Key.StCd, StNm = g.Key.StNm, MajCat = g.Key.MajCat,
-                        Quantity = g.Sum(x => x.StClExcessQ ?? 0)
-                    })
-                    .OrderByDescending(x => x.Quantity).Take(10).ToListAsync();
+                        vm.TopExcessStores.Add(new StoreMetric
+                        {
+                            StCd = SnowflakeCrudHelper.StrNull(r, 0),
+                            StNm = SnowflakeCrudHelper.StrNull(r, 1),
+                            MajCat = SnowflakeCrudHelper.StrNull(r, 2),
+                            Quantity = SnowflakeCrudHelper.Dec(r, 3)
+                        });
+                    }
+                }
 
                 // ===== TRANSFER IN: RDC SUMMARY =====
-                vm.RdcSummary = await trfQ
-                    .GroupBy(x => new { x.RdcCd, x.RdcNm })
-                    .Select(g => new RdcSummary
+                {
+                    await using var cmd = conn.CreateCommand();
+                    cmd.CommandText = @"
+                        SELECT RDC_CD, RDC_NM,
+                               NVL(SUM(TRF_IN_STK_Q),0),
+                               NVL(SUM(CM_BGT_SALE_Q),0),
+                               COUNT(DISTINCT ST_CD)
+                        FROM TRF_IN_PLAN " + trfWhere + @"
+                        GROUP BY RDC_CD, RDC_NM
+                        ORDER BY NVL(SUM(TRF_IN_STK_Q),0) DESC
+                        LIMIT 10";
+                    cmd.CommandTimeout = 120;
+                    await using var r = await cmd.ExecuteReaderAsync();
+                    while (await r.ReadAsync())
                     {
-                        RdcCd = g.Key.RdcCd, RdcNm = g.Key.RdcNm,
-                        TotalTrfInQty = g.Sum(x => x.TrfInStkQ ?? 0),
-                        TotalSaleQty = g.Sum(x => x.CmBgtSaleQ ?? 0),
-                        StoreCount = g.Select(x => x.StCd).Distinct().Count()
-                    })
-                    .OrderByDescending(x => x.TotalTrfInQty).Take(10).ToListAsync();
+                        vm.RdcSummary.Add(new RdcSummary
+                        {
+                            RdcCd = SnowflakeCrudHelper.StrNull(r, 0),
+                            RdcNm = SnowflakeCrudHelper.StrNull(r, 1),
+                            TotalTrfInQty = SnowflakeCrudHelper.Dec(r, 2),
+                            TotalSaleQty = SnowflakeCrudHelper.Dec(r, 3),
+                            StoreCount = SnowflakeCrudHelper.Int(r, 4)
+                        });
+                    }
+                }
 
                 // ===== PURCHASE PLAN: CATEGORY SUMMARY (Top 15) =====
-                vm.PpCategorySummary = await ppQ
-                    .GroupBy(x => x.MajCat)
-                    .Select(g => new PpCategorySummary
+                {
+                    await using var cmd = conn.CreateCommand();
+                    cmd.CommandText = @"
+                        SELECT MAJ_CAT,
+                               NVL(SUM(BGT_PUR_Q_INIT),0),
+                               NVL(SUM(DC_STK_SHORT_Q),0),
+                               NVL(SUM(DC_STK_EXCESS_Q),0),
+                               NVL(SUM(ST_STK_SHORT_Q),0),
+                               NVL(SUM(ST_STK_EXCESS_Q),0),
+                               NVL(SUM(TTL_TRF_OUT_Q),0),
+                               COUNT(*)
+                        FROM PURCHASE_PLAN " + ppWhere + @"
+                        GROUP BY MAJ_CAT
+                        ORDER BY NVL(SUM(BGT_PUR_Q_INIT),0) DESC
+                        LIMIT 15";
+                    cmd.CommandTimeout = 120;
+                    await using var r = await cmd.ExecuteReaderAsync();
+                    while (await r.ReadAsync())
                     {
-                        MajCat = g.Key,
-                        BgtPurQ = g.Sum(x => x.BgtPurQInit ?? 0),
-                        DcStkShortQ = g.Sum(x => x.DcStkShortQ ?? 0),
-                        DcStkExcessQ = g.Sum(x => x.DcStkExcessQ ?? 0),
-                        StStkShortQ = g.Sum(x => x.StStkShortQ ?? 0),
-                        StStkExcessQ = g.Sum(x => x.StStkExcessQ ?? 0),
-                        TrfOutQ = g.Sum(x => x.TtlTrfOutQ ?? 0),
-                        RowCount = g.Count()
-                    })
-                    .OrderByDescending(x => x.BgtPurQ).Take(15).ToListAsync();
+                        vm.PpCategorySummary.Add(new PpCategorySummary
+                        {
+                            MajCat = SnowflakeCrudHelper.StrNull(r, 0),
+                            BgtPurQ = SnowflakeCrudHelper.Dec(r, 1),
+                            DcStkShortQ = SnowflakeCrudHelper.Dec(r, 2),
+                            DcStkExcessQ = SnowflakeCrudHelper.Dec(r, 3),
+                            StStkShortQ = SnowflakeCrudHelper.Dec(r, 4),
+                            StStkExcessQ = SnowflakeCrudHelper.Dec(r, 5),
+                            TrfOutQ = SnowflakeCrudHelper.Dec(r, 6),
+                            RowCount = SnowflakeCrudHelper.Int(r, 7)
+                        });
+                    }
+                }
 
                 // ===== PURCHASE PLAN: WEEKLY TREND =====
-                vm.PpWeeklySummary = await ppQ
-                    .GroupBy(x => new { x.FyYear, x.FyWeek })
-                    .Select(g => new PpWeeklySummary
+                {
+                    await using var cmd = conn.CreateCommand();
+                    cmd.CommandText = @"
+                        SELECT NVL(FY_YEAR,0), NVL(FY_WEEK,0),
+                               NVL(SUM(BGT_PUR_Q_INIT),0),
+                               NVL(SUM(TTL_TRF_OUT_Q),0),
+                               NVL(SUM(DC_STK_SHORT_Q),0),
+                               NVL(SUM(DC_STK_EXCESS_Q),0)
+                        FROM PURCHASE_PLAN " + ppWhere + @"
+                        GROUP BY FY_YEAR, FY_WEEK
+                        ORDER BY NVL(FY_YEAR,0), NVL(FY_WEEK,0)";
+                    cmd.CommandTimeout = 120;
+                    await using var r = await cmd.ExecuteReaderAsync();
+                    while (await r.ReadAsync())
                     {
-                        FyYear = g.Key.FyYear ?? 0,
-                        FyWeek = g.Key.FyWeek ?? 0,
-                        BgtPurQ = g.Sum(x => x.BgtPurQInit ?? 0),
-                        TrfOutQ = g.Sum(x => x.TtlTrfOutQ ?? 0),
-                        DcStkShortQ = g.Sum(x => x.DcStkShortQ ?? 0),
-                        DcStkExcessQ = g.Sum(x => x.DcStkExcessQ ?? 0)
-                    })
-                    .OrderBy(x => x.FyYear).ThenBy(x => x.FyWeek).ToListAsync();
+                        vm.PpWeeklySummary.Add(new PpWeeklySummary
+                        {
+                            FyYear = SnowflakeCrudHelper.Int(r, 0),
+                            FyWeek = SnowflakeCrudHelper.Int(r, 1),
+                            BgtPurQ = SnowflakeCrudHelper.Dec(r, 2),
+                            TrfOutQ = SnowflakeCrudHelper.Dec(r, 3),
+                            DcStkShortQ = SnowflakeCrudHelper.Dec(r, 4),
+                            DcStkExcessQ = SnowflakeCrudHelper.Dec(r, 5)
+                        });
+                    }
+                }
 
-                // ===== PURCHASE PLAN: TOP DC SHORT/EXCESS =====
-                vm.TopDcShortCategories = await ppQ
-                    .Where(x => x.DcStkShortQ > 0)
-                    .GroupBy(x => new { x.RdcCd, x.RdcNm, x.MajCat })
-                    .Select(g => new DcStockMetric
+                // ===== PURCHASE PLAN: TOP DC SHORT =====
+                {
+                    await using var cmd = conn.CreateCommand();
+                    cmd.CommandText = @"
+                        SELECT RDC_CD, RDC_NM, MAJ_CAT, NVL(SUM(DC_STK_SHORT_Q),0) AS QTY
+                        FROM PURCHASE_PLAN " + ppWhere + @" AND DC_STK_SHORT_Q > 0
+                        GROUP BY RDC_CD, RDC_NM, MAJ_CAT
+                        ORDER BY QTY DESC
+                        LIMIT 10";
+                    cmd.CommandTimeout = 120;
+                    await using var r = await cmd.ExecuteReaderAsync();
+                    while (await r.ReadAsync())
                     {
-                        RdcCd = g.Key.RdcCd, RdcNm = g.Key.RdcNm, MajCat = g.Key.MajCat,
-                        Quantity = g.Sum(x => x.DcStkShortQ ?? 0)
-                    })
-                    .OrderByDescending(x => x.Quantity).Take(10).ToListAsync();
+                        vm.TopDcShortCategories.Add(new DcStockMetric
+                        {
+                            RdcCd = SnowflakeCrudHelper.StrNull(r, 0),
+                            RdcNm = SnowflakeCrudHelper.StrNull(r, 1),
+                            MajCat = SnowflakeCrudHelper.StrNull(r, 2),
+                            Quantity = SnowflakeCrudHelper.Dec(r, 3)
+                        });
+                    }
+                }
 
-                vm.TopDcExcessCategories = await ppQ
-                    .Where(x => x.DcStkExcessQ > 0)
-                    .GroupBy(x => new { x.RdcCd, x.RdcNm, x.MajCat })
-                    .Select(g => new DcStockMetric
+                // ===== PURCHASE PLAN: TOP DC EXCESS =====
+                {
+                    await using var cmd = conn.CreateCommand();
+                    cmd.CommandText = @"
+                        SELECT RDC_CD, RDC_NM, MAJ_CAT, NVL(SUM(DC_STK_EXCESS_Q),0) AS QTY
+                        FROM PURCHASE_PLAN " + ppWhere + @" AND DC_STK_EXCESS_Q > 0
+                        GROUP BY RDC_CD, RDC_NM, MAJ_CAT
+                        ORDER BY QTY DESC
+                        LIMIT 10";
+                    cmd.CommandTimeout = 120;
+                    await using var r = await cmd.ExecuteReaderAsync();
+                    while (await r.ReadAsync())
                     {
-                        RdcCd = g.Key.RdcCd, RdcNm = g.Key.RdcNm, MajCat = g.Key.MajCat,
-                        Quantity = g.Sum(x => x.DcStkExcessQ ?? 0)
-                    })
-                    .OrderByDescending(x => x.Quantity).Take(10).ToListAsync();
+                        vm.TopDcExcessCategories.Add(new DcStockMetric
+                        {
+                            RdcCd = SnowflakeCrudHelper.StrNull(r, 0),
+                            RdcNm = SnowflakeCrudHelper.StrNull(r, 1),
+                            MajCat = SnowflakeCrudHelper.StrNull(r, 2),
+                            Quantity = SnowflakeCrudHelper.Dec(r, 3)
+                        });
+                    }
+                }
 
                 // ===== RDC INVENTORY HEALTH =====
-                vm.RdcInventoryHealth = await ppQ
-                    .GroupBy(x => new { x.RdcCd, x.RdcNm })
-                    .Select(g => new RdcInventoryHealth
+                {
+                    await using var cmd = conn.CreateCommand();
+                    cmd.CommandText = @"
+                        SELECT RDC_CD, RDC_NM,
+                               NVL(SUM(DC_STK_Q),0),
+                               NVL(SUM(TTL_TRF_OUT_Q),0),
+                               NVL(SUM(BGT_PUR_Q_INIT),0),
+                               NVL(SUM(DC_STK_SHORT_Q),0),
+                               NVL(SUM(DC_STK_EXCESS_Q),0),
+                               COUNT(DISTINCT MAJ_CAT)
+                        FROM PURCHASE_PLAN " + ppWhere + @"
+                        GROUP BY RDC_CD, RDC_NM
+                        ORDER BY RDC_CD";
+                    cmd.CommandTimeout = 120;
+                    await using var r = await cmd.ExecuteReaderAsync();
+                    while (await r.ReadAsync())
                     {
-                        RdcCd = g.Key.RdcCd, RdcNm = g.Key.RdcNm,
-                        DcStock = g.Sum(x => x.DcStkQ ?? 0),
-                        TrfOut = g.Sum(x => x.TtlTrfOutQ ?? 0),
-                        PurchaseQty = g.Sum(x => x.BgtPurQInit ?? 0),
-                        DcShort = g.Sum(x => x.DcStkShortQ ?? 0),
-                        DcExcess = g.Sum(x => x.DcStkExcessQ ?? 0),
-                        CategoryCount = g.Select(x => x.MajCat).Distinct().Count()
-                    })
-                    .OrderBy(x => x.RdcCd).ToListAsync();
+                        vm.RdcInventoryHealth.Add(new RdcInventoryHealth
+                        {
+                            RdcCd = SnowflakeCrudHelper.StrNull(r, 0),
+                            RdcNm = SnowflakeCrudHelper.StrNull(r, 1),
+                            DcStock = SnowflakeCrudHelper.Dec(r, 2),
+                            TrfOut = SnowflakeCrudHelper.Dec(r, 3),
+                            PurchaseQty = SnowflakeCrudHelper.Dec(r, 4),
+                            DcShort = SnowflakeCrudHelper.Dec(r, 5),
+                            DcExcess = SnowflakeCrudHelper.Dec(r, 6),
+                            CategoryCount = SnowflakeCrudHelper.Int(r, 7)
+                        });
+                    }
+                }
 
                 // ===== TOP RISK CATEGORIES (by company short) =====
-                vm.TopRiskCategories = await ppQ
-                    .GroupBy(x => x.MajCat)
-                    .Select(g => new CategoryRisk
+                {
+                    await using var cmd = conn.CreateCommand();
+                    cmd.CommandText = @"
+                        SELECT MAJ_CAT,
+                               NVL(SUM(CO_STK_SHORT_Q),0),
+                               NVL(SUM(CO_STK_EXCESS_Q),0),
+                               NVL(SUM(DC_STK_SHORT_Q),0),
+                               NVL(SUM(ST_STK_SHORT_Q),0)
+                        FROM PURCHASE_PLAN " + ppWhere + @"
+                        GROUP BY MAJ_CAT
+                        ORDER BY NVL(SUM(CO_STK_SHORT_Q),0) DESC
+                        LIMIT 10";
+                    cmd.CommandTimeout = 120;
+                    await using var r = await cmd.ExecuteReaderAsync();
+                    while (await r.ReadAsync())
                     {
-                        MajCat = g.Key,
-                        CoShort = g.Sum(x => x.CoStkShortQ ?? 0),
-                        CoExcess = g.Sum(x => x.CoStkExcessQ ?? 0),
-                        DcShort = g.Sum(x => x.DcStkShortQ ?? 0),
-                        StShort = g.Sum(x => x.StStkShortQ ?? 0)
-                    })
-                    .OrderByDescending(x => x.CoShort).Take(10).ToListAsync();
+                        vm.TopRiskCategories.Add(new CategoryRisk
+                        {
+                            MajCat = SnowflakeCrudHelper.StrNull(r, 0),
+                            CoShort = SnowflakeCrudHelper.Dec(r, 1),
+                            CoExcess = SnowflakeCrudHelper.Dec(r, 2),
+                            DcShort = SnowflakeCrudHelper.Dec(r, 3),
+                            StShort = SnowflakeCrudHelper.Dec(r, 4)
+                        });
+                    }
+                }
 
                 foreach (var c in vm.TopRiskCategories)
                     c.Risk = c.CoShort > 1000 ? "CRITICAL" : c.CoShort > 0 ? "AT RISK" : c.CoExcess > 1000 ? "EXCESS" : "OK";
@@ -307,15 +483,29 @@ namespace TRANSFER_IN_PLAN.Controllers
                 // ===== SUB-LEVEL PLAN STATUS =====
                 try
                 {
-                    using var connSub = new Microsoft.Data.SqlClient.SqlConnection(connStr);
-                    await connSub.OpenAsync();
-                    foreach (var (lv, lbl) in new[] { ("MVGR","Macro MVGR"), ("SZ","Size"), ("SEG","Segment"), ("VND","Vendor") })
+                    foreach (var (lv, lbl) in new[] { ("MVGR", "Macro MVGR"), ("SZ", "Size"), ("SEG", "Segment"), ("VND", "Vendor") })
                     {
                         int trfR = 0, ppR = 0; string? lr = null;
                         try
                         {
-                            using (var c = connSub.CreateCommand()) { c.CommandText = $"SELECT COUNT(*), MAX([CREATED_DT]) FROM [dbo].[SUB_LEVEL_TRF_PLAN] WITH (NOLOCK) WHERE [LEVEL]='{lv}'"; c.CommandTimeout = 15; using var rd = await c.ExecuteReaderAsync(); if (await rd.ReadAsync()) { trfR = rd.GetInt32(0); if (!rd.IsDBNull(1)) lr = rd.GetDateTime(1).ToString("dd-MMM HH:mm"); } }
-                            using (var c = connSub.CreateCommand()) { c.CommandText = $"SELECT COUNT(*) FROM [dbo].[SUB_LEVEL_PP_PLAN] WITH (NOLOCK) WHERE [LEVEL]='{lv}'"; c.CommandTimeout = 15; ppR = (int)(await c.ExecuteScalarAsync() ?? 0); }
+                            await using (var c = conn.CreateCommand())
+                            {
+                                c.CommandText = $"SELECT COUNT(*), MAX(CREATED_DT) FROM SUB_LEVEL_TRF_PLAN WHERE LEVEL='{lv}'";
+                                c.CommandTimeout = 15;
+                                await using var rd = await c.ExecuteReaderAsync();
+                                if (await rd.ReadAsync())
+                                {
+                                    trfR = SnowflakeCrudHelper.Int(rd, 0);
+                                    var dt = SnowflakeCrudHelper.DateNull(rd, 1);
+                                    if (dt.HasValue) lr = dt.Value.ToString("dd-MMM HH:mm");
+                                }
+                            }
+                            await using (var c = conn.CreateCommand())
+                            {
+                                c.CommandText = $"SELECT COUNT(*) FROM SUB_LEVEL_PP_PLAN WHERE LEVEL='{lv}'";
+                                c.CommandTimeout = 15;
+                                ppR = Convert.ToInt32(await c.ExecuteScalarAsync() ?? 0);
+                            }
                         }
                         catch { }
                         vm.SubLevelStatuses.Add(new SubLevelStatus { Level = lv, Label = lbl, TrfRows = trfR, PpRows = ppR, LastRun = lr });
@@ -326,8 +516,6 @@ namespace TRANSFER_IN_PLAN.Controllers
                 // ===== DATA HEALTH (reference table row counts) =====
                 try
                 {
-                    using var connH = new Microsoft.Data.SqlClient.SqlConnection(connStr);
-                    await connH.OpenAsync();
                     var tables = new[] {
                         ("Plan Output", "TRF_IN_PLAN", "bi-arrow-left-right"),
                         ("Plan Output", "PURCHASE_PLAN", "bi-bag-check"),
@@ -348,10 +536,7 @@ namespace TRANSFER_IN_PLAN.Controllers
                     {
                         try
                         {
-                            using var c = connH.CreateCommand();
-                            c.CommandText = $"SELECT COUNT(*) FROM [dbo].[{tbl}] WITH (NOLOCK)";
-                            c.CommandTimeout = 10;
-                            var cnt = (int)(await c.ExecuteScalarAsync() ?? 0);
+                            var cnt = await SnowflakeCrudHelper.CountAsync(conn, tbl);
                             vm.DataHealth.Add(new DataHealthRow { Category = cat, Table = tbl, Rows = cnt, Icon = icon });
                         }
                         catch { vm.DataHealth.Add(new DataHealthRow { Category = cat, Table = tbl, Rows = -1, Icon = icon }); }
@@ -372,33 +557,114 @@ namespace TRANSFER_IN_PLAN.Controllers
         [HttpGet]
         public async Task<IActionResult> ExportTrfInCsv(int? fyYear, int? fyWeek, string? majCat, string? stCd)
         {
-            var query = _context.TrfInPlans.AsQueryable();
-            if (fyYear.HasValue) query = query.Where(x => x.FyYear == fyYear);
-            if (fyWeek.HasValue) query = query.Where(x => x.FyWeek == fyWeek);
-            if (!string.IsNullOrEmpty(majCat)) query = query.Where(x => x.MajCat == majCat);
-            if (!string.IsNullOrEmpty(stCd)) query = query.Where(x => x.StCd == stCd);
-            var data = await query.OrderBy(x => x.StCd).ThenBy(x => x.MajCat).ToListAsync();
-            var sb = new StringBuilder();
-            sb.AppendLine("StCd,StNm,RdcCd,RdcNm,MajCat,Seg,Div,SubDiv,MajCatNm,Ssn,FyYear,FyWeek,SGrtStkQ,WGrtStkQ,BgtDispClQ,BgtDispClOpt,Cm1SaleCoverDay,Cm2SaleCoverDay,CoverSaleQty,BgtStClMbq,BgtDispClOptMbq,BgtTtlCfOpStkQ,NtActQ,NetBgtCfStkQ,CmBgtSaleQ,Cm1BgtSaleQ,Cm2BgtSaleQ,TrfInStkQ,TrfInOptCnt,TrfInOptMbq,DcMbq,BgtTtlCfClStkQ,BgtNtActQ,NetStClStkQ,StClExcessQ,StClShortQ");
-            foreach (var r in data)
-                sb.AppendLine(string.Join(",", Q(r.StCd), Q(r.StNm ?? "NA"), Q(r.RdcCd ?? "NA"), Q(r.RdcNm ?? "NA"), Q(r.MajCat), Q(r.Seg ?? "NA"), Q(r.Div ?? "NA"), Q(r.SubDiv ?? "NA"), Q(r.MajCatNm ?? "NA"), Q(r.Ssn ?? "NA"), r.FyYear, r.FyWeek, r.SGrtStkQ ?? 0, r.WGrtStkQ ?? 0, r.BgtDispClQ ?? 0, r.BgtDispClOpt ?? 0, r.Cm1SaleCoverDay ?? 0, r.Cm2SaleCoverDay ?? 0, r.CoverSaleQty ?? 0, r.BgtStClMbq ?? 0, r.BgtDispClOptMbq ?? 0, r.BgtTtlCfOpStkQ ?? 0, r.NtActQ ?? 0, r.NetBgtCfStkQ ?? 0, r.CmBgtSaleQ ?? 0, r.Cm1BgtSaleQ ?? 0, r.Cm2BgtSaleQ ?? 0, r.TrfInStkQ ?? 0, r.TrfInOptCnt ?? 0, r.TrfInOptMbq ?? 0, r.DcMbq ?? 0, r.BgtTtlCfClStkQ ?? 0, r.BgtNtActQ ?? 0, r.NetStClStkQ ?? 0, r.StClExcessQ ?? 0, r.StClShortQ ?? 0));
-            return File(Encoding.UTF8.GetBytes(sb.ToString()), "text/csv", "TrfInPlan_Export.csv");
+            var where = "WHERE 1=1";
+            if (fyYear.HasValue) where += $" AND FY_YEAR = {fyYear.Value}";
+            if (fyWeek.HasValue) where += $" AND FY_WEEK = {fyWeek.Value}";
+            if (!string.IsNullOrEmpty(majCat)) where += $" AND MAJ_CAT = '{majCat.Replace("'", "''")}'";
+            if (!string.IsNullOrEmpty(stCd)) where += $" AND ST_CD = '{stCd.Replace("'", "''")}'";
+
+            var sql = $@"SELECT ST_CD, ST_NM, RDC_CD, RDC_NM, MAJ_CAT, SEG, DIV, SUB_DIV, MAJ_CAT_NM, SSN,
+                                FY_YEAR, FY_WEEK,
+                                S_GRT_STK_Q, W_GRT_STK_Q, BGT_DISP_CL_Q, BGT_DISP_CL_OPT,
+                                CM1_SALE_COVER_DAY, CM2_SALE_COVER_DAY, COVER_SALE_QTY,
+                                BGT_ST_CL_MBQ, BGT_DISP_CL_OPT_MBQ, BGT_TTL_CF_OP_STK_Q,
+                                NT_ACT_Q, NET_BGT_CF_STK_Q, CM_BGT_SALE_Q, CM1_BGT_SALE_Q, CM2_BGT_SALE_Q,
+                                TRF_IN_STK_Q, TRF_IN_OPT_CNT, TRF_IN_OPT_MBQ, DC_MBQ,
+                                BGT_TTL_CF_CL_STK_Q, BGT_NT_ACT_Q, NET_ST_CL_STK_Q,
+                                ST_CL_EXCESS_Q, ST_CL_SHORT_Q
+                         FROM TRF_IN_PLAN {where}
+                         ORDER BY ST_CD, MAJ_CAT";
+
+            Response.ContentType = "text/csv";
+            Response.Headers.Append("Content-Disposition", "attachment; filename=TrfInPlan_Export.csv");
+            await using var writer = new StreamWriter(Response.Body, Encoding.UTF8);
+            await using var conn = await SnowflakeCrudHelper.OpenAsync(_sfConnStr);
+
+            await writer.WriteLineAsync("StCd,StNm,RdcCd,RdcNm,MajCat,Seg,Div,SubDiv,MajCatNm,Ssn,FyYear,FyWeek,SGrtStkQ,WGrtStkQ,BgtDispClQ,BgtDispClOpt,Cm1SaleCoverDay,Cm2SaleCoverDay,CoverSaleQty,BgtStClMbq,BgtDispClOptMbq,BgtTtlCfOpStkQ,NtActQ,NetBgtCfStkQ,CmBgtSaleQ,Cm1BgtSaleQ,Cm2BgtSaleQ,TrfInStkQ,TrfInOptCnt,TrfInOptMbq,DcMbq,BgtTtlCfClStkQ,BgtNtActQ,NetStClStkQ,StClExcessQ,StClShortQ");
+
+            await using var cmd = conn.CreateCommand();
+            cmd.CommandText = sql;
+            cmd.CommandTimeout = 300;
+            await using var r = await cmd.ExecuteReaderAsync();
+            while (await r.ReadAsync())
+            {
+                var sb = new StringBuilder();
+                sb.Append(Q(SnowflakeCrudHelper.Str(r, 0))); sb.Append(',');
+                sb.Append(Q(SnowflakeCrudHelper.Str(r, 1))); sb.Append(',');
+                sb.Append(Q(SnowflakeCrudHelper.Str(r, 2))); sb.Append(',');
+                sb.Append(Q(SnowflakeCrudHelper.Str(r, 3))); sb.Append(',');
+                sb.Append(Q(SnowflakeCrudHelper.Str(r, 4))); sb.Append(',');
+                sb.Append(Q(SnowflakeCrudHelper.Str(r, 5))); sb.Append(',');
+                sb.Append(Q(SnowflakeCrudHelper.Str(r, 6))); sb.Append(',');
+                sb.Append(Q(SnowflakeCrudHelper.Str(r, 7))); sb.Append(',');
+                sb.Append(Q(SnowflakeCrudHelper.Str(r, 8))); sb.Append(',');
+                sb.Append(Q(SnowflakeCrudHelper.Str(r, 9))); sb.Append(',');
+                sb.Append(SnowflakeCrudHelper.Int(r, 10)); sb.Append(',');
+                sb.Append(SnowflakeCrudHelper.Int(r, 11)); sb.Append(',');
+                for (int i = 12; i <= 35; i++)
+                {
+                    sb.Append(SnowflakeCrudHelper.Dec(r, i));
+                    if (i < 35) sb.Append(',');
+                }
+                await writer.WriteLineAsync(sb.ToString());
+            }
+            await writer.FlushAsync();
+            return new EmptyResult();
         }
 
         [HttpGet]
         public async Task<IActionResult> ExportPpCsv(int? fyYear, int? fyWeek, string? rdcCd, string? majCat)
         {
-            var query = _context.PurchasePlans.AsQueryable();
-            if (fyYear.HasValue) query = query.Where(x => x.FyYear == fyYear);
-            if (fyWeek.HasValue) query = query.Where(x => x.FyWeek == fyWeek);
-            if (!string.IsNullOrEmpty(rdcCd)) query = query.Where(x => x.RdcCd == rdcCd);
-            if (!string.IsNullOrEmpty(majCat)) query = query.Where(x => x.MajCat == majCat);
-            var data = await query.OrderBy(x => x.RdcCd).ThenBy(x => x.MajCat).ToListAsync();
-            var sb = new StringBuilder();
-            sb.AppendLine("RdcCd,RdcNm,MajCat,Seg,Div,SubDiv,MajCatNm,Ssn,FyYear,FyWeek,DcStkQ,GrtStkQ,BgtPurQInit,PosPORaised,NegPORaised,TtlTrfOutQ,DcStkExcessQ,DcStkShortQ,StStkExcessQ,StStkShortQ,CoStkExcessQ,CoStkShortQ,FreshBinReq,GrtBinReq");
-            foreach (var r in data)
-                sb.AppendLine(string.Join(",", Q(r.RdcCd), Q(r.RdcNm ?? "NA"), Q(r.MajCat), Q(r.Seg ?? "NA"), Q(r.Div ?? "NA"), Q(r.SubDiv ?? "NA"), Q(r.MajCatNm ?? "NA"), Q(r.Ssn ?? "NA"), r.FyYear, r.FyWeek, r.DcStkQ ?? 0, r.GrtStkQ ?? 0, r.BgtPurQInit ?? 0, r.PosPORaised ?? 0, r.NegPORaised ?? 0, r.TtlTrfOutQ ?? 0, r.DcStkExcessQ ?? 0, r.DcStkShortQ ?? 0, r.StStkExcessQ ?? 0, r.StStkShortQ ?? 0, r.CoStkExcessQ ?? 0, r.CoStkShortQ ?? 0, r.FreshBinReq ?? 0, r.GrtBinReq ?? 0));
-            return File(Encoding.UTF8.GetBytes(sb.ToString()), "text/csv", "PurchasePlan_Export.csv");
+            var where = "WHERE 1=1";
+            if (fyYear.HasValue) where += $" AND FY_YEAR = {fyYear.Value}";
+            if (fyWeek.HasValue) where += $" AND FY_WEEK = {fyWeek.Value}";
+            if (!string.IsNullOrEmpty(rdcCd)) where += $" AND RDC_CD = '{rdcCd.Replace("'", "''")}'";
+            if (!string.IsNullOrEmpty(majCat)) where += $" AND MAJ_CAT = '{majCat.Replace("'", "''")}'";
+
+            var sql = $@"SELECT RDC_CD, RDC_NM, MAJ_CAT, SEG, DIV, SUB_DIV, MAJ_CAT_NM, SSN,
+                                FY_YEAR, FY_WEEK,
+                                DC_STK_Q, GRT_STK_Q, BGT_PUR_Q_INIT,
+                                POS_PO_RAISED, NEG_PO_RAISED, TTL_TRF_OUT_Q,
+                                DC_STK_EXCESS_Q, DC_STK_SHORT_Q,
+                                ST_STK_EXCESS_Q, ST_STK_SHORT_Q,
+                                CO_STK_EXCESS_Q, CO_STK_SHORT_Q,
+                                FRESH_BIN_REQ, GRT_BIN_REQ
+                         FROM PURCHASE_PLAN {where}
+                         ORDER BY RDC_CD, MAJ_CAT";
+
+            Response.ContentType = "text/csv";
+            Response.Headers.Append("Content-Disposition", "attachment; filename=PurchasePlan_Export.csv");
+            await using var writer = new StreamWriter(Response.Body, Encoding.UTF8);
+            await using var conn = await SnowflakeCrudHelper.OpenAsync(_sfConnStr);
+
+            await writer.WriteLineAsync("RdcCd,RdcNm,MajCat,Seg,Div,SubDiv,MajCatNm,Ssn,FyYear,FyWeek,DcStkQ,GrtStkQ,BgtPurQInit,PosPORaised,NegPORaised,TtlTrfOutQ,DcStkExcessQ,DcStkShortQ,StStkExcessQ,StStkShortQ,CoStkExcessQ,CoStkShortQ,FreshBinReq,GrtBinReq");
+
+            await using var cmd = conn.CreateCommand();
+            cmd.CommandText = sql;
+            cmd.CommandTimeout = 300;
+            await using var r = await cmd.ExecuteReaderAsync();
+            while (await r.ReadAsync())
+            {
+                var sb = new StringBuilder();
+                sb.Append(Q(SnowflakeCrudHelper.Str(r, 0))); sb.Append(',');
+                sb.Append(Q(SnowflakeCrudHelper.Str(r, 1))); sb.Append(',');
+                sb.Append(Q(SnowflakeCrudHelper.Str(r, 2))); sb.Append(',');
+                sb.Append(Q(SnowflakeCrudHelper.Str(r, 3))); sb.Append(',');
+                sb.Append(Q(SnowflakeCrudHelper.Str(r, 4))); sb.Append(',');
+                sb.Append(Q(SnowflakeCrudHelper.Str(r, 5))); sb.Append(',');
+                sb.Append(Q(SnowflakeCrudHelper.Str(r, 6))); sb.Append(',');
+                sb.Append(Q(SnowflakeCrudHelper.Str(r, 7))); sb.Append(',');
+                sb.Append(SnowflakeCrudHelper.Int(r, 8)); sb.Append(',');
+                sb.Append(SnowflakeCrudHelper.Int(r, 9)); sb.Append(',');
+                for (int i = 10; i <= 23; i++)
+                {
+                    sb.Append(SnowflakeCrudHelper.Dec(r, i));
+                    if (i < 23) sb.Append(',');
+                }
+                await writer.WriteLineAsync(sb.ToString());
+            }
+            await writer.FlushAsync();
+            return new EmptyResult();
         }
 
         public IActionResult Privacy() => View();

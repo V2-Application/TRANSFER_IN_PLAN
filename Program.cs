@@ -37,7 +37,7 @@ builder.Services.AddDbContext<PlanningDbContext>(options =>
 });
 
 builder.Services.AddMemoryCache();
-builder.Services.AddScoped<PlanService>();
+builder.Services.AddSingleton<PlanService>();
 builder.Services.AddSingleton<PlanJobService>();
 builder.Services.AddSingleton<SubLevelJobService>();
 builder.Services.AddSingleton<SnowflakeService>();

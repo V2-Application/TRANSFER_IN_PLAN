@@ -1,14 +1,15 @@
-using Microsoft.Data.SqlClient;
+using Snowflake.Data.Client;
+using System.Text.Json;
 
 namespace TRANSFER_IN_PLAN.Services;
 
 /// <summary>
-/// Singleton service that manages background execution of SP_RUN_ALL_PLANS.
+/// Singleton service that manages background execution of SF_SP_RUN_ALL_PLANS on Snowflake.
 /// Tracks job state so the UI can poll for progress.
 /// </summary>
 public class PlanJobService
 {
-    private readonly IServiceScopeFactory _scopeFactory;
+    private readonly IConfiguration _config;
     private readonly ILogger<PlanJobService> _logger;
     private readonly object _lock = new();
 
@@ -22,9 +23,9 @@ public class PlanJobService
     public int PpRows { get; private set; }
     public string? ErrorMessage { get; private set; }
 
-    public PlanJobService(IServiceScopeFactory scopeFactory, ILogger<PlanJobService> logger)
+    public PlanJobService(IConfiguration config, ILogger<PlanJobService> logger)
     {
-        _scopeFactory = scopeFactory;
+        _config = config;
         _logger = logger;
     }
 
@@ -43,65 +44,75 @@ public class PlanJobService
             ErrorMessage = null;
         }
 
-        // Fire and forget — runs in background
-        _ = Task.Run(() => RunFullPlanAsync(startWeekId, endWeekId));
+        Task.Run(() => RunFullPlanAsync(startWeekId, endWeekId));
         return true;
     }
 
     private async Task RunFullPlanAsync(int startWeekId, int endWeekId)
     {
+        var sfConnStr = _config.GetConnectionString("Snowflake")!;
+
         try
         {
-            using var scope = _scopeFactory.CreateScope();
-            var config = scope.ServiceProvider.GetRequiredService<IConfiguration>();
-            var connStr = config.GetConnectionString("PlanningDatabase")!;
+            _logger.LogInformation("PlanJob: Starting full run WeekID {Start}-{End} on Snowflake", startWeekId, endWeekId);
 
-            _logger.LogInformation("PlanJob: Starting full run WeekID {Start}-{End}", startWeekId, endWeekId);
+            await using var conn = new SnowflakeDbConnection { ConnectionString = sfConnStr };
+            await conn.OpenAsync();
 
             // Step 1: Truncate
-            Phase = "Cleaning";
-            Status = "Truncating old data...";
-            await using (var conn = new SqlConnection(connStr))
+            lock (_lock) { Phase = "Cleaning"; Status = "Truncating old data..."; }
+            await using (var cmd = conn.CreateCommand())
             {
-                await conn.OpenAsync();
-                await using var cmd = conn.CreateCommand();
-                cmd.CommandText = "TRUNCATE TABLE dbo.TRF_IN_PLAN; TRUNCATE TABLE dbo.PURCHASE_PLAN;";
-                cmd.CommandTimeout = 60;
+                cmd.CommandText = "DELETE FROM TRF_IN_PLAN";
+                cmd.CommandTimeout = 120;
+                await cmd.ExecuteNonQueryAsync();
+            }
+            await using (var cmd = conn.CreateCommand())
+            {
+                cmd.CommandText = "DELETE FROM PURCHASE_PLAN";
+                cmd.CommandTimeout = 120;
                 await cmd.ExecuteNonQueryAsync();
             }
             _logger.LogInformation("PlanJob: Tables truncated");
 
-            // Step 2: Execute SP_RUN_ALL_PLANS
-            Phase = "Running";
-            Status = "Executing SP_RUN_ALL_PLANS...";
-            await using (var conn = new SqlConnection(connStr))
+            // Step 2: Execute SF_SP_RUN_ALL_PLANS
+            lock (_lock) { Phase = "Running"; Status = "Executing SP_RUN_ALL_PLANS on Snowflake..."; }
+            await using (var cmd = conn.CreateCommand())
             {
-                await conn.OpenAsync();
-                await using var cmd = conn.CreateCommand();
-                cmd.CommandText = "EXEC dbo.SP_RUN_ALL_PLANS @StartWeekID = @s, @EndWeekID = @e;";
-                cmd.Parameters.AddWithValue("@s", startWeekId);
-                cmd.Parameters.AddWithValue("@e", endWeekId);
+                cmd.CommandText = $"CALL SF_SP_RUN_ALL_PLANS({startWeekId}, {endWeekId}, NULL, 14, 0)";
                 cmd.CommandTimeout = 7200; // 2 hours max
-                await cmd.ExecuteNonQueryAsync();
+                await using var rdr = await cmd.ExecuteReaderAsync();
+                if (await rdr.ReadAsync())
+                {
+                    try
+                    {
+                        var json = rdr.GetString(0);
+                        var result = JsonDocument.Parse(json).RootElement;
+                        TrfRows = GetInt(result, "trf_rows");
+                        PpRows = GetInt(result, "pp_rows");
+                    }
+                    catch { /* fallback to count queries below */ }
+                }
             }
 
-            // Step 3: Get final counts
-            Phase = "Done";
-            await using (var conn = new SqlConnection(connStr))
+            // Step 3: Get final counts (in case SP didn't return them)
+            if (TrfRows == 0)
             {
-                await conn.OpenAsync();
                 await using var cmd = conn.CreateCommand();
-                cmd.CommandText = @"SELECT COUNT(*) FROM dbo.TRF_IN_PLAN WITH (NOLOCK);
-                                    SELECT COUNT(*) FROM dbo.PURCHASE_PLAN WITH (NOLOCK);";
-                await using var reader = await cmd.ExecuteReaderAsync();
-                if (await reader.ReadAsync()) TrfRows = reader.GetInt32(0);
-                await reader.NextResultAsync();
-                if (await reader.ReadAsync()) PpRows = reader.GetInt32(0);
+                cmd.CommandText = "SELECT COUNT(*) FROM TRF_IN_PLAN";
+                TrfRows = Convert.ToInt32(await cmd.ExecuteScalarAsync() ?? 0);
+            }
+            if (PpRows == 0)
+            {
+                await using var cmd = conn.CreateCommand();
+                cmd.CommandText = "SELECT COUNT(*) FROM PURCHASE_PLAN";
+                PpRows = Convert.ToInt32(await cmd.ExecuteScalarAsync() ?? 0);
             }
 
             lock (_lock)
             {
                 IsRunning = false;
+                Phase = "Done";
                 CompletedAt = DateTime.Now;
                 var elapsed = CompletedAt.Value - StartedAt!.Value;
                 Status = $"Completed in {elapsed.TotalMinutes:N1} min — {TrfRows:N0} TRF + {PpRows:N0} PP rows";
@@ -120,6 +131,16 @@ public class PlanJobService
             }
             _logger.LogError(ex, "PlanJob: Failed");
         }
+    }
+
+    private static int GetInt(JsonElement el, string prop)
+    {
+        if (el.TryGetProperty(prop, out var val))
+        {
+            if (val.ValueKind == JsonValueKind.Number) return val.GetInt32();
+            if (val.ValueKind == JsonValueKind.String && int.TryParse(val.GetString(), out var i)) return i;
+        }
+        return 0;
     }
 
     public object GetStatus() => new

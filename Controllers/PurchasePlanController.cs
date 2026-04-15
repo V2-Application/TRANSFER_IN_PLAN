@@ -1,259 +1,444 @@
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Data.SqlClient;
-using Microsoft.EntityFrameworkCore;
+using Snowflake.Data.Client;
 using System.Data;
 using System.Text;
-using TRANSFER_IN_PLAN.Data;
+using TRANSFER_IN_PLAN.Helpers;
 using TRANSFER_IN_PLAN.Models;
+using TRANSFER_IN_PLAN.Services;
 
-namespace TRANSFER_IN_PLAN.Controllers
+namespace TRANSFER_IN_PLAN.Controllers;
+
+public class PurchasePlanController : Controller
 {
-    public class PurchasePlanController : Controller
+    private readonly string _sfConnStr;
+    private readonly PlanService _planService;
+    private readonly ILogger<PurchasePlanController> _logger;
+
+    public PurchasePlanController(IConfiguration config, PlanService planService, ILogger<PurchasePlanController> logger)
     {
-        private readonly PlanningDbContext _context;
-        private readonly ILogger<PurchasePlanController> _logger;
+        _sfConnStr = config.GetConnectionString("Snowflake")!;
+        _planService = planService;
+        _logger = logger;
+    }
 
-        public PurchasePlanController(PlanningDbContext context, ILogger<PurchasePlanController> logger)
+    [HttpGet]
+    public async Task<IActionResult> Execute()
+    {
+        await using var conn = await SnowflakeCrudHelper.OpenAsync(_sfConnStr);
+
+        ViewBag.WeekCalendars = await LoadWeekCalendars(conn);
+        ViewBag.RdcCodes = await SnowflakeCrudHelper.DistinctAsync(conn, "MASTER_ST_MASTER", "RDC_CD");
+        ViewBag.MajCats = await SnowflakeCrudHelper.DistinctAsync(conn, "MASTER_PRODUCT_HIERARCHY", "MAJ_CAT_NM", "MAJ_CAT_NM != 'NA'");
+
+        return View(new PurchasePlanExecutionParams());
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> Execute(PurchasePlanExecutionParams model)
+    {
+        if (!ModelState.IsValid)
         {
-            _context = context;
-            _logger = logger;
+            await using var conn0 = await SnowflakeCrudHelper.OpenAsync(_sfConnStr);
+            ViewBag.WeekCalendars = await LoadWeekCalendars(conn0);
+            ViewBag.RdcCodes = await SnowflakeCrudHelper.DistinctAsync(conn0, "MASTER_ST_MASTER", "RDC_CD");
+            ViewBag.MajCats = await SnowflakeCrudHelper.DistinctAsync(conn0, "MASTER_PRODUCT_HIERARCHY", "MAJ_CAT_NM", "MAJ_CAT_NM != 'NA'");
+            return View(model);
         }
-
-        [HttpGet]
-        public async Task<IActionResult> Execute()
+        try
         {
-            ViewBag.WeekCalendars = await _context.WeekCalendars.OrderBy(w => w.WeekId).ToListAsync();
-            ViewBag.RdcCodes = await _context.StoreMasters.Select(x => x.RdcCd).Where(x => x != null).Distinct().OrderBy(x => x).ToListAsync();
-            ViewBag.MajCats = await _context.ProductHierarchies.Select(x => x.MajCatNm).Where(x => x != null && x != "NA").Distinct().OrderBy(x => x).ToListAsync();
-            return View(new PurchasePlanExecutionParams());
+            var (rowsInserted, executionTime) = await _planService.ExecutePurchasePlanAsync(
+                model.StartWeekId, model.EndWeekId, model.RdcCode, model.MajCat);
+
+            _logger.LogInformation("PurchasePlan SP executed: StartWeek={Start} EndWeek={End} Rows={Rows}", model.StartWeekId, model.EndWeekId, rowsInserted);
+            TempData["SuccessMessage"] = $"Purchase Plan executed successfully! {rowsInserted} rows at {executionTime:yyyy-MM-dd HH:mm:ss}";
         }
-
-        [HttpPost]
-        [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Execute(PurchasePlanExecutionParams model)
+        catch (Exception ex)
         {
-            if (!ModelState.IsValid) { ViewBag.WeekCalendars = await _context.WeekCalendars.OrderBy(w => w.WeekId).ToListAsync(); ViewBag.RdcCodes = await _context.StoreMasters.Select(x => x.RdcCd).Where(x => x != null).Distinct().OrderBy(x => x).ToListAsync(); ViewBag.MajCats = await _context.ProductHierarchies.Select(x => x.MajCatNm).Where(x => x != null && x != "NA").Distinct().OrderBy(x => x).ToListAsync(); return View(model); }
-            try
+            _logger.LogError(ex, "Error executing PurchasePlan SP");
+            TempData["ErrorMessage"] = "Execution failed: " + (ex.InnerException?.Message ?? ex.Message);
+        }
+        return RedirectToAction(nameof(Execute));
+    }
+
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> ResetPp()
+    {
+        try
+        {
+            await using var conn = await SnowflakeCrudHelper.OpenAsync(_sfConnStr);
+            await SnowflakeCrudHelper.ExecAsync(conn, "DELETE FROM PURCHASE_PLAN");
+            _logger.LogInformation("PURCHASE_PLAN cleared");
+            TempData["SuccessMessage"] = "Purchase Plan data cleared successfully.";
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "ResetPp error");
+            TempData["ErrorMessage"] = $"Error: {ex.InnerException?.Message ?? ex.Message}";
+        }
+        return RedirectToAction(nameof(Execute));
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> Output(int? fyYear, int? fyWeek, string? rdcCd, string? majCat, int page = 1, int pageSize = 100)
+    {
+        await using var conn = await SnowflakeCrudHelper.OpenAsync(_sfConnStr);
+
+        var (where, parms) = BuildFilter(fyYear, fyWeek, rdcCd, majCat);
+
+        ViewBag.TotalCount = await SnowflakeCrudHelper.CountAsync(conn, "PURCHASE_PLAN", where, parms);
+        ViewBag.Page = page;
+        ViewBag.PageSize = pageSize;
+        ViewBag.FyYear = fyYear;
+        ViewBag.FyWeek = fyWeek;
+        ViewBag.RdcCd = rdcCd;
+        ViewBag.MajCat = majCat;
+        ViewBag.Categories = await SnowflakeCrudHelper.DistinctAsync(conn, "PURCHASE_PLAN", "MAJ_CAT");
+        ViewBag.RdcCodes = await SnowflakeCrudHelper.DistinctAsync(conn, "PURCHASE_PLAN", "RDC_CD");
+
+        var data = await SnowflakeCrudHelper.PagedQueryAsync(conn, "PURCHASE_PLAN", AllSelectCols, where, parms,
+            "RDC_CD, MAJ_CAT", page, pageSize, MapPurchasePlan);
+
+        _logger.LogInformation("PurchasePlan Output: {Count} rows returned", data.Count);
+        return View(data);
+    }
+
+    // ── CSV EXPORT ────────────────────────────────────────────────
+
+    [HttpGet]
+    public async Task<IActionResult> ExportCsv(int? fyYear, int? fyWeek, string? rdcCd, string? majCat)
+    {
+        Response.ContentType = "text/csv";
+        Response.Headers.Append("Content-Disposition", $"attachment; filename=PurchasePlan_{fyYear}_{fyWeek}.csv");
+
+        var (where, parms) = BuildFilter(fyYear, fyWeek, rdcCd, majCat);
+        var whereStr = string.IsNullOrEmpty(where) ? "" : " WHERE " + where;
+        var sql = $"SELECT {AllSelectCols} FROM PURCHASE_PLAN{whereStr} ORDER BY RDC_CD, MAJ_CAT";
+
+        await using var writer = new StreamWriter(Response.Body, Encoding.UTF8, 65536);
+        await writer.WriteLineAsync("RdcCd,RdcNm,MajCat,Seg,Div,SubDiv,MajCatNm,Ssn,FyYear,FyWeek," +
+            "DcStkQ,GrtStkQ,SGrtStkQ,WGrtStkQ,BinCapDcTeam,BinCap,BgtDispClQ," +
+            "CwBgtSaleQ,Cw1BgtSaleQ,Cw2BgtSaleQ,Cw3BgtSaleQ,Cw4BgtSaleQ,Cw5BgtSaleQ," +
+            "BgtStOpMbq,NetStOpStkQ,BgtDcOpStkQ,PpNtActQ,BgtCfStkQ," +
+            "TtlStk,OpStk,NtActStk,GrtConsPct,GrtConsQ,DelPendQ," +
+            "PpNetBgtCfStkQ,CwTrfOutQ,Cw1TrfOutQ,Cw2TrfOutQ,Cw3TrfOutQ,Cw4TrfOutQ,TtlTrfOutQ," +
+            "BgtStClMbq,NetBgtStClStkQ,NetSsnlClStkQ," +
+            "BgtDcMbqSale,BgtDcClMbq,BgtDcClStkQ,BgtPurQInit," +
+            "PosPORaised,NegPORaised,BgtCoClStkQ," +
+            "DcStkExcessQ,DcStkShortQ,StStkExcessQ,StStkShortQ," +
+            "CoStkExcessQ,CoStkShortQ,FreshBinReq,GrtBinReq");
+
+        await using var conn = await SnowflakeCrudHelper.OpenAsync(_sfConnStr);
+        await using var cmd = conn.CreateCommand();
+        cmd.CommandText = sql;
+        cmd.CommandTimeout = 600;
+        foreach (var p in parms) cmd.Parameters.Add(SnowflakeCrudHelper.CloneParam(p));
+
+        await using var reader = await cmd.ExecuteReaderAsync();
+        int count = 0;
+        while (await reader.ReadAsync())
+        {
+            var sb = new StringBuilder(512);
+            // RDC_CD, RDC_NM, MAJ_CAT, SEG, DIV, SUB_DIV, MAJ_CAT_NM, SSN
+            for (int i = 0; i < 8; i++)
             {
-                var pStart = new SqlParameter("@StartWeekId", model.StartWeekId);
-                var pEnd = new SqlParameter("@EndWeekId", model.EndWeekId);
-                var pRdc = new SqlParameter("@RdcCode", SqlDbType.VarChar) { Value = (object?)model.RdcCode ?? DBNull.Value };
-                var pMaj = new SqlParameter("@MajCat", SqlDbType.VarChar) { Value = (object?)model.MajCat ?? DBNull.Value };
-                await _context.Database.ExecuteSqlRawAsync(
-                    "EXEC SP_GENERATE_PURCHASE_PLAN @StartWeekID=@StartWeekId, @EndWeekID=@EndWeekId, @RdcCode=@RdcCode, @MajCat=@MajCat",
-                    pStart, pEnd, pRdc, pMaj);
-                _logger.LogInformation("PurchasePlan SP executed: StartWeek={Start} EndWeek={End}", model.StartWeekId, model.EndWeekId);
-                TempData["SuccessMessage"] = "Purchase Plan executed successfully.";
+                if (i > 0) sb.Append(',');
+                sb.Append(Q(reader.IsDBNull(i) ? "NA" : reader.GetValue(i)?.ToString()));
             }
-            catch (Exception ex)
+            // FY_YEAR, FY_WEEK
+            sb.Append(',').Append(reader.IsDBNull(8) ? 0 : reader.GetValue(8));
+            sb.Append(',').Append(reader.IsDBNull(9) ? 0 : reader.GetValue(9));
+            // All metric columns (indices 10+)
+            for (int i = 10; i < reader.FieldCount; i++)
             {
-                _logger.LogError(ex, "Error executing PurchasePlan SP");
-                TempData["ErrorMessage"] = "Execution failed: " + (ex.InnerException?.Message ?? ex.Message);
+                sb.Append(',').Append(reader.IsDBNull(i) ? "0" : reader.GetValue(i));
             }
-            return RedirectToAction(nameof(Execute));
+            await writer.WriteLineAsync(sb.ToString());
+            count++;
+            if (count % 100000 == 0) await writer.FlushAsync();
+        }
+        await writer.FlushAsync();
+        _logger.LogInformation("PurchasePlan ExportCsv: {Count:N0} rows streamed", count);
+        return new EmptyResult();
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> ExportPivotCsv(int? fyYear, int? fyWeek, string? rdcCd, string? majCat)
+    {
+        Response.ContentType = "text/csv";
+        Response.Headers.Append("Content-Disposition", $"attachment; filename=PurchasePlan_Pivot_{fyYear}_{fyWeek}.csv");
+
+        await using var conn = await SnowflakeCrudHelper.OpenAsync(_sfConnStr);
+
+        var (where, parms) = BuildFilter(fyYear, fyWeek, rdcCd, majCat);
+        var whereStr = string.IsNullOrEmpty(where) ? "" : " WHERE " + where;
+
+        // Step 1: Get distinct weeks
+        var weeks = new List<int>();
+        await using (var cmd1 = conn.CreateCommand())
+        {
+            cmd1.CommandText = $"SELECT DISTINCT NVL(FY_WEEK, 0) AS W FROM PURCHASE_PLAN{whereStr} ORDER BY W";
+            cmd1.CommandTimeout = 120;
+            foreach (var p in parms) cmd1.Parameters.Add(SnowflakeCrudHelper.CloneParam(p));
+            await using var r1 = await cmd1.ExecuteReaderAsync();
+            while (await r1.ReadAsync()) weeks.Add(Convert.ToInt32(r1.GetValue(0)));
         }
 
-        [HttpPost, ValidateAntiForgeryToken]
-        public async Task<IActionResult> ResetPp()
+        if (weeks.Count == 0)
         {
-            try
-            {
-                await _context.Database.ExecuteSqlRawAsync("TRUNCATE TABLE [dbo].[PURCHASE_PLAN]");
-                _logger.LogInformation("PURCHASE_PLAN truncated");
-                TempData["SuccessMessage"] = "Purchase Plan data cleared successfully.";
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "ResetPp error");
-                TempData["ErrorMessage"] = $"Error: {ex.InnerException?.Message ?? ex.Message}";
-            }
-            return RedirectToAction(nameof(Execute));
+            await using var writer0 = new StreamWriter(Response.Body, Encoding.UTF8);
+            await writer0.WriteLineAsync("No data");
+            await writer0.FlushAsync();
+            return new EmptyResult();
         }
 
-        [HttpGet]
-        public async Task<IActionResult> Output(int? fyYear, int? fyWeek, string? rdcCd, string? majCat, int page = 1, int pageSize = 100)
+        var firstWeek = weeks[0];
+
+        // Metrics only for Week 1 (opening week)
+        var week1Only = new HashSet<string> { "DC_STK_Q", "GRT_STK_Q", "S_GRT_STK_Q", "W_GRT_STK_Q", "BIN_CAP_DC_TEAM", "BIN_CAP" };
+
+        // All metrics per week
+        var metricLabels = new[] {
+            "DC_STK_Q","GRT_STK_Q","S_GRT_STK_Q","W_GRT_STK_Q","BIN_CAP_DC_TEAM","BIN_CAP",
+            "BGT_DISP_CL_Q","CW_BGT_SALE_Q","CW1_BGT_SALE_Q","CW2_BGT_SALE_Q","CW3_BGT_SALE_Q","CW4_BGT_SALE_Q","CW5_BGT_SALE_Q",
+            "BGT_ST_OP_MBQ","NET_ST_OP_STK_Q","BGT_DC_OP_STK_Q","PP_NT_ACT_Q","BGT_CF_STK_Q",
+            "TTL_STK","OP_STK","NT_ACT_STK","GRT_CONS_PCT","GRT_CONS_Q","DEL_PEND_Q",
+            "PP_NET_BGT_CF_STK_Q","CW_TRF_OUT_Q","CW1_TRF_OUT_Q","CW2_TRF_OUT_Q","CW3_TRF_OUT_Q","CW4_TRF_OUT_Q","TTL_TRF_OUT_Q",
+            "BGT_ST_CL_MBQ","NET_BGT_ST_CL_STK_Q","NET_SSNL_CL_STK_Q",
+            "BGT_DC_MBQ_SALE","BGT_DC_CL_MBQ","BGT_DC_CL_STK_Q","BGT_PUR_Q_INIT",
+            "POS_PO_RAISED","NEG_PO_RAISED","BGT_CO_CL_STK_Q",
+            "DC_STK_EXCESS_Q","DC_STK_SHORT_Q","ST_STK_EXCESS_Q","ST_STK_SHORT_Q",
+            "CO_STK_EXCESS_Q","CO_STK_SHORT_Q","FRESH_BIN_REQ","GRT_BIN_REQ"
+        };
+
+        await using var writer = new StreamWriter(Response.Body, Encoding.UTF8, 65536);
+
+        // Header
+        var hdr = new StringBuilder();
+        hdr.Append("RDC_CD,RDC_NM,MAJ_CAT,SEG,DIV,SUB_DIV,MAJ_CAT_NM,SSN");
+        foreach (var w in weeks)
+            foreach (var m in metricLabels)
+                if (w == firstWeek || !week1Only.Contains(m))
+                    hdr.Append($",WK-{w}_{m}");
+        await writer.WriteLineAsync(hdr.ToString());
+
+        // Step 2: Stream rows grouped by RDC + MAJ_CAT
+        var sql = $"SELECT {AllSelectCols} FROM PURCHASE_PLAN{whereStr} ORDER BY RDC_CD, MAJ_CAT, FY_WEEK";
+        var (_, parms2) = BuildFilter(fyYear, fyWeek, rdcCd, majCat);
+        await using var cmd2 = conn.CreateCommand();
+        cmd2.CommandText = sql;
+        cmd2.CommandTimeout = 600;
+        foreach (var p in parms2) cmd2.Parameters.Add(SnowflakeCrudHelper.CloneParam(p));
+
+        await using var reader = await cmd2.ExecuteReaderAsync();
+
+        // Build a map of metric column name -> index in reader for quick lookup
+        var metricIdxMap = new Dictionary<string, int>();
+        for (int c = 0; c < reader.FieldCount; c++)
+            metricIdxMap[reader.GetName(c).ToUpper()] = c;
+
+        string? prevKey = null;
+        string[]? idValues = null;
+        var weekData = new Dictionary<int, decimal[]>();
+        int pivotCount = 0;
+
+        while (await reader.ReadAsync())
         {
-            var query = _context.PurchasePlans.AsQueryable();
-            if (fyYear.HasValue) query = query.Where(x => x.FyYear == fyYear);
-            if (fyWeek.HasValue) query = query.Where(x => x.FyWeek == fyWeek);
-            if (!string.IsNullOrEmpty(rdcCd)) { var rdcs = rdcCd.Split(',', StringSplitOptions.RemoveEmptyEntries); query = query.Where(x => rdcs.Contains(x.RdcCd)); }
-            if (!string.IsNullOrEmpty(majCat)) { var cats = majCat.Split(',', StringSplitOptions.RemoveEmptyEntries); query = query.Where(x => cats.Contains(x.MajCat)); }
+            var rdcVal = reader["RDC_CD"]?.ToString() ?? "";
+            var majCatVal = reader["MAJ_CAT"]?.ToString() ?? "";
+            var currentKey = rdcVal + "|" + majCatVal;
+            var week = reader["FY_WEEK"] == DBNull.Value ? 0 : Convert.ToInt32(reader["FY_WEEK"]);
 
-            ViewBag.TotalCount = await query.CountAsync();
-            ViewBag.Page = page;
-            ViewBag.PageSize = pageSize;
-            ViewBag.FyYear = fyYear;
-            ViewBag.FyWeek = fyWeek;
-            ViewBag.RdcCd = rdcCd;
-            ViewBag.MajCat = majCat;
-            ViewBag.Categories = await _context.PurchasePlans.Select(x => x.MajCat).Distinct().OrderBy(x => x).ToListAsync();
-            ViewBag.RdcCodes = await _context.PurchasePlans.Select(x => x.RdcCd).Distinct().OrderBy(x => x).ToListAsync();
-
-            var data = await query.OrderBy(x => x.RdcCd).ThenBy(x => x.MajCat)
-                .Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();
-            _logger.LogInformation("PurchasePlan Output: {Count} rows returned", data.Count);
-            return View(data);
-        }
-
-        [HttpGet]
-        public async Task<IActionResult> ExportCsv(int? fyYear, int? fyWeek, string? rdcCd, string? majCat)
-        {
-            var query = _context.PurchasePlans.AsQueryable();
-            if (fyYear.HasValue) query = query.Where(x => x.FyYear == fyYear);
-            if (fyWeek.HasValue) query = query.Where(x => x.FyWeek == fyWeek);
-            if (!string.IsNullOrEmpty(rdcCd)) { var rdcs = rdcCd.Split(',', StringSplitOptions.RemoveEmptyEntries); query = query.Where(x => rdcs.Contains(x.RdcCd)); }
-            if (!string.IsNullOrEmpty(majCat)) { var cats = majCat.Split(',', StringSplitOptions.RemoveEmptyEntries); query = query.Where(x => cats.Contains(x.MajCat)); }
-
-            var data = await query.OrderBy(x => x.RdcCd).ThenBy(x => x.MajCat).ToListAsync();
-            _logger.LogInformation("PurchasePlan ExportCsv: {Count} rows exported", data.Count);
-
-            var sb = new StringBuilder();
-            sb.AppendLine("RdcCd,RdcNm,MajCat,Seg,Div,SubDiv,MajCatNm,Ssn,FyYear,FyWeek,DcStkQ,GrtStkQ,SGrtStkQ,WGrtStkQ,BinCapDcTeam,BinCap,BgtDispClQ,CwBgtSaleQ,Cw1BgtSaleQ,Cw2BgtSaleQ,Cw3BgtSaleQ,Cw4BgtSaleQ,Cw5BgtSaleQ,BgtStOpMbq,NetStOpStkQ,BgtDcOpStkQ,PpNtActQ,BgtCfStkQ,TtlStk,OpStk,NtActStk,GrtConsPct,GrtConsQ,DelPendQ,PpNetBgtCfStkQ,CwTrfOutQ,Cw1TrfOutQ,Cw2TrfOutQ,Cw3TrfOutQ,Cw4TrfOutQ,TtlTrfOutQ,BgtStClMbq,NetBgtStClStkQ,NetSsnlClStkQ,BgtDcMbqSale,BgtDcClMbq,BgtDcClStkQ,BgtPurQInit,PosPORaised,NegPORaised,BgtCoClStkQ,DcStkExcessQ,DcStkShortQ,StStkExcessQ,StStkShortQ,CoStkExcessQ,CoStkShortQ,FreshBinReq,GrtBinReq");
-            foreach (var r in data)
+            if (currentKey != prevKey)
             {
-                sb.AppendLine(string.Join(",",
-                    Q(r.RdcCd), Q(r.RdcNm ?? "NA"), Q(r.MajCat),
-                    Q(r.Seg ?? "NA"), Q(r.Div ?? "NA"), Q(r.SubDiv ?? "NA"), Q(r.MajCatNm ?? "NA"), Q(r.Ssn ?? "NA"),
-                    r.FyYear, r.FyWeek,
-                    r.DcStkQ ?? 0, r.GrtStkQ ?? 0, r.SGrtStkQ ?? 0, r.WGrtStkQ ?? 0, r.BinCapDcTeam ?? 0, r.BinCap ?? 0,
-                    r.BgtDispClQ ?? 0, r.CwBgtSaleQ ?? 0, r.Cw1BgtSaleQ ?? 0, r.Cw2BgtSaleQ ?? 0, r.Cw3BgtSaleQ ?? 0, r.Cw4BgtSaleQ ?? 0, r.Cw5BgtSaleQ ?? 0,
-                    r.BgtStOpMbq ?? 0, r.NetStOpStkQ ?? 0, r.BgtDcOpStkQ ?? 0, r.PpNtActQ ?? 0, r.BgtCfStkQ ?? 0,
-                    r.TtlStk ?? 0, r.OpStk ?? 0, r.NtActStk ?? 0, r.GrtConsPct ?? 0, r.GrtConsQ ?? 0, r.DelPendQ ?? 0,
-                    r.PpNetBgtCfStkQ ?? 0, r.CwTrfOutQ ?? 0, r.Cw1TrfOutQ ?? 0, r.Cw2TrfOutQ ?? 0, r.Cw3TrfOutQ ?? 0, r.Cw4TrfOutQ ?? 0, r.TtlTrfOutQ ?? 0,
-                    r.BgtStClMbq ?? 0, r.NetBgtStClStkQ ?? 0, r.NetSsnlClStkQ ?? 0,
-                    r.BgtDcMbqSale ?? 0, r.BgtDcClMbq ?? 0, r.BgtDcClStkQ ?? 0, r.BgtPurQInit ?? 0,
-                    r.PosPORaised ?? 0, r.NegPORaised ?? 0, r.BgtCoClStkQ ?? 0,
-                    r.DcStkExcessQ ?? 0, r.DcStkShortQ ?? 0, r.StStkExcessQ ?? 0, r.StStkShortQ ?? 0,
-                    r.CoStkExcessQ ?? 0, r.CoStkShortQ ?? 0, r.FreshBinReq ?? 0, r.GrtBinReq ?? 0));
-            }
-
-            var bytes = Encoding.UTF8.GetBytes(sb.ToString());
-            return File(bytes, "text/csv", $"PurchasePlan_{fyYear}_{fyWeek}.csv");
-        }
-
-        [HttpGet]
-        public async Task<IActionResult> ExportPivotCsv(int? fyYear, int? fyWeek, string? rdcCd, string? majCat)
-        {
-            var query = _context.PurchasePlans.AsQueryable();
-            if (fyYear.HasValue) query = query.Where(x => x.FyYear == fyYear);
-            if (fyWeek.HasValue) query = query.Where(x => x.FyWeek == fyWeek);
-            if (!string.IsNullOrEmpty(rdcCd)) { var rdcs = rdcCd.Split(',', StringSplitOptions.RemoveEmptyEntries); query = query.Where(x => rdcs.Contains(x.RdcCd)); }
-            if (!string.IsNullOrEmpty(majCat)) { var cats = majCat.Split(',', StringSplitOptions.RemoveEmptyEntries); query = query.Where(x => cats.Contains(x.MajCat)); }
-
-            var data = await query.OrderBy(x => x.RdcCd).ThenBy(x => x.MajCat).ThenBy(x => x.FyWeek).ToListAsync();
-            _logger.LogInformation("PurchasePlan ExportPivotCsv: {Count} rows pivoted", data.Count);
-
-            var weeks = data.Select(x => x.FyWeek ?? 0).Distinct().OrderBy(w => w).ToList();
-
-            // Metrics only for Week 1 (opening week)
-            var week1Only = new HashSet<string> { "DC_STK_Q", "GRT_STK_Q", "S_GRT_STK_Q", "W_GRT_STK_Q", "BIN_CAP_DC_TEAM", "BIN_CAP" };
-            var firstWeek = weeks.First();
-
-            // All metrics per week (week-first: WK-1 all cols, WK-2 all cols, ...)
-            var metrics = new (string Label, Func<PurchasePlan, decimal?>)[] {
-                ("DC_STK_Q", r => r.DcStkQ),
-                ("GRT_STK_Q", r => r.GrtStkQ),
-                ("S_GRT_STK_Q", r => r.SGrtStkQ),
-                ("W_GRT_STK_Q", r => r.WGrtStkQ),
-                ("BIN_CAP_DC_TEAM", r => r.BinCapDcTeam),
-                ("BIN_CAP", r => r.BinCap),
-                ("BGT_DISP_CL_Q", r => r.BgtDispClQ),
-                ("CW_BGT_SALE_Q", r => r.CwBgtSaleQ),
-                ("CW1_BGT_SALE_Q", r => r.Cw1BgtSaleQ),
-                ("CW2_BGT_SALE_Q", r => r.Cw2BgtSaleQ),
-                ("CW3_BGT_SALE_Q", r => r.Cw3BgtSaleQ),
-                ("CW4_BGT_SALE_Q", r => r.Cw4BgtSaleQ),
-                ("CW5_BGT_SALE_Q", r => r.Cw5BgtSaleQ),
-                ("BGT_ST_OP_MBQ", r => r.BgtStOpMbq),
-                ("NET_ST_OP_STK_Q", r => r.NetStOpStkQ),
-                ("BGT_DC_OP_STK_Q", r => r.BgtDcOpStkQ),
-                ("PP_NT_ACT_Q", r => r.PpNtActQ),
-                ("BGT_CF_STK_Q", r => r.BgtCfStkQ),
-                ("TTL_STK", r => r.TtlStk),
-                ("OP_STK", r => r.OpStk),
-                ("NT_ACT_STK", r => r.NtActStk),
-                ("GRT_CONS_PCT", r => r.GrtConsPct),
-                ("GRT_CONS_Q", r => r.GrtConsQ),
-                ("DEL_PEND_Q", r => r.DelPendQ),
-                ("PP_NET_BGT_CF_STK_Q", r => r.PpNetBgtCfStkQ),
-                ("CW_TRF_OUT_Q", r => r.CwTrfOutQ),
-                ("CW1_TRF_OUT_Q", r => r.Cw1TrfOutQ),
-                ("CW2_TRF_OUT_Q", r => r.Cw2TrfOutQ),
-                ("CW3_TRF_OUT_Q", r => r.Cw3TrfOutQ),
-                ("CW4_TRF_OUT_Q", r => r.Cw4TrfOutQ),
-                ("TTL_TRF_OUT_Q", r => r.TtlTrfOutQ),
-                ("BGT_ST_CL_MBQ", r => r.BgtStClMbq),
-                ("NET_BGT_ST_CL_STK_Q", r => r.NetBgtStClStkQ),
-                ("NET_SSNL_CL_STK_Q", r => r.NetSsnlClStkQ),
-                ("BGT_DC_MBQ_SALE", r => r.BgtDcMbqSale),
-                ("BGT_DC_CL_MBQ", r => r.BgtDcClMbq),
-                ("BGT_DC_CL_STK_Q", r => r.BgtDcClStkQ),
-                ("BGT_PUR_Q_INIT", r => r.BgtPurQInit),
-                ("POS_PO_RAISED", r => r.PosPORaised),
-                ("NEG_PO_RAISED", r => r.NegPORaised),
-                ("BGT_CO_CL_STK_Q", r => r.BgtCoClStkQ),
-                ("DC_STK_EXCESS_Q", r => r.DcStkExcessQ),
-                ("DC_STK_SHORT_Q", r => r.DcStkShortQ),
-                ("ST_STK_EXCESS_Q", r => r.StStkExcessQ),
-                ("ST_STK_SHORT_Q", r => r.StStkShortQ),
-                ("CO_STK_EXCESS_Q", r => r.CoStkExcessQ),
-                ("CO_STK_SHORT_Q", r => r.CoStkShortQ),
-                ("FRESH_BIN_REQ", r => r.FreshBinReq),
-                ("GRT_BIN_REQ", r => r.GrtBinReq)
-            };
-
-            var sb = new StringBuilder();
-
-            // Header: identifiers + WK-n_METRIC (skip week1-only columns for weeks 2+)
-            sb.Append("RDC_CD,RDC_NM,MAJ_CAT,SEG,DIV,SUB_DIV,MAJ_CAT_NM,SSN");
-            foreach (var w in weeks)
-                foreach (var m in metrics)
-                    if (w == firstWeek || !week1Only.Contains(m.Label))
-                        sb.Append($",WK-{w}_{m.Label}");
-            sb.AppendLine();
-
-            // Group by RDC + category
-            var groups = data.GroupBy(x => new { x.RdcCd, x.RdcNm, x.MajCat, x.Seg, x.Div, x.SubDiv, x.MajCatNm, x.Ssn });
-
-            foreach (var g in groups)
-            {
-                var k = g.Key;
-                sb.Append(string.Join(",", Q(k.RdcCd), Q(k.RdcNm), Q(k.MajCat),
-                    Q(k.Seg ?? "NA"), Q(k.Div ?? "NA"), Q(k.SubDiv ?? "NA"), Q(k.MajCatNm ?? "NA"), Q(k.Ssn ?? "NA")));
-
-                var byWeek = g.GroupBy(x => x.FyWeek ?? 0).ToDictionary(x => x.Key, x => x.First());
-                for (int wi = 0; wi < weeks.Count; wi++)
+                if (prevKey != null && idValues != null)
                 {
-                    var w = weeks[wi];
-                    byWeek.TryGetValue(w, out var r);
-                    // Chain: WK-2+ OP_STK = previous week NET_SSNL_CL_STK_Q
-                    PurchasePlan? prevR = null;
-                    if (wi > 0) byWeek.TryGetValue(weeks[wi - 1], out prevR);
-                    foreach (var m in metrics)
-                    {
-                        if (w != firstWeek && week1Only.Contains(m.Label)) continue;
-                        decimal val = 0;
-                        if (r != null)
-                        {
-                            // For OP_STK in week 2+, use previous week's NET_SSNL_CL_STK_Q
-                            if (m.Label == "OP_STK" && wi > 0 && prevR != null)
-                                val = prevR.NetSsnlClStkQ ?? 0;
-                            else
-                                val = m.Item2(r) ?? 0;
-                        }
-                        sb.Append($",{val}");
-                    }
+                    WritePpPivotRow(writer, idValues, weeks, firstWeek, weekData, metricLabels, week1Only);
+                    pivotCount++;
+                    if (pivotCount % 10000 == 0) await writer.FlushAsync();
                 }
-                sb.AppendLine();
+                idValues = new[] {
+                    Q(rdcVal), Q(reader["RDC_NM"]?.ToString()), Q(majCatVal),
+                    Q(reader["SEG"]?.ToString() ?? "NA"), Q(reader["DIV"]?.ToString() ?? "NA"),
+                    Q(reader["SUB_DIV"]?.ToString() ?? "NA"), Q(reader["MAJ_CAT_NM"]?.ToString() ?? "NA"),
+                    Q(reader["SSN"]?.ToString() ?? "NA")
+                };
+                weekData.Clear();
+                prevKey = currentKey;
             }
 
-            return File(Encoding.UTF8.GetBytes(sb.ToString()), "text/csv", $"PurchasePlan_Pivot_{fyYear}_{fyWeek}.csv");
+            var vals = new decimal[metricLabels.Length];
+            for (int i = 0; i < metricLabels.Length; i++)
+            {
+                if (metricIdxMap.TryGetValue(metricLabels[i], out var colIdx))
+                    vals[i] = reader.IsDBNull(colIdx) ? 0m : Convert.ToDecimal(reader.GetValue(colIdx));
+            }
+            weekData[week] = vals;
         }
 
-        private static string Q(string? s)
+        if (prevKey != null && idValues != null)
+            WritePpPivotRow(writer, idValues, weeks, firstWeek, weekData, metricLabels, week1Only);
+
+        await writer.FlushAsync();
+        _logger.LogInformation("PurchasePlan ExportPivotCsv: {Count:N0} pivot rows, {Metrics} metrics x {Weeks} weeks", pivotCount + 1, metricLabels.Length, weeks.Count);
+        return new EmptyResult();
+    }
+
+    private static void WritePpPivotRow(StreamWriter writer, string[] idValues, List<int> weeks, int firstWeek,
+        Dictionary<int, decimal[]> weekData, string[] metricLabels, HashSet<string> week1Only)
+    {
+        var sb = new StringBuilder(2048);
+        sb.Append(string.Join(",", idValues));
+        foreach (var w in weeks)
         {
-            if (string.IsNullOrEmpty(s)) return "";
-            return "\"" + s.Replace("\"", "\"\"") + "\"";
+            var hasData = weekData.TryGetValue(w, out var vals);
+            for (int i = 0; i < metricLabels.Length; i++)
+            {
+                if (w != firstWeek && week1Only.Contains(metricLabels[i])) continue;
+                sb.Append(',').Append(hasData ? vals![i] : 0);
+            }
         }
+        writer.WriteLine(sb.ToString());
+    }
+
+    // ── Helpers ───────────────────────────────────────────────────
+
+    private static readonly string AllSelectCols =
+        "RDC_CD, RDC_NM, MAJ_CAT, SEG, DIV, SUB_DIV, MAJ_CAT_NM, SSN, FY_YEAR, FY_WEEK, " +
+        "DC_STK_Q, GRT_STK_Q, S_GRT_STK_Q, W_GRT_STK_Q, BIN_CAP_DC_TEAM, BIN_CAP, " +
+        "BGT_DISP_CL_Q, CW_BGT_SALE_Q, CW1_BGT_SALE_Q, CW2_BGT_SALE_Q, CW3_BGT_SALE_Q, CW4_BGT_SALE_Q, CW5_BGT_SALE_Q, " +
+        "BGT_ST_OP_MBQ, NET_ST_OP_STK_Q, BGT_DC_OP_STK_Q, PP_NT_ACT_Q, BGT_CF_STK_Q, " +
+        "TTL_STK, OP_STK, NT_ACT_STK, GRT_CONS_PCT, GRT_CONS_Q, DEL_PEND_Q, " +
+        "PP_NET_BGT_CF_STK_Q, CW_TRF_OUT_Q, CW1_TRF_OUT_Q, CW2_TRF_OUT_Q, CW3_TRF_OUT_Q, CW4_TRF_OUT_Q, TTL_TRF_OUT_Q, " +
+        "BGT_ST_CL_MBQ, NET_BGT_ST_CL_STK_Q, NET_SSNL_CL_STK_Q, " +
+        "BGT_DC_MBQ_SALE, BGT_DC_CL_MBQ, BGT_DC_CL_STK_Q, BGT_PUR_Q_INIT, " +
+        "POS_PO_RAISED, NEG_PO_RAISED, BGT_CO_CL_STK_Q, " +
+        "DC_STK_EXCESS_Q, DC_STK_SHORT_Q, ST_STK_EXCESS_Q, ST_STK_SHORT_Q, " +
+        "CO_STK_EXCESS_Q, CO_STK_SHORT_Q, FRESH_BIN_REQ, GRT_BIN_REQ";
+
+    private (string? where, List<SnowflakeDbParameter> parms) BuildFilter(
+        int? fyYear, int? fyWeek, string? rdcCd, string? majCat)
+    {
+        var conditions = new List<string>();
+        var parms = new List<SnowflakeDbParameter>();
+        int idx = 0;
+        if (fyYear.HasValue) { idx++; conditions.Add("FY_YEAR = ?"); parms.Add(SnowflakeCrudHelper.Param(idx.ToString(), fyYear.Value, DbType.Int32)); }
+        if (fyWeek.HasValue) { idx++; conditions.Add("FY_WEEK = ?"); parms.Add(SnowflakeCrudHelper.Param(idx.ToString(), fyWeek.Value, DbType.Int32)); }
+        if (!string.IsNullOrEmpty(rdcCd))
+        {
+            var rdcs = rdcCd.Split(',', StringSplitOptions.RemoveEmptyEntries);
+            if (rdcs.Length == 1) { idx++; conditions.Add("RDC_CD = ?"); parms.Add(SnowflakeCrudHelper.Param(idx.ToString(), rdcs[0].Trim())); }
+            else
+            {
+                var inList = string.Join(",", rdcs.Select(r => { idx++; parms.Add(SnowflakeCrudHelper.Param(idx.ToString(), r.Trim())); return "?"; }));
+                conditions.Add($"RDC_CD IN ({inList})");
+            }
+        }
+        if (!string.IsNullOrEmpty(majCat))
+        {
+            var cats = majCat.Split(',', StringSplitOptions.RemoveEmptyEntries);
+            if (cats.Length == 1) { idx++; conditions.Add("MAJ_CAT = ?"); parms.Add(SnowflakeCrudHelper.Param(idx.ToString(), cats[0].Trim())); }
+            else
+            {
+                var inList = string.Join(",", cats.Select(c => { idx++; parms.Add(SnowflakeCrudHelper.Param(idx.ToString(), c.Trim())); return "?"; }));
+                conditions.Add($"MAJ_CAT IN ({inList})");
+            }
+        }
+        return (conditions.Count > 0 ? string.Join(" AND ", conditions) : null, parms);
+    }
+
+    private static string Q(string? s)
+    {
+        if (string.IsNullOrEmpty(s)) return "";
+        if (s.Contains(',') || s.Contains('"') || s.Contains('\n'))
+            return "\"" + s.Replace("\"", "\"\"") + "\"";
+        return s;
+    }
+
+    private static async Task<List<WeekCalendar>> LoadWeekCalendars(SnowflakeDbConnection conn)
+    {
+        var list = new List<WeekCalendar>();
+        await using var cmd = conn.CreateCommand();
+        cmd.CommandText = "SELECT WEEK_ID, WEEK_SEQ, FY_WEEK, FY_YEAR, CAL_YEAR, YEAR_WEEK, WK_ST_DT, WK_END_DT FROM WEEK_CALENDAR ORDER BY WEEK_ID";
+        await using var r = await cmd.ExecuteReaderAsync();
+        while (await r.ReadAsync())
+            list.Add(new WeekCalendar
+            {
+                WeekId = SnowflakeCrudHelper.Int(r, 0),
+                WeekSeq = SnowflakeCrudHelper.Int(r, 1),
+                FyWeek = SnowflakeCrudHelper.Int(r, 2),
+                FyYear = SnowflakeCrudHelper.Int(r, 3),
+                CalYear = SnowflakeCrudHelper.Int(r, 4),
+                YearWeek = SnowflakeCrudHelper.StrNull(r, 5),
+                WkStDt = SnowflakeCrudHelper.DateNull(r, 6),
+                WkEndDt = SnowflakeCrudHelper.DateNull(r, 7)
+            });
+        return list;
+    }
+
+    private static PurchasePlan MapPurchasePlan(IDataReader r)
+    {
+        return new PurchasePlan
+        {
+            RdcCd = SnowflakeCrudHelper.StrNull(r, 0),
+            RdcNm = SnowflakeCrudHelper.StrNull(r, 1),
+            MajCat = SnowflakeCrudHelper.StrNull(r, 2),
+            Seg = SnowflakeCrudHelper.StrNull(r, 3),
+            Div = SnowflakeCrudHelper.StrNull(r, 4),
+            SubDiv = SnowflakeCrudHelper.StrNull(r, 5),
+            MajCatNm = SnowflakeCrudHelper.StrNull(r, 6),
+            Ssn = SnowflakeCrudHelper.StrNull(r, 7),
+            FyYear = SnowflakeCrudHelper.IntNull(r, 8),
+            FyWeek = SnowflakeCrudHelper.IntNull(r, 9),
+            DcStkQ = SnowflakeCrudHelper.DecNull(r, 10),
+            GrtStkQ = SnowflakeCrudHelper.DecNull(r, 11),
+            SGrtStkQ = SnowflakeCrudHelper.DecNull(r, 12),
+            WGrtStkQ = SnowflakeCrudHelper.DecNull(r, 13),
+            BinCapDcTeam = SnowflakeCrudHelper.DecNull(r, 14),
+            BinCap = SnowflakeCrudHelper.DecNull(r, 15),
+            BgtDispClQ = SnowflakeCrudHelper.DecNull(r, 16),
+            CwBgtSaleQ = SnowflakeCrudHelper.DecNull(r, 17),
+            Cw1BgtSaleQ = SnowflakeCrudHelper.DecNull(r, 18),
+            Cw2BgtSaleQ = SnowflakeCrudHelper.DecNull(r, 19),
+            Cw3BgtSaleQ = SnowflakeCrudHelper.DecNull(r, 20),
+            Cw4BgtSaleQ = SnowflakeCrudHelper.DecNull(r, 21),
+            Cw5BgtSaleQ = SnowflakeCrudHelper.DecNull(r, 22),
+            BgtStOpMbq = SnowflakeCrudHelper.DecNull(r, 23),
+            NetStOpStkQ = SnowflakeCrudHelper.DecNull(r, 24),
+            BgtDcOpStkQ = SnowflakeCrudHelper.DecNull(r, 25),
+            PpNtActQ = SnowflakeCrudHelper.DecNull(r, 26),
+            BgtCfStkQ = SnowflakeCrudHelper.DecNull(r, 27),
+            TtlStk = SnowflakeCrudHelper.DecNull(r, 28),
+            OpStk = SnowflakeCrudHelper.DecNull(r, 29),
+            NtActStk = SnowflakeCrudHelper.DecNull(r, 30),
+            GrtConsPct = SnowflakeCrudHelper.DecNull(r, 31),
+            GrtConsQ = SnowflakeCrudHelper.DecNull(r, 32),
+            DelPendQ = SnowflakeCrudHelper.DecNull(r, 33),
+            PpNetBgtCfStkQ = SnowflakeCrudHelper.DecNull(r, 34),
+            CwTrfOutQ = SnowflakeCrudHelper.DecNull(r, 35),
+            Cw1TrfOutQ = SnowflakeCrudHelper.DecNull(r, 36),
+            Cw2TrfOutQ = SnowflakeCrudHelper.DecNull(r, 37),
+            Cw3TrfOutQ = SnowflakeCrudHelper.DecNull(r, 38),
+            Cw4TrfOutQ = SnowflakeCrudHelper.DecNull(r, 39),
+            TtlTrfOutQ = SnowflakeCrudHelper.DecNull(r, 40),
+            BgtStClMbq = SnowflakeCrudHelper.DecNull(r, 41),
+            NetBgtStClStkQ = SnowflakeCrudHelper.DecNull(r, 42),
+            NetSsnlClStkQ = SnowflakeCrudHelper.DecNull(r, 43),
+            BgtDcMbqSale = SnowflakeCrudHelper.DecNull(r, 44),
+            BgtDcClMbq = SnowflakeCrudHelper.DecNull(r, 45),
+            BgtDcClStkQ = SnowflakeCrudHelper.DecNull(r, 46),
+            BgtPurQInit = SnowflakeCrudHelper.DecNull(r, 47),
+            PosPORaised = SnowflakeCrudHelper.DecNull(r, 48),
+            NegPORaised = SnowflakeCrudHelper.DecNull(r, 49),
+            BgtCoClStkQ = SnowflakeCrudHelper.DecNull(r, 50),
+            DcStkExcessQ = SnowflakeCrudHelper.DecNull(r, 51),
+            DcStkShortQ = SnowflakeCrudHelper.DecNull(r, 52),
+            StStkExcessQ = SnowflakeCrudHelper.DecNull(r, 53),
+            StStkShortQ = SnowflakeCrudHelper.DecNull(r, 54),
+            CoStkExcessQ = SnowflakeCrudHelper.DecNull(r, 55),
+            CoStkShortQ = SnowflakeCrudHelper.DecNull(r, 56),
+            FreshBinReq = SnowflakeCrudHelper.DecNull(r, 57),
+            GrtBinReq = SnowflakeCrudHelper.DecNull(r, 58)
+        };
     }
 }

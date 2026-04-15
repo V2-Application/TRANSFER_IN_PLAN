@@ -1,18 +1,16 @@
-using Microsoft.EntityFrameworkCore;
-using TRANSFER_IN_PLAN.Data;
-using TRANSFER_IN_PLAN.Models;
-using OfficeOpenXml;
+using Snowflake.Data.Client;
+using TRANSFER_IN_PLAN.Helpers;
 
 namespace TRANSFER_IN_PLAN.Services;
 
 public class PlanService
 {
-    private readonly PlanningDbContext _context;
+    private readonly string _sfConnStr;
     private readonly ILogger<PlanService> _logger;
 
-    public PlanService(PlanningDbContext context, ILogger<PlanService> logger)
+    public PlanService(IConfiguration config, ILogger<PlanService> logger)
     {
-        _context = context;
+        _sfConnStr = config.GetConnectionString("Snowflake")!;
         _logger = logger;
     }
 
@@ -23,200 +21,27 @@ public class PlanService
         try
         {
             var startTime = DateTime.UtcNow;
+            var sc = string.IsNullOrEmpty(storeCode) ? "NULL" : $"'{storeCode}'";
+            var mc = string.IsNullOrEmpty(majCat) ? "NULL" : $"'{majCat}'";
 
-            var sql = "EXEC SP_GENERATE_TRF_IN_PLAN " +
-                $"@StartWeekID={startWeekId}, " +
-                $"@EndWeekID={endWeekId}, " +
-                $"@StoreCode={(string.IsNullOrEmpty(storeCode) ? "NULL" : $"'{storeCode}'")}, " +
-                $"@MajCat={(string.IsNullOrEmpty(majCat) ? "NULL" : $"'{majCat}'")}, " +
-                $"@CoverDaysCM1={coverDaysCm1}, " +
-                $"@CoverDaysCM2={coverDaysCm2}";
+            await using var conn = await SnowflakeCrudHelper.OpenAsync(_sfConnStr);
+            await using var cmd = conn.CreateCommand();
+            cmd.CommandText = $"CALL SF_SP_GENERATE_TRF_IN_PLAN({startWeekId}, {endWeekId}, {sc}, {mc}, {coverDaysCm1}, {coverDaysCm2})";
+            cmd.CommandTimeout = 3600;
+            await cmd.ExecuteNonQueryAsync();
 
-            var rowsInserted = await _context.Database.ExecuteSqlRawAsync(sql);
+            // Get row count
+            var rowsInserted = await SnowflakeCrudHelper.CountAsync(conn, "TRF_IN_PLAN",
+                $"WEEK_ID BETWEEN {startWeekId} AND {endWeekId}" +
+                (string.IsNullOrEmpty(storeCode) ? "" : $" AND ST_CD = '{storeCode}'") +
+                (string.IsNullOrEmpty(majCat) ? "" : $" AND MAJ_CAT = '{majCat}'"));
 
-            var executionTime = DateTime.UtcNow;
-
-            _logger.LogInformation($"SP_GENERATE_TRF_IN_PLAN executed successfully. Rows inserted: {rowsInserted}");
-
-            return (rowsInserted, executionTime);
+            _logger.LogInformation("SF_SP_GENERATE_TRF_IN_PLAN executed. Rows: {Rows}", rowsInserted);
+            return (rowsInserted, DateTime.UtcNow);
         }
         catch (Exception ex)
         {
-            _logger.LogError($"Error executing SP_GENERATE_TRF_IN_PLAN: {ex.Message}");
-            throw;
-        }
-    }
-
-    public async Task<DashboardViewModel> GetDashboardData()
-    {
-        try
-        {
-            var plans = await _context.TrfInPlans.ToListAsync();
-
-            var model = new DashboardViewModel
-            {
-                TotalStores = plans.Select(p => p.StCd).Distinct().Count(),
-                TotalCategories = plans.Select(p => p.MajCat).Distinct().Count(),
-                TotalPlanRows = plans.Count,
-                LastExecutionDate = plans.Max(p => p.CreatedDt),
-                WeeklySummary = plans
-                    .GroupBy(p => new { p.FyWeek, p.FyYear })
-                    .Select(g => new WeeklySummary
-                    {
-                        FyWeek = g.Key.FyWeek ?? 0,
-                        FyYear = g.Key.FyYear ?? 0,
-                        TotalTrfInQty = g.Sum(p => p.TrfInStkQ ?? 0),
-                        RowCount = g.Count()
-                    })
-                    .OrderBy(w => w.FyYear)
-                    .ThenBy(w => w.FyWeek)
-                    .ToList(),
-                CategorySummary = plans
-                    .GroupBy(p => p.MajCat)
-                    .Select(g => new CategorySummary
-                    {
-                        MajCat = g.Key,
-                        TotalTrfInQty = g.Sum(p => p.TrfInStkQ ?? 0),
-                        RowCount = g.Count()
-                    })
-                    .OrderBy(c => c.MajCat)
-                    .ToList(),
-                TopShortStores = plans
-                    .OrderByDescending(p => p.StClShortQ ?? 0)
-                    .Take(10)
-                    .Select(p => new StoreMetric
-                    {
-                        StCd = p.StCd,
-                        StNm = p.StNm,
-                        MajCat = p.MajCat,
-                        Quantity = p.StClShortQ ?? 0
-                    })
-                    .ToList(),
-                TopExcessStores = plans
-                    .OrderByDescending(p => p.StClExcessQ ?? 0)
-                    .Take(10)
-                    .Select(p => new StoreMetric
-                    {
-                        StCd = p.StCd,
-                        StNm = p.StNm,
-                        MajCat = p.MajCat,
-                        Quantity = p.StClExcessQ ?? 0
-                    })
-                    .ToList()
-            };
-
-            return model;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError($"Error getting dashboard data: {ex.Message}");
-            throw;
-        }
-    }
-
-    public async Task<byte[]> ExportToExcel(int? startWeekId = null, int? endWeekId = null,
-        string? storeCode = null, string? majCat = null)
-    {
-        try
-        {
-            ExcelPackage.LicenseContext = LicenseContext.NonCommercial;
-
-            var query = _context.TrfInPlans.AsQueryable();
-
-            if (startWeekId.HasValue)
-                query = query.Where(p => p.WeekId >= startWeekId);
-
-            if (endWeekId.HasValue)
-                query = query.Where(p => p.WeekId <= endWeekId);
-
-            if (!string.IsNullOrEmpty(storeCode))
-                query = query.Where(p => p.StCd == storeCode);
-
-            if (!string.IsNullOrEmpty(majCat))
-                query = query.Where(p => p.MajCat == majCat);
-
-            var plans = await query.OrderBy(p => p.StCd).ThenBy(p => p.MajCat).ToListAsync();
-
-            using (var package = new ExcelPackage())
-            {
-                var worksheet = package.Workbook.Worksheets.Add("Transfer In Plan");
-
-                // Headers
-                worksheet.Cells[1, 1].Value = "Store Code";
-                worksheet.Cells[1, 2].Value = "Store Name";
-                worksheet.Cells[1, 3].Value = "RDC Code";
-                worksheet.Cells[1, 4].Value = "RDC Name";
-                worksheet.Cells[1, 5].Value = "Hub Code";
-                worksheet.Cells[1, 6].Value = "Hub Name";
-                worksheet.Cells[1, 7].Value = "Area";
-                worksheet.Cells[1, 8].Value = "Major Category";
-                worksheet.Cells[1, 9].Value = "SEG";
-                worksheet.Cells[1, 10].Value = "DIV";
-                worksheet.Cells[1, 11].Value = "SUB DIV";
-                worksheet.Cells[1, 12].Value = "MAJ CAT NM";
-                worksheet.Cells[1, 13].Value = "Week Start";
-                worksheet.Cells[1, 14].Value = "Week End";
-                worksheet.Cells[1, 15].Value = "FY Year";
-                worksheet.Cells[1, 16].Value = "FY Week";
-                worksheet.Cells[1, 17].Value = "Transfer In Stock Qty";
-                worksheet.Cells[1, 18].Value = "Transfer In Opt Count";
-                worksheet.Cells[1, 19].Value = "Transfer In Opt MBQ";
-                worksheet.Cells[1, 20].Value = "DC MBQ";
-                worksheet.Cells[1, 21].Value = "Store Close Excess Qty";
-                worksheet.Cells[1, 22].Value = "Store Close Short Qty";
-                worksheet.Cells[1, 23].Value = "Created Date";
-                worksheet.Cells[1, 24].Value = "Created By";
-
-                // Format header
-                var headerRange = worksheet.Cells[1, 1, 1, 24];
-                headerRange.Style.Font.Bold = true;
-                headerRange.Style.Fill.PatternType = OfficeOpenXml.Style.ExcelFillStyle.Solid;
-                headerRange.Style.Fill.BackgroundColor.SetColor(System.Drawing.Color.LightBlue);
-
-                // Data rows
-                int row = 2;
-                foreach (var plan in plans)
-                {
-                    worksheet.Cells[row, 1].Value = plan.StCd;
-                    worksheet.Cells[row, 2].Value = plan.StNm;
-                    worksheet.Cells[row, 3].Value = plan.RdcCd;
-                    worksheet.Cells[row, 4].Value = plan.RdcNm;
-                    worksheet.Cells[row, 5].Value = plan.HubCd;
-                    worksheet.Cells[row, 6].Value = plan.HubNm;
-                    worksheet.Cells[row, 7].Value = plan.Area;
-                    worksheet.Cells[row, 8].Value = plan.MajCat;
-                    worksheet.Cells[row, 9].Value = plan.Seg ?? "NA";
-                    worksheet.Cells[row, 10].Value = plan.Div ?? "NA";
-                    worksheet.Cells[row, 11].Value = plan.SubDiv ?? "NA";
-                    worksheet.Cells[row, 12].Value = plan.MajCatNm ?? "NA";
-                    worksheet.Cells[row, 13].Value = plan.WkStDt?.ToString("yyyy-MM-dd");
-                    worksheet.Cells[row, 14].Value = plan.WkEndDt?.ToString("yyyy-MM-dd");
-                    worksheet.Cells[row, 15].Value = plan.FyYear;
-                    worksheet.Cells[row, 16].Value = plan.FyWeek;
-                    worksheet.Cells[row, 17].Value = plan.TrfInStkQ;
-                    worksheet.Cells[row, 18].Value = plan.TrfInOptCnt;
-                    worksheet.Cells[row, 19].Value = plan.TrfInOptMbq;
-                    worksheet.Cells[row, 20].Value = plan.DcMbq;
-                    worksheet.Cells[row, 21].Value = plan.StClExcessQ;
-                    worksheet.Cells[row, 22].Value = plan.StClShortQ;
-                    worksheet.Cells[row, 23].Value = plan.CreatedDt?.ToString("yyyy-MM-dd HH:mm:ss");
-                    worksheet.Cells[row, 24].Value = plan.CreatedBy;
-
-                    row++;
-                }
-
-                // Auto-fit columns
-                for (int col = 1; col <= 24; col++)
-                {
-                    worksheet.Column(col).AutoFit();
-                }
-
-                return package.GetAsByteArray();
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError($"Error exporting to Excel: {ex.Message}");
+            _logger.LogError(ex, "Error executing SF_SP_GENERATE_TRF_IN_PLAN");
             throw;
         }
     }
@@ -226,136 +51,22 @@ public class PlanService
     {
         try
         {
-            var startTime = DateTime.UtcNow;
+            var rdc = string.IsNullOrEmpty(rdcCode) ? "NULL" : $"'{rdcCode}'";
+            var mc = string.IsNullOrEmpty(majCat) ? "NULL" : $"'{majCat}'";
 
-            var sql = "EXEC SP_GENERATE_PURCHASE_PLAN " +
-                $"@StartWeekID={startWeekId}, " +
-                $"@EndWeekID={endWeekId}, " +
-                $"@RdcCode={(string.IsNullOrEmpty(rdcCode) ? "NULL" : $"'{rdcCode}'")}, " +
-                $"@MajCat={(string.IsNullOrEmpty(majCat) ? "NULL" : $"'{majCat}'")}";
+            await using var conn = await SnowflakeCrudHelper.OpenAsync(_sfConnStr);
+            await using var cmd = conn.CreateCommand();
+            cmd.CommandText = $"CALL SF_SP_GENERATE_PURCHASE_PLAN({startWeekId}, {endWeekId}, {rdc}, {mc})";
+            cmd.CommandTimeout = 3600;
+            await cmd.ExecuteNonQueryAsync();
 
-            var rowsInserted = await _context.Database.ExecuteSqlRawAsync(sql);
-
-            var executionTime = DateTime.UtcNow;
-
-            _logger.LogInformation($"SP_GENERATE_PURCHASE_PLAN executed successfully. Rows inserted: {rowsInserted}");
-
-            return (rowsInserted, executionTime);
+            var rowsInserted = await SnowflakeCrudHelper.CountAsync(conn, "PURCHASE_PLAN");
+            _logger.LogInformation("SF_SP_GENERATE_PURCHASE_PLAN executed. Rows: {Rows}", rowsInserted);
+            return (rowsInserted, DateTime.UtcNow);
         }
         catch (Exception ex)
         {
-            _logger.LogError($"Error executing SP_GENERATE_PURCHASE_PLAN: {ex.Message}");
-            throw;
-        }
-    }
-
-    public async Task<byte[]> ExportPurchasePlanToExcel(int? startWeekId = null, int? endWeekId = null,
-        string? rdcCode = null, string? majCat = null)
-    {
-        try
-        {
-            ExcelPackage.LicenseContext = LicenseContext.NonCommercial;
-
-            var query = _context.PurchasePlans.AsQueryable();
-
-            if (startWeekId.HasValue)
-                query = query.Where(p => p.WeekId >= startWeekId);
-
-            if (endWeekId.HasValue)
-                query = query.Where(p => p.WeekId <= endWeekId);
-
-            if (!string.IsNullOrEmpty(rdcCode))
-                query = query.Where(p => p.RdcCd == rdcCode);
-
-            if (!string.IsNullOrEmpty(majCat))
-                query = query.Where(p => p.MajCat == majCat);
-
-            var plans = await query.OrderBy(p => p.RdcCd).ThenBy(p => p.MajCat).ToListAsync();
-
-            using (var package = new ExcelPackage())
-            {
-                var worksheet = package.Workbook.Worksheets.Add("Purchase Plan");
-
-                // Headers
-                worksheet.Cells[1, 1].Value = "RDC Code";
-                worksheet.Cells[1, 2].Value = "RDC Name";
-                worksheet.Cells[1, 3].Value = "Major Category";
-                worksheet.Cells[1, 4].Value = "SEG";
-                worksheet.Cells[1, 5].Value = "DIV";
-                worksheet.Cells[1, 6].Value = "SUB DIV";
-                worksheet.Cells[1, 7].Value = "MAJ CAT NM";
-                worksheet.Cells[1, 8].Value = "Week";
-                worksheet.Cells[1, 9].Value = "Week Start";
-                worksheet.Cells[1, 10].Value = "Week End";
-                worksheet.Cells[1, 11].Value = "DC Stock Qty";
-                worksheet.Cells[1, 12].Value = "GRT Stock Qty";
-                worksheet.Cells[1, 13].Value = "BGT Purchase Q";
-                worksheet.Cells[1, 14].Value = "POS PO Raised";
-                worksheet.Cells[1, 15].Value = "NEG PO Raised";
-                worksheet.Cells[1, 16].Value = "CW2 Trf Out Q";
-                worksheet.Cells[1, 17].Value = "CW3 Trf Out Q";
-                worksheet.Cells[1, 18].Value = "CW4 Trf Out Q";
-                worksheet.Cells[1, 19].Value = "DC Stock Excess";
-                worksheet.Cells[1, 20].Value = "DC Stock Short";
-                worksheet.Cells[1, 21].Value = "Store Stock Excess";
-                worksheet.Cells[1, 22].Value = "Store Stock Short";
-                worksheet.Cells[1, 23].Value = "CO Stock Excess";
-                worksheet.Cells[1, 24].Value = "CO Stock Short";
-                worksheet.Cells[1, 25].Value = "Created Date";
-                worksheet.Cells[1, 26].Value = "Created By";
-
-                // Format header
-                var headerRange = worksheet.Cells[1, 1, 1, 26];
-                headerRange.Style.Font.Bold = true;
-                headerRange.Style.Fill.PatternType = OfficeOpenXml.Style.ExcelFillStyle.Solid;
-                headerRange.Style.Fill.BackgroundColor.SetColor(System.Drawing.Color.LightGreen);
-
-                // Data rows
-                int row = 2;
-                foreach (var plan in plans)
-                {
-                    worksheet.Cells[row, 1].Value = plan.RdcCd;
-                    worksheet.Cells[row, 2].Value = plan.RdcNm;
-                    worksheet.Cells[row, 3].Value = plan.MajCat;
-                    worksheet.Cells[row, 4].Value = plan.Seg ?? "NA";
-                    worksheet.Cells[row, 5].Value = plan.Div ?? "NA";
-                    worksheet.Cells[row, 6].Value = plan.SubDiv ?? "NA";
-                    worksheet.Cells[row, 7].Value = plan.MajCatNm ?? "NA";
-                    worksheet.Cells[row, 8].Value = $"FY{plan.FyYear} W{plan.FyWeek}";
-                    worksheet.Cells[row, 9].Value = plan.WkStDt?.ToString("yyyy-MM-dd");
-                    worksheet.Cells[row, 10].Value = plan.WkEndDt?.ToString("yyyy-MM-dd");
-                    worksheet.Cells[row, 11].Value = plan.DcStkQ;
-                    worksheet.Cells[row, 12].Value = plan.GrtStkQ;
-                    worksheet.Cells[row, 13].Value = plan.BgtPurQInit;
-                    worksheet.Cells[row, 14].Value = plan.PosPORaised;
-                    worksheet.Cells[row, 15].Value = plan.NegPORaised;
-                    worksheet.Cells[row, 16].Value = plan.Cw2TrfOutQ ?? 0;
-                    worksheet.Cells[row, 17].Value = plan.Cw3TrfOutQ ?? 0;
-                    worksheet.Cells[row, 18].Value = plan.Cw4TrfOutQ ?? 0;
-                    worksheet.Cells[row, 19].Value = plan.DcStkExcessQ;
-                    worksheet.Cells[row, 20].Value = plan.DcStkShortQ;
-                    worksheet.Cells[row, 21].Value = plan.StStkExcessQ;
-                    worksheet.Cells[row, 22].Value = plan.StStkShortQ;
-                    worksheet.Cells[row, 23].Value = plan.CoStkExcessQ;
-                    worksheet.Cells[row, 24].Value = plan.CoStkShortQ;
-                    worksheet.Cells[row, 25].Value = plan.CreatedDt?.ToString("yyyy-MM-dd HH:mm:ss");
-                    worksheet.Cells[row, 26].Value = plan.CreatedBy;
-
-                    row++;
-                }
-
-                // Auto-fit columns
-                for (int col = 1; col <= 26; col++)
-                {
-                    worksheet.Column(col).AutoFit();
-                }
-
-                return package.GetAsByteArray();
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError($"Error exporting to Excel: {ex.Message}");
+            _logger.LogError(ex, "Error executing SF_SP_GENERATE_PURCHASE_PLAN");
             throw;
         }
     }

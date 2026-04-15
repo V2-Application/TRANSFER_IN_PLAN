@@ -7,6 +7,8 @@ namespace TRANSFER_IN_PLAN.Models;
 [Table("QTY_SALE_QTY")]
 public class SaleQty
 {
+    [Key] [Column("ID")] public int Id { get; set; }
+
     [Column("ST-CD")]
     [StringLength(50)]
     public string? StCd { get; set; }

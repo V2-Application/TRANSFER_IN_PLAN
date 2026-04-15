@@ -1,37 +1,69 @@
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
+using Snowflake.Data.Client;
+using System.Data;
 using System.Text;
-using TRANSFER_IN_PLAN.Data;
+using TRANSFER_IN_PLAN.Helpers;
 using TRANSFER_IN_PLAN.Models;
 
 namespace TRANSFER_IN_PLAN.Controllers;
 
 public class ContVndController : Controller
 {
-    private readonly PlanningDbContext _context;
-    public ContVndController(PlanningDbContext context) => _context = context;
+    private readonly string _sfConnStr;
+    private readonly ILogger<ContVndController> _logger;
+
+    public ContVndController(IConfiguration config, ILogger<ContVndController> logger)
+    {
+        _sfConnStr = config.GetConnectionString("Snowflake")!;
+        _logger = logger;
+    }
+
+    private static ContVnd ReadRow(IDataReader r) => new()
+    {
+        Id       = SnowflakeCrudHelper.Int(r, 0),
+        StCd     = SnowflakeCrudHelper.Str(r, 1),
+        MajCatCd = SnowflakeCrudHelper.Str(r, 2),
+        MVndCd   = SnowflakeCrudHelper.Str(r, 3),
+        ContPct  = SnowflakeCrudHelper.Dec(r, 4)
+    };
+
+    private const string TABLE = "ST_MAJ_CAT_VND_PLAN";
+    private const string COLS = "ID, ST_CD, MAJ_CAT_CD, M_VND_CD, CONT_PCT";
 
     public async Task<IActionResult> Index(string? stCd, string? majCatCd, string? mVndCd, int page = 1, int pageSize = 100)
     {
-        var query = _context.ContVnds.AsQueryable();
-        if (!string.IsNullOrEmpty(stCd)) query = query.Where(x => x.StCd == stCd);
-        if (!string.IsNullOrEmpty(majCatCd)) query = query.Where(x => x.MajCatCd == majCatCd);
-        if (!string.IsNullOrEmpty(mVndCd)) query = query.Where(x => x.MVndCd == mVndCd);
+        try
+        {
+            await using var conn = await SnowflakeCrudHelper.OpenAsync(_sfConnStr);
 
-        ViewBag.TotalCount = await query.CountAsync();
-        ViewBag.TotalRows = await _context.ContVnds.CountAsync();
-        ViewBag.Page = page; ViewBag.PageSize = pageSize;
-        ViewBag.StCd = stCd; ViewBag.MajCatCd = majCatCd; ViewBag.MVndCd = mVndCd;
-        ViewBag.StoreCodes = await _context.ContVnds.Select(x => x.StCd).Distinct().OrderBy(x => x).ToListAsync();
-        ViewBag.MajCatCodes = await _context.ContVnds.Select(x => x.MajCatCd).Distinct().OrderBy(x => x).ToListAsync();
-        ViewBag.VndValues = await _context.ContVnds.Select(x => x.MVndCd).Distinct().OrderBy(x => x).ToListAsync();
-        ViewBag.TotalStores = await _context.ContVnds.Select(x => x.StCd).Distinct().CountAsync();
-        ViewBag.TotalCats = await _context.ContVnds.Select(x => x.MajCatCd).Distinct().CountAsync();
-        ViewBag.TotalLevels = await _context.ContVnds.Select(x => x.MVndCd).Distinct().CountAsync();
+            var conditions = new List<string>();
+            var parms = new List<SnowflakeDbParameter>();
+            int idx = 0;
+            if (!string.IsNullOrEmpty(stCd)) { idx++; conditions.Add("ST_CD = ?"); parms.Add(SnowflakeCrudHelper.Param(idx.ToString(), stCd)); }
+            if (!string.IsNullOrEmpty(majCatCd)) { idx++; conditions.Add("MAJ_CAT_CD = ?"); parms.Add(SnowflakeCrudHelper.Param(idx.ToString(), majCatCd)); }
+            if (!string.IsNullOrEmpty(mVndCd)) { idx++; conditions.Add("M_VND_CD = ?"); parms.Add(SnowflakeCrudHelper.Param(idx.ToString(), mVndCd)); }
+            string? where = conditions.Count > 0 ? string.Join(" AND ", conditions) : null;
 
-        var data = await query.OrderBy(x => x.StCd).ThenBy(x => x.MajCatCd)
-            .Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();
-        return View(data);
+            ViewBag.TotalCount = await SnowflakeCrudHelper.CountAsync(conn, TABLE, where, parms.Count > 0 ? parms : null);
+            ViewBag.TotalRows = await SnowflakeCrudHelper.CountAsync(conn, TABLE);
+            ViewBag.Page = page; ViewBag.PageSize = pageSize;
+            ViewBag.StCd = stCd; ViewBag.MajCatCd = majCatCd; ViewBag.MVndCd = mVndCd;
+            ViewBag.StoreCodes = await SnowflakeCrudHelper.DistinctAsync(conn, TABLE, "ST_CD");
+            ViewBag.MajCatCodes = await SnowflakeCrudHelper.DistinctAsync(conn, TABLE, "MAJ_CAT_CD");
+            ViewBag.VndValues = await SnowflakeCrudHelper.DistinctAsync(conn, TABLE, "M_VND_CD");
+            ViewBag.TotalStores = ((List<string>)ViewBag.StoreCodes).Count;
+            ViewBag.TotalCats = ((List<string>)ViewBag.MajCatCodes).Count;
+            ViewBag.TotalLevels = ((List<string>)ViewBag.VndValues).Count;
+
+            var data = await SnowflakeCrudHelper.PagedQueryAsync(conn, TABLE, COLS, where, parms.Count > 0 ? parms : null, "ST_CD, MAJ_CAT_CD", page, pageSize, ReadRow);
+            return View(data);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error loading ContVnd");
+            ViewBag.ErrorMessage = "Error loading data: " + ex.Message;
+            return View(new List<ContVnd>());
+        }
     }
 
     public IActionResult Create() => View(new ContVnd());
@@ -40,52 +72,87 @@ public class ContVndController : Controller
     public async Task<IActionResult> Create(ContVnd model)
     {
         if (!ModelState.IsValid) return View(model);
-        _context.ContVnds.Add(model);
-        await _context.SaveChangesAsync();
-        TempData["SuccessMessage"] = "Record added.";
-        return RedirectToAction(nameof(Index));
+        try
+        {
+            await using var conn = await SnowflakeCrudHelper.OpenAsync(_sfConnStr);
+            await SnowflakeCrudHelper.InsertAsync(conn, TABLE,
+                new[] { "ST_CD", "MAJ_CAT_CD", "M_VND_CD", "CONT_PCT" },
+                new object?[] { model.StCd, model.MajCatCd, model.MVndCd, model.ContPct });
+            TempData["SuccessMessage"] = "Record added.";
+            return RedirectToAction(nameof(Index));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error creating ContVnd");
+            ModelState.AddModelError("", "Error: " + ex.Message);
+            return View(model);
+        }
     }
 
     public async Task<IActionResult> Edit(int id)
     {
-        var item = await _context.ContVnds.FindAsync(id);
-        if (item == null) return NotFound();
-        return View(item);
+        await using var conn = await SnowflakeCrudHelper.OpenAsync(_sfConnStr);
+        var item = await SnowflakeCrudHelper.FindByIdAsync(conn, TABLE, COLS, id, ReadRow);
+        return item == null ? NotFound() : View(item);
     }
 
     [HttpPost, ValidateAntiForgeryToken]
     public async Task<IActionResult> Edit(ContVnd model)
     {
         if (!ModelState.IsValid) return View(model);
-        _context.Update(model);
-        await _context.SaveChangesAsync();
-        TempData["SuccessMessage"] = "Record updated.";
-        return RedirectToAction(nameof(Index));
+        try
+        {
+            await using var conn = await SnowflakeCrudHelper.OpenAsync(_sfConnStr);
+            await SnowflakeCrudHelper.UpdateAsync(conn, TABLE,
+                new[] { "ST_CD", "MAJ_CAT_CD", "M_VND_CD", "CONT_PCT" },
+                new object?[] { model.StCd, model.MajCatCd, model.MVndCd, model.ContPct }, model.Id);
+            TempData["SuccessMessage"] = "Record updated.";
+            return RedirectToAction(nameof(Index));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error updating ContVnd");
+            ModelState.AddModelError("", "Error: " + ex.Message);
+            return View(model);
+        }
     }
 
     public async Task<IActionResult> Delete(int id)
     {
-        var item = await _context.ContVnds.FindAsync(id);
-        if (item == null) return NotFound();
-        return View(item);
+        await using var conn = await SnowflakeCrudHelper.OpenAsync(_sfConnStr);
+        var item = await SnowflakeCrudHelper.FindByIdAsync(conn, TABLE, COLS, id, ReadRow);
+        return item == null ? NotFound() : View(item);
     }
 
     [HttpPost, ActionName("Delete"), ValidateAntiForgeryToken]
     public async Task<IActionResult> DeleteConfirmed(int id)
     {
-        var item = await _context.ContVnds.FindAsync(id);
-        if (item != null) { _context.ContVnds.Remove(item); await _context.SaveChangesAsync(); }
-        TempData["SuccessMessage"] = "Record deleted.";
+        try
+        {
+            await using var conn = await SnowflakeCrudHelper.OpenAsync(_sfConnStr);
+            await SnowflakeCrudHelper.DeleteAsync(conn, TABLE, id);
+            TempData["SuccessMessage"] = "Record deleted.";
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error deleting ContVnd");
+            TempData["ErrorMessage"] = "Error: " + ex.Message;
+        }
         return RedirectToAction(nameof(Index));
     }
 
     public async Task<IActionResult> ExportCsv(string? stCd, string? majCatCd, string? mVndCd)
     {
-        var query = _context.ContVnds.AsQueryable();
-        if (!string.IsNullOrEmpty(stCd)) query = query.Where(x => x.StCd == stCd);
-        if (!string.IsNullOrEmpty(majCatCd)) query = query.Where(x => x.MajCatCd == majCatCd);
-        if (!string.IsNullOrEmpty(mVndCd)) query = query.Where(x => x.MVndCd == mVndCd);
-        var data = await query.OrderBy(x => x.StCd).ThenBy(x => x.MajCatCd).ToListAsync();
+        await using var conn = await SnowflakeCrudHelper.OpenAsync(_sfConnStr);
+        var conditions = new List<string>();
+        var parms = new List<SnowflakeDbParameter>();
+        int idx = 0;
+        if (!string.IsNullOrEmpty(stCd)) { idx++; conditions.Add("ST_CD = ?"); parms.Add(SnowflakeCrudHelper.Param(idx.ToString(), stCd)); }
+        if (!string.IsNullOrEmpty(majCatCd)) { idx++; conditions.Add("MAJ_CAT_CD = ?"); parms.Add(SnowflakeCrudHelper.Param(idx.ToString(), majCatCd)); }
+        if (!string.IsNullOrEmpty(mVndCd)) { idx++; conditions.Add("M_VND_CD = ?"); parms.Add(SnowflakeCrudHelper.Param(idx.ToString(), mVndCd)); }
+        string? where = conditions.Count > 0 ? string.Join(" AND ", conditions) : null;
+
+        var data = await SnowflakeCrudHelper.PagedQueryAsync(conn, TABLE, COLS, where, parms.Count > 0 ? parms : null, "ST_CD, MAJ_CAT_CD", 1, 100000, ReadRow);
         var sb = new StringBuilder();
         sb.AppendLine("ST_CD,MAJ_CAT_CD,M_VND_CD,CONT%");
         foreach (var r in data) sb.AppendLine($"{r.StCd},{r.MajCatCd},{r.MVndCd},{r.ContPct}");

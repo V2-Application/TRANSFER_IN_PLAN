@@ -1,40 +1,77 @@
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
+using Snowflake.Data.Client;
+using System.Data;
 using System.Text;
-using TRANSFER_IN_PLAN.Data;
+using TRANSFER_IN_PLAN.Helpers;
 using TRANSFER_IN_PLAN.Models;
 
-namespace TRANSFER_IN_PLAN.Controllers
+namespace TRANSFER_IN_PLAN.Controllers;
+
+public class StoreMasterController : Controller
 {
-    public class StoreMasterController : Controller
+    private readonly string _sfConnStr;
+    private readonly ILogger<StoreMasterController> _logger;
+
+    public StoreMasterController(IConfiguration config, ILogger<StoreMasterController> logger)
     {
-        private readonly PlanningDbContext _context;
-        private readonly ILogger<StoreMasterController> _logger;
+        _sfConnStr = config.GetConnectionString("Snowflake")!;
+        _logger = logger;
+    }
 
-        public StoreMasterController(PlanningDbContext context, ILogger<StoreMasterController> logger)
-        {
-            _context = context;
-            _logger = logger;
-        }
+    private static StoreMaster ReadRow(IDataReader r) => new()
+    {
+        Id        = SnowflakeCrudHelper.Int(r, 0),
+        StCd      = SnowflakeCrudHelper.StrNull(r, 1),
+        StNm      = SnowflakeCrudHelper.StrNull(r, 2),
+        RdcCd     = SnowflakeCrudHelper.StrNull(r, 3),
+        RdcNm     = SnowflakeCrudHelper.StrNull(r, 4),
+        HubCd     = SnowflakeCrudHelper.StrNull(r, 5),
+        HubNm     = SnowflakeCrudHelper.StrNull(r, 6),
+        Status    = SnowflakeCrudHelper.StrNull(r, 7),
+        GridStSts = SnowflakeCrudHelper.StrNull(r, 8),
+        OpDate    = SnowflakeCrudHelper.DateNull(r, 9),
+        Area      = SnowflakeCrudHelper.StrNull(r, 10),
+        State     = SnowflakeCrudHelper.StrNull(r, 11),
+        RefState  = SnowflakeCrudHelper.StrNull(r, 12),
+        SaleGrp   = SnowflakeCrudHelper.StrNull(r, 13),
+        RefStCd   = SnowflakeCrudHelper.StrNull(r, 14),
+        RefStNm   = SnowflakeCrudHelper.StrNull(r, 15),
+        RefGrpNew = SnowflakeCrudHelper.StrNull(r, 16),
+        RefGrpOld = SnowflakeCrudHelper.StrNull(r, 17),
+        Date      = SnowflakeCrudHelper.DateNull(r, 18)
+    };
 
-        [HttpGet]
-        public async Task<IActionResult> Index(string? stCd, string? rdcCd, string? area, bool? activeOnly)
+    private const string TABLE = "MASTER_ST_MASTER";
+    private const string COLS = "ID, ST_CD, ST_NM, RDC_CD, RDC_NM, HUB_CD, HUB_NM, STATUS, GRID_ST_STS, OP_DATE, AREA, STATE, REF_STATE, SALE_GRP, REF_ST_CD, REF_ST_NM, REF_GRP_NEW, REF_GRP_OLD, DATE";
+
+    [HttpGet]
+    public async Task<IActionResult> Index(string? stCd, string? rdcCd, string? area, bool? activeOnly)
+    {
+        try
         {
-            var query = _context.StoreMasters.AsQueryable();
-            if (!string.IsNullOrEmpty(stCd)) query = query.Where(x => x.StCd == stCd);
-            if (!string.IsNullOrEmpty(rdcCd)) query = query.Where(x => x.RdcCd == rdcCd);
-            if (!string.IsNullOrEmpty(area)) query = query.Where(x => x.Area == area);
-            if (activeOnly == true) query = query.Where(x => x.Status == "A");
-            ViewBag.RdcCodes = await _context.StoreMasters.Select(x => x.RdcCd).Distinct().OrderBy(x => x).ToListAsync();
-            ViewBag.Areas = await _context.StoreMasters.Select(x => x.Area).Distinct().OrderBy(x => x).ToListAsync();
+            await using var conn = await SnowflakeCrudHelper.OpenAsync(_sfConnStr);
+
+            // Build filter
+            var conditions = new List<string>();
+            var parms = new List<SnowflakeDbParameter>();
+            int idx = 0;
+            if (!string.IsNullOrEmpty(stCd)) { idx++; conditions.Add("ST_CD = ?"); parms.Add(SnowflakeCrudHelper.Param(idx.ToString(), stCd)); }
+            if (!string.IsNullOrEmpty(rdcCd)) { idx++; conditions.Add("RDC_CD = ?"); parms.Add(SnowflakeCrudHelper.Param(idx.ToString(), rdcCd)); }
+            if (!string.IsNullOrEmpty(area)) { idx++; conditions.Add("AREA = ?"); parms.Add(SnowflakeCrudHelper.Param(idx.ToString(), area)); }
+            if (activeOnly == true) conditions.Add("STATUS = 'A'");
+            string? where = conditions.Count > 0 ? string.Join(" AND ", conditions) : null;
+
+            ViewBag.RdcCodes = await SnowflakeCrudHelper.DistinctAsync(conn, TABLE, "RDC_CD");
+            ViewBag.Areas = await SnowflakeCrudHelper.DistinctAsync(conn, TABLE, "AREA");
             ViewBag.StCd = stCd;
             ViewBag.RdcCd = rdcCd;
             ViewBag.Area = area;
             ViewBag.ActiveOnly = activeOnly;
-            var data = await query.OrderBy(x => x.StCd).ToListAsync();
 
-            // Analytics data from ALL stores (not filtered)
-            var allStores = await _context.StoreMasters.ToListAsync();
+            var data = await SnowflakeCrudHelper.PagedQueryAsync(conn, TABLE, COLS, where, parms, "ST_CD", 1, 100000, ReadRow);
+
+            // Analytics from ALL stores
+            var allStores = await SnowflakeCrudHelper.PagedQueryAsync(conn, TABLE, COLS, null, null, "ST_CD", 1, 100000, ReadRow);
             ViewBag.TotalStores = allStores.Count;
             ViewBag.NewCount = allStores.Count(x => x.Status?.ToUpper() == "NEW");
             ViewBag.OldCount = allStores.Count(x => x.Status?.ToUpper() == "OLD");
@@ -58,117 +95,140 @@ namespace TRANSFER_IN_PLAN.Controllers
 
             return View(data);
         }
-
-        [HttpGet]
-        public async Task<IActionResult> ExportCsv(string? stCd, string? rdcCd, string? area, bool? activeOnly)
+        catch (Exception ex)
         {
-            var query = _context.StoreMasters.AsQueryable();
-            if (!string.IsNullOrEmpty(stCd)) query = query.Where(x => x.StCd == stCd);
-            if (!string.IsNullOrEmpty(rdcCd)) query = query.Where(x => x.RdcCd == rdcCd);
-            if (!string.IsNullOrEmpty(area)) query = query.Where(x => x.Area == area);
-            if (activeOnly == true) query = query.Where(x => x.Status == "A");
-            var data = await query.OrderBy(x => x.StCd).ToListAsync();
-            _logger.LogInformation("StoreMaster ExportCsv: {Count} rows exported", data.Count);
+            _logger.LogError(ex, "Error loading StoreMaster");
+            ViewBag.ErrorMessage = "Error loading data: " + ex.Message;
+            return View(new List<StoreMaster>());
+        }
+    }
 
-            var sb = new StringBuilder();
-            sb.AppendLine("Id,StCd,StNm,RdcCd,RdcNm,HubCd,HubNm,Status,GridStSts,OpDate,Area,State,RefState,SaleGrp,RefStCd,RefStNm,RefGrpNew,RefGrpOld,Date");
-            foreach (var r in data)
-            {
-                sb.AppendLine(string.Join(",",
-                    r.Id, Q(r.StCd), Q(r.StNm), Q(r.RdcCd), Q(r.RdcNm),
-                    Q(r.HubCd), Q(r.HubNm), Q(r.Status), Q(r.GridStSts),
-                    r.OpDate?.ToString("yyyy-MM-dd"),
-                    Q(r.Area), Q(r.State), Q(r.RefState), Q(r.SaleGrp),
-                    Q(r.RefStCd), Q(r.RefStNm), Q(r.RefGrpNew), Q(r.RefGrpOld),
-                    r.Date?.ToString("yyyy-MM-dd")));
-            }
+    [HttpGet]
+    public async Task<IActionResult> ExportCsv(string? stCd, string? rdcCd, string? area, bool? activeOnly)
+    {
+        await using var conn = await SnowflakeCrudHelper.OpenAsync(_sfConnStr);
 
-            var bytes = Encoding.UTF8.GetBytes(sb.ToString());
-            return File(bytes, "text/csv", "StoreMaster.csv");
+        var conditions = new List<string>();
+        var parms = new List<SnowflakeDbParameter>();
+        int idx = 0;
+        if (!string.IsNullOrEmpty(stCd)) { idx++; conditions.Add("ST_CD = ?"); parms.Add(SnowflakeCrudHelper.Param(idx.ToString(), stCd)); }
+        if (!string.IsNullOrEmpty(rdcCd)) { idx++; conditions.Add("RDC_CD = ?"); parms.Add(SnowflakeCrudHelper.Param(idx.ToString(), rdcCd)); }
+        if (!string.IsNullOrEmpty(area)) { idx++; conditions.Add("AREA = ?"); parms.Add(SnowflakeCrudHelper.Param(idx.ToString(), area)); }
+        if (activeOnly == true) conditions.Add("STATUS = 'A'");
+        string? where = conditions.Count > 0 ? string.Join(" AND ", conditions) : null;
+
+        var data = await SnowflakeCrudHelper.PagedQueryAsync(conn, TABLE, COLS, where, parms, "ST_CD", 1, 100000, ReadRow);
+        _logger.LogInformation("StoreMaster ExportCsv: {Count} rows exported", data.Count);
+
+        var sb = new StringBuilder();
+        sb.AppendLine("Id,StCd,StNm,RdcCd,RdcNm,HubCd,HubNm,Status,GridStSts,OpDate,Area,State,RefState,SaleGrp,RefStCd,RefStNm,RefGrpNew,RefGrpOld,Date");
+        foreach (var r in data)
+        {
+            sb.AppendLine(string.Join(",",
+                r.Id, Q(r.StCd), Q(r.StNm), Q(r.RdcCd), Q(r.RdcNm),
+                Q(r.HubCd), Q(r.HubNm), Q(r.Status), Q(r.GridStSts),
+                r.OpDate?.ToString("yyyy-MM-dd"),
+                Q(r.Area), Q(r.State), Q(r.RefState), Q(r.SaleGrp),
+                Q(r.RefStCd), Q(r.RefStNm), Q(r.RefGrpNew), Q(r.RefGrpOld),
+                r.Date?.ToString("yyyy-MM-dd")));
         }
 
-        [HttpGet]
-        public IActionResult Create()
-        {
-            return View();
-        }
+        return File(Encoding.UTF8.GetBytes(sb.ToString()), "text/csv", "StoreMaster.csv");
+    }
 
-        [HttpPost]
-        [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Create(StoreMaster model)
+    [HttpGet]
+    public IActionResult Create() => View();
+
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> Create(StoreMaster model)
+    {
+        if (!ModelState.IsValid) return View(model);
+        try
         {
-            if (!ModelState.IsValid) return View(model);
-            _context.StoreMasters.Add(model);
-            await _context.SaveChangesAsync();
+            await using var conn = await SnowflakeCrudHelper.OpenAsync(_sfConnStr);
+            await SnowflakeCrudHelper.InsertAsync(conn, TABLE,
+                new[] { "ST_CD", "ST_NM", "RDC_CD", "RDC_NM", "HUB_CD", "HUB_NM", "STATUS", "GRID_ST_STS", "OP_DATE", "AREA", "STATE", "REF_STATE", "SALE_GRP", "REF_ST_CD", "REF_ST_NM", "REF_GRP_NEW", "REF_GRP_OLD", "DATE" },
+                new object?[] { model.StCd, model.StNm, model.RdcCd, model.RdcNm, model.HubCd, model.HubNm, model.Status, model.GridStSts, model.OpDate, model.Area, model.State, model.RefState, model.SaleGrp, model.RefStCd, model.RefStNm, model.RefGrpNew, model.RefGrpOld, model.Date });
             _logger.LogInformation("StoreMaster created: StCd={StCd}", model.StCd);
             TempData["SuccessMessage"] = "Store created successfully.";
             return RedirectToAction(nameof(Index));
         }
-
-        [HttpGet]
-        public async Task<IActionResult> Edit(int id)
+        catch (Exception ex)
         {
-            var model = await _context.StoreMasters.FindAsync(id);
-            if (model == null) return NotFound();
+            _logger.LogError(ex, "Error creating StoreMaster");
+            ModelState.AddModelError("", "Error: " + ex.Message);
             return View(model);
         }
+    }
 
-        [HttpPost]
-        [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Edit(int id, StoreMaster model)
+    [HttpGet]
+    public async Task<IActionResult> Edit(int id)
+    {
+        await using var conn = await SnowflakeCrudHelper.OpenAsync(_sfConnStr);
+        var item = await SnowflakeCrudHelper.FindByIdAsync(conn, TABLE, COLS, id, ReadRow);
+        return item == null ? NotFound() : View(item);
+    }
+
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> Edit(int id, StoreMaster model)
+    {
+        if (id != model.Id) return NotFound();
+        if (!ModelState.IsValid) return View(model);
+        try
         {
-            if (id != model.Id) return NotFound();
-            if (!ModelState.IsValid) return View(model);
-            try
-            {
-                _context.Update(model);
-                await _context.SaveChangesAsync();
-                _logger.LogInformation("StoreMaster updated: Id={Id} StCd={StCd}", id, model.StCd);
-                TempData["SuccessMessage"] = "Store updated successfully.";
-            }
-            catch (DbUpdateConcurrencyException)
-            {
-                if (!await _context.StoreMasters.AnyAsync(x => x.Id == id)) return NotFound();
-                throw;
-            }
-            return RedirectToAction(nameof(Index));
+            await using var conn = await SnowflakeCrudHelper.OpenAsync(_sfConnStr);
+            await SnowflakeCrudHelper.UpdateAsync(conn, TABLE,
+                new[] { "ST_CD", "ST_NM", "RDC_CD", "RDC_NM", "HUB_CD", "HUB_NM", "STATUS", "GRID_ST_STS", "OP_DATE", "AREA", "STATE", "REF_STATE", "SALE_GRP", "REF_ST_CD", "REF_ST_NM", "REF_GRP_NEW", "REF_GRP_OLD", "DATE" },
+                new object?[] { model.StCd, model.StNm, model.RdcCd, model.RdcNm, model.HubCd, model.HubNm, model.Status, model.GridStSts, model.OpDate, model.Area, model.State, model.RefState, model.SaleGrp, model.RefStCd, model.RefStNm, model.RefGrpNew, model.RefGrpOld, model.Date }, id);
+            _logger.LogInformation("StoreMaster updated: Id={Id} StCd={StCd}", id, model.StCd);
+            TempData["SuccessMessage"] = "Store updated successfully.";
         }
-
-        [HttpPost]
-        public async Task<IActionResult> Details(int id)
+        catch (Exception ex)
         {
-            var model = await _context.StoreMasters.FindAsync(id);
-            if (model == null) return NotFound();
-            return View("Edit", model);
-        }
-
-        [HttpGet]
-        public async Task<IActionResult> Delete(int id)
-        {
-            var model = await _context.StoreMasters.FindAsync(id);
-            if (model == null) return NotFound();
+            _logger.LogError(ex, "Error updating StoreMaster Id={Id}", id);
+            ModelState.AddModelError("", "Error: " + ex.Message);
             return View(model);
         }
+        return RedirectToAction(nameof(Index));
+    }
 
-        [HttpPost, ActionName("Delete")]
-        [ValidateAntiForgeryToken]
-        public async Task<IActionResult> DeleteConfirmed(int id)
-        {
-            var model = await _context.StoreMasters.FindAsync(id);
-            if (model != null)
-            {
-                _context.StoreMasters.Remove(model);
-                await _context.SaveChangesAsync();
-                _logger.LogInformation("StoreMaster deleted: Id={Id}", id);
-                TempData["SuccessMessage"] = "Store deleted.";
-            }
-            return RedirectToAction(nameof(Index));
-        }
+    [HttpPost]
+    public async Task<IActionResult> Details(int id)
+    {
+        await using var conn = await SnowflakeCrudHelper.OpenAsync(_sfConnStr);
+        var item = await SnowflakeCrudHelper.FindByIdAsync(conn, TABLE, COLS, id, ReadRow);
+        return item == null ? NotFound() : View("Edit", item);
+    }
 
-        private static string Q(string? s)
+    [HttpGet]
+    public async Task<IActionResult> Delete(int id)
+    {
+        await using var conn = await SnowflakeCrudHelper.OpenAsync(_sfConnStr);
+        var item = await SnowflakeCrudHelper.FindByIdAsync(conn, TABLE, COLS, id, ReadRow);
+        return item == null ? NotFound() : View(item);
+    }
+
+    [HttpPost, ActionName("Delete"), ValidateAntiForgeryToken]
+    public async Task<IActionResult> DeleteConfirmed(int id)
+    {
+        try
         {
-            if (string.IsNullOrEmpty(s)) return "";
-            return "\"" + s.Replace("\"", "\"\"") + "\"";
+            await using var conn = await SnowflakeCrudHelper.OpenAsync(_sfConnStr);
+            await SnowflakeCrudHelper.DeleteAsync(conn, TABLE, id);
+            _logger.LogInformation("StoreMaster deleted: Id={Id}", id);
+            TempData["SuccessMessage"] = "Store deleted.";
         }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error deleting StoreMaster Id={Id}", id);
+            TempData["ErrorMessage"] = "Error: " + ex.Message;
+        }
+        return RedirectToAction(nameof(Index));
+    }
+
+    private static string Q(string? s)
+    {
+        if (string.IsNullOrEmpty(s)) return "";
+        return "\"" + s.Replace("\"", "\"\"") + "\"";
     }
 }

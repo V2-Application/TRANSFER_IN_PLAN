@@ -39,75 +39,67 @@
     </div>
     <div class="offcanvas-body p-0 pt-2">
         <ul class="nav flex-column px-2">
+            <!-- ═══ PLANNING ═══ -->
             <li class="nav-item">
-                <a class="nav-link" asp-controller="Home" asp-action="Index" data-bs-dismiss="offcanvas">
-                    <i class="bi bi-speedometer2"></i> Operations Dashboard
+                <a class="nav-link dropdown-toggle fw-bold" href="#mPlanningMenu" data-bs-toggle="collapse" role="button">
+                    <i class="bi bi-kanban" style="color:#4F46E5;"></i> Planning
                 </a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link" asp-controller="PlanDashboard" asp-action="Index" data-bs-dismiss="offcanvas">
-                    <i class="bi bi-diagram-3" style="color:#8B5CF6;"></i> Pipeline Dashboard
-                </a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link dropdown-toggle" href="#mRefTablesMenu" data-bs-toggle="collapse" role="button">
-                    <i class="bi bi-table"></i> Reference Tables
-                </a>
-                <ul class="collapse list-unstyled ms-3" id="mRefTablesMenu">
-                    <li><a class="nav-link" asp-controller="WeekCalendar" asp-action="Index" data-bs-dismiss="offcanvas">Week Calendar</a></li>
-                    <li><a class="nav-link" asp-controller="StoreMaster" asp-action="Index" data-bs-dismiss="offcanvas">Store Master</a></li>
-                    <li><a class="nav-link" asp-controller="BinCapacity" asp-action="Index" data-bs-dismiss="offcanvas">Bin Capacity</a></li>
-                    <li><a class="nav-link" asp-controller="SaleQty" asp-action="Index" data-bs-dismiss="offcanvas">Sale Quantity</a></li>
-                    <li><a class="nav-link" asp-controller="DispQty" asp-action="Index" data-bs-dismiss="offcanvas">Display Qty</a></li>
-                    <li><a class="nav-link" asp-controller="StoreStock" asp-action="Index" data-bs-dismiss="offcanvas">Store Stock</a></li>
-                    <li><a class="nav-link" asp-controller="DcStock" asp-action="Index" data-bs-dismiss="offcanvas">DC Stock</a></li>
-                    <li><a class="nav-link" asp-controller="DelPending" asp-action="Index" data-bs-dismiss="offcanvas">Del Pending</a></li>
-                    <li><a class="nav-link" asp-controller="GrtContribution" asp-action="Index" data-bs-dismiss="offcanvas">GRT Contribution</a></li>
-                    <li><a class="nav-link" asp-controller="ProductHierarchy" asp-action="Index" data-bs-dismiss="offcanvas">Product Hierarchy</a></li>
+                <ul class="collapse show list-unstyled ms-2" id="mPlanningMenu">
+                    <li><a class="nav-link" asp-controller="Home" asp-action="Index" data-bs-dismiss="offcanvas"><i class="bi bi-speedometer2 me-1"></i>Operations Dashboard</a></li>
+                    <li><a class="nav-link" asp-controller="PlanDashboard" asp-action="Index" data-bs-dismiss="offcanvas"><i class="bi bi-diagram-3 me-1" style="color:#8B5CF6;"></i>Pipeline Dashboard</a></li>
+                    <li>
+                        <a class="nav-link dropdown-toggle" href="#mRefTablesMenu" data-bs-toggle="collapse" role="button"><i class="bi bi-table me-1"></i>Reference Tables</a>
+                        <ul class="collapse list-unstyled ms-3" id="mRefTablesMenu">
+                            <li><a class="nav-link" asp-controller="WeekCalendar" asp-action="Index" data-bs-dismiss="offcanvas">Week Calendar</a></li>
+                            <li><a class="nav-link" asp-controller="StoreMaster" asp-action="Index" data-bs-dismiss="offcanvas">Store Master</a></li>
+                            <li><a class="nav-link" asp-controller="BinCapacity" asp-action="Index" data-bs-dismiss="offcanvas">Bin Capacity</a></li>
+                            <li><a class="nav-link" asp-controller="SaleQty" asp-action="Index" data-bs-dismiss="offcanvas">Sale Quantity</a></li>
+                            <li><a class="nav-link" asp-controller="DispQty" asp-action="Index" data-bs-dismiss="offcanvas">Display Qty</a></li>
+                            <li><a class="nav-link" asp-controller="StoreStock" asp-action="Index" data-bs-dismiss="offcanvas">Store Stock</a></li>
+                            <li><a class="nav-link" asp-controller="DcStock" asp-action="Index" data-bs-dismiss="offcanvas">DC Stock</a></li>
+                            <li><a class="nav-link" asp-controller="DelPending" asp-action="Index" data-bs-dismiss="offcanvas">Del Pending</a></li>
+                            <li><a class="nav-link" asp-controller="GrtContribution" asp-action="Index" data-bs-dismiss="offcanvas">GRT Contribution</a></li>
+                            <li><a class="nav-link" asp-controller="ProductHierarchy" asp-action="Index" data-bs-dismiss="offcanvas">Product Hierarchy</a></li>
+                        </ul>
+                    </li>
+                    <li>
+                        <a class="nav-link dropdown-toggle" href="#mContMenu" data-bs-toggle="collapse" role="button"><i class="bi bi-pie-chart me-1"></i>Contribution</a>
+                        <ul class="collapse list-unstyled ms-3" id="mContMenu">
+                            <li><a class="nav-link" asp-controller="ContMacroMvgr" asp-action="Index" data-bs-dismiss="offcanvas">Macro MVGR</a></li>
+                            <li><a class="nav-link" asp-controller="ContSz" asp-action="Index" data-bs-dismiss="offcanvas">Size</a></li>
+                            <li><a class="nav-link" asp-controller="ContSeg" asp-action="Index" data-bs-dismiss="offcanvas">Segment</a></li>
+                            <li><a class="nav-link" asp-controller="ContVnd" asp-action="Index" data-bs-dismiss="offcanvas">Vendor</a></li>
+                            <li class="border-top border-white border-opacity-10 mt-1 pt-1 small text-white-50 px-3">Sub Store Stock</li>
+                            <li><a class="nav-link" asp-controller="SubStStkMvgr" asp-action="Index" data-bs-dismiss="offcanvas">St Stk MVGR</a></li>
+                            <li><a class="nav-link" asp-controller="SubStStkSz" asp-action="Index" data-bs-dismiss="offcanvas">St Stk Size</a></li>
+                            <li><a class="nav-link" asp-controller="SubStStkSeg" asp-action="Index" data-bs-dismiss="offcanvas">St Stk Segment</a></li>
+                            <li><a class="nav-link" asp-controller="SubStStkVnd" asp-action="Index" data-bs-dismiss="offcanvas">St Stk Vendor</a></li>
+                            <li class="small text-white-50 px-3">Sub DC Stock</li>
+                            <li><a class="nav-link" asp-controller="SubDcStkMvgr" asp-action="Index" data-bs-dismiss="offcanvas">DC Stk MVGR</a></li>
+                            <li><a class="nav-link" asp-controller="SubDcStkSz" asp-action="Index" data-bs-dismiss="offcanvas">DC Stk Size</a></li>
+                            <li><a class="nav-link" asp-controller="SubDcStkSeg" asp-action="Index" data-bs-dismiss="offcanvas">DC Stk Segment</a></li>
+                            <li><a class="nav-link" asp-controller="SubDcStkVnd" asp-action="Index" data-bs-dismiss="offcanvas">DC Stk Vendor</a></li>
+                        </ul>
+                    </li>
+                    <li><a class="nav-link" asp-controller="BulkUpload" asp-action="Index" data-bs-dismiss="offcanvas"><i class="bi bi-upload me-1"></i>Bulk Upload</a></li>
+                    <li>
+                        <a class="nav-link dropdown-toggle" href="#mPlanMgmtMenu" data-bs-toggle="collapse" role="button"><i class="bi bi-lightning me-1"></i>Plan Management</a>
+                        <ul class="collapse list-unstyled ms-3" id="mPlanMgmtMenu">
+                            <li><a class="nav-link" asp-controller="Plan" asp-action="Execute" data-bs-dismiss="offcanvas">Execute Plan</a></li>
+                            <li><a class="nav-link" asp-controller="Plan" asp-action="Output" data-bs-dismiss="offcanvas">View Output</a></li>
+                            <li><a class="nav-link" asp-controller="PurchasePlan" asp-action="Execute" data-bs-dismiss="offcanvas">Purchase Plan</a></li>
+                            <li><a class="nav-link" asp-controller="PurchasePlan" asp-action="Output" data-bs-dismiss="offcanvas">Purchase Output</a></li>
+                            <li class="border-top border-white border-opacity-10 mt-1 pt-1"><a class="nav-link" asp-controller="SubLevel" asp-action="Execute" data-bs-dismiss="offcanvas">Sub-Level Plans</a></li>
+                        </ul>
+                    </li>
                 </ul>
             </li>
-            <li class="nav-item">
-                <a class="nav-link dropdown-toggle" href="#mContMenu" data-bs-toggle="collapse" role="button">
-                    <i class="bi bi-pie-chart"></i> Contribution
-                </a>
-                <ul class="collapse list-unstyled ms-3" id="mContMenu">
-                    <li><a class="nav-link" asp-controller="ContMacroMvgr" asp-action="Index" data-bs-dismiss="offcanvas">Macro MVGR</a></li>
-                    <li><a class="nav-link" asp-controller="ContSz" asp-action="Index" data-bs-dismiss="offcanvas">Size</a></li>
-                    <li><a class="nav-link" asp-controller="ContSeg" asp-action="Index" data-bs-dismiss="offcanvas">Segment</a></li>
-                    <li><a class="nav-link" asp-controller="ContVnd" asp-action="Index" data-bs-dismiss="offcanvas">Vendor</a></li>
-                    <li class="border-top border-white border-opacity-10 mt-1 pt-1 small text-white-50 px-3">Sub Store Stock</li>
-                    <li><a class="nav-link" asp-controller="SubStStkMvgr" asp-action="Index" data-bs-dismiss="offcanvas">St Stk MVGR</a></li>
-                    <li><a class="nav-link" asp-controller="SubStStkSz" asp-action="Index" data-bs-dismiss="offcanvas">St Stk Size</a></li>
-                    <li><a class="nav-link" asp-controller="SubStStkSeg" asp-action="Index" data-bs-dismiss="offcanvas">St Stk Segment</a></li>
-                    <li><a class="nav-link" asp-controller="SubStStkVnd" asp-action="Index" data-bs-dismiss="offcanvas">St Stk Vendor</a></li>
-                    <li class="small text-white-50 px-3">Sub DC Stock</li>
-                    <li><a class="nav-link" asp-controller="SubDcStkMvgr" asp-action="Index" data-bs-dismiss="offcanvas">DC Stk MVGR</a></li>
-                    <li><a class="nav-link" asp-controller="SubDcStkSz" asp-action="Index" data-bs-dismiss="offcanvas">DC Stk Size</a></li>
-                    <li><a class="nav-link" asp-controller="SubDcStkSeg" asp-action="Index" data-bs-dismiss="offcanvas">DC Stk Segment</a></li>
-                    <li><a class="nav-link" asp-controller="SubDcStkVnd" asp-action="Index" data-bs-dismiss="offcanvas">DC Stk Vendor</a></li>
-                </ul>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link" asp-controller="BulkUpload" asp-action="Index" data-bs-dismiss="offcanvas">
-                    <i class="bi bi-upload"></i> Bulk Upload
-                </a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link dropdown-toggle" href="#mBudgetMenu" data-bs-toggle="collapse" role="button">
-                    <i class="bi bi-coin" style="color:#8B5CF6;"></i> Sale Budget Plan
-                </a>
-                <ul class="collapse list-unstyled ms-3" id="mBudgetMenu">
-                    <li><a class="nav-link" asp-controller="SaleBudget" asp-action="Execute" data-bs-dismiss="offcanvas">Execute Budget</a></li>
-                    <li><a class="nav-link" asp-controller="SaleBudget" asp-action="Output" data-bs-dismiss="offcanvas">Budget Output</a></li>
-                    <li class="border-top border-white border-opacity-10 mt-1 pt-1"><a class="nav-link" asp-controller="FixtureDensity" asp-action="Execute" data-bs-dismiss="offcanvas"><i class="bi bi-grid-3x3-gap me-1" style="color:#E67E22;"></i>Fixture & Density</a></li>
-                    <li><a class="nav-link" asp-controller="WeeklyDisagg" asp-action="Execute" data-bs-dismiss="offcanvas"><i class="bi bi-calendar3 me-1 text-info"></i>Weekly Disagg</a></li>
-                </ul>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link dropdown-toggle" href="#mAllocMenu" data-bs-toggle="collapse" role="button">
+            <!-- ═══ ALLOCATION ═══ -->
+            <li class="nav-item border-top border-white border-opacity-10 mt-1 pt-1">
+                <a class="nav-link dropdown-toggle fw-bold" href="#mAllocMenu" data-bs-toggle="collapse" role="button">
                     <i class="bi bi-boxes" style="color:#E67E22;"></i> Allocation
                 </a>
-                <ul class="collapse list-unstyled ms-3" id="mAllocMenu">
+                <ul class="collapse list-unstyled ms-2" id="mAllocMenu">
                     <li><a class="nav-link" asp-controller="ArsAllocation" asp-action="Execute" data-bs-dismiss="offcanvas"><i class="bi bi-play-circle me-1 text-success"></i>Execute Allocation</a></li>
                     <li><a class="nav-link" asp-controller="ArsAllocation" asp-action="Output" data-bs-dismiss="offcanvas"><i class="bi bi-table me-1"></i>Allocation Output</a></li>
                     <li><a class="nav-link" asp-controller="ArsBulkUpload" asp-action="Index" data-bs-dismiss="offcanvas"><i class="bi bi-upload me-1"></i>Bulk Upload</a></li>
@@ -120,20 +112,20 @@
                     <li><a class="nav-link" asp-controller="ArsMsaStock" asp-action="Index" data-bs-dismiss="offcanvas"><i class="bi bi-box-seam me-1"></i>MSA Stock (SAP)</a></li>
                 </ul>
             </li>
-            <li class="nav-item">
-                <a class="nav-link dropdown-toggle" href="#mPlanMenu" data-bs-toggle="collapse" role="button">
-                    <i class="bi bi-lightning"></i> Plan Management
+            <!-- ═══ SALE BUDGET ═══ -->
+            <li class="nav-item border-top border-white border-opacity-10 mt-1 pt-1">
+                <a class="nav-link dropdown-toggle" href="#mBudgetMenu" data-bs-toggle="collapse" role="button">
+                    <i class="bi bi-coin" style="color:#8B5CF6;"></i> Sale Budget Plan
                 </a>
-                <ul class="collapse list-unstyled ms-3" id="mPlanMenu">
-                    <li><a class="nav-link" asp-controller="Plan" asp-action="Execute" data-bs-dismiss="offcanvas">Execute Plan</a></li>
-                    <li><a class="nav-link" asp-controller="Plan" asp-action="Output" data-bs-dismiss="offcanvas">View Output</a></li>
-                    <li><a class="nav-link" asp-controller="PurchasePlan" asp-action="Execute" data-bs-dismiss="offcanvas">Purchase Plan</a></li>
-                    <li><a class="nav-link" asp-controller="PurchasePlan" asp-action="Output" data-bs-dismiss="offcanvas">Purchase Output</a></li>
-                    <li class="border-top border-white border-opacity-10 mt-1 pt-1"><a class="nav-link" asp-controller="SubLevel" asp-action="Execute" data-bs-dismiss="offcanvas">Sub-Level Plans</a></li>
-                    <li class="border-top border-white border-opacity-10 mt-1 pt-1"><a class="nav-link" asp-controller="ArsStatus" asp-action="Index" data-bs-dismiss="offcanvas"><i class="bi bi-robot me-1"></i>ARS Allocation</a></li>
+                <ul class="collapse list-unstyled ms-3" id="mBudgetMenu">
+                    <li><a class="nav-link" asp-controller="SaleBudget" asp-action="Execute" data-bs-dismiss="offcanvas">Execute Budget</a></li>
+                    <li><a class="nav-link" asp-controller="SaleBudget" asp-action="Output" data-bs-dismiss="offcanvas">Budget Output</a></li>
+                    <li class="border-top border-white border-opacity-10 mt-1 pt-1"><a class="nav-link" asp-controller="FixtureDensity" asp-action="Execute" data-bs-dismiss="offcanvas"><i class="bi bi-grid-3x3-gap me-1" style="color:#E67E22;"></i>Fixture & Density</a></li>
+                    <li><a class="nav-link" asp-controller="WeeklyDisagg" asp-action="Execute" data-bs-dismiss="offcanvas"><i class="bi bi-calendar3 me-1 text-info"></i>Weekly Disagg</a></li>
                 </ul>
             </li>
-            <li class="nav-item">
+            <!-- ═══ INFO & ADMIN ═══ -->
+            <li class="nav-item border-top border-white border-opacity-10 mt-1 pt-1">
                 <a class="nav-link" asp-controller="Info" asp-action="Index" data-bs-dismiss="offcanvas">
                     <i class="bi bi-info-circle"></i> App Info & Formulas
                 </a>
@@ -162,76 +154,73 @@
             <small class="text-muted">Management System</small>
         </div>
         <ul class="nav flex-column">
+            <!-- ═══ PLANNING ═══ -->
             <li class="nav-item">
-                <a class="nav-link" asp-controller="Home" asp-action="Index">
-                    <i class="bi bi-speedometer2"></i> Operations Dashboard
+                <a class="nav-link dropdown-toggle fw-bold" href="#planningMenu" data-bs-toggle="collapse" role="button">
+                    <i class="bi bi-kanban" style="color:#4F46E5;"></i> Planning
                 </a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link" asp-controller="PlanDashboard" asp-action="Index">
-                    <i class="bi bi-diagram-3" style="color:#8B5CF6;"></i> Pipeline Dashboard
-                </a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link dropdown-toggle" href="#refTablesMenu" data-bs-toggle="collapse" role="button">
-                    <i class="bi bi-table"></i> Reference Tables
-                </a>
-                <ul class="collapse list-unstyled ms-3" id="refTablesMenu">
-                    <li><a class="nav-link" asp-controller="WeekCalendar" asp-action="Index">Week Calendar</a></li>
-                    <li><a class="nav-link" asp-controller="StoreMaster" asp-action="Index">Store Master</a></li>
-                    <li><a class="nav-link" asp-controller="BinCapacity" asp-action="Index">Bin Capacity</a></li>
-                    <li><a class="nav-link" asp-controller="SaleQty" asp-action="Index">Sale Quantity</a></li>
-                    <li><a class="nav-link" asp-controller="DispQty" asp-action="Index">Display Qty</a></li>
-                    <li><a class="nav-link" asp-controller="StoreStock" asp-action="Index">Store Stock</a></li>
-                    <li><a class="nav-link" asp-controller="DcStock" asp-action="Index">DC Stock</a></li>
-                    <li><a class="nav-link" asp-controller="DelPending" asp-action="Index">Del Pending</a></li>
-                    <li><a class="nav-link" asp-controller="GrtContribution" asp-action="Index">GRT Contribution</a></li>
-                    <li><a class="nav-link" asp-controller="ProductHierarchy" asp-action="Index">Product Hierarchy</a></li>
+                <ul class="collapse show list-unstyled ms-2" id="planningMenu">
+                    <li><a class="nav-link" asp-controller="Home" asp-action="Index"><i class="bi bi-speedometer2 me-1"></i>Operations Dashboard</a></li>
+                    <li><a class="nav-link" asp-controller="PlanDashboard" asp-action="Index"><i class="bi bi-diagram-3 me-1" style="color:#8B5CF6;"></i>Pipeline Dashboard</a></li>
+                    <li>
+                        <a class="nav-link dropdown-toggle" href="#refTablesMenu" data-bs-toggle="collapse" role="button">
+                            <i class="bi bi-table me-1"></i>Reference Tables
+                        </a>
+                        <ul class="collapse list-unstyled ms-3" id="refTablesMenu">
+                            <li><a class="nav-link" asp-controller="WeekCalendar" asp-action="Index">Week Calendar</a></li>
+                            <li><a class="nav-link" asp-controller="StoreMaster" asp-action="Index">Store Master</a></li>
+                            <li><a class="nav-link" asp-controller="BinCapacity" asp-action="Index">Bin Capacity</a></li>
+                            <li><a class="nav-link" asp-controller="SaleQty" asp-action="Index">Sale Quantity</a></li>
+                            <li><a class="nav-link" asp-controller="DispQty" asp-action="Index">Display Qty</a></li>
+                            <li><a class="nav-link" asp-controller="StoreStock" asp-action="Index">Store Stock</a></li>
+                            <li><a class="nav-link" asp-controller="DcStock" asp-action="Index">DC Stock</a></li>
+                            <li><a class="nav-link" asp-controller="DelPending" asp-action="Index">Del Pending</a></li>
+                            <li><a class="nav-link" asp-controller="GrtContribution" asp-action="Index">GRT Contribution</a></li>
+                            <li><a class="nav-link" asp-controller="ProductHierarchy" asp-action="Index">Product Hierarchy</a></li>
+                        </ul>
+                    </li>
+                    <li>
+                        <a class="nav-link dropdown-toggle" href="#contMenu" data-bs-toggle="collapse" role="button">
+                            <i class="bi bi-pie-chart me-1"></i>Contribution
+                        </a>
+                        <ul class="collapse list-unstyled ms-3" id="contMenu">
+                            <li><a class="nav-link" asp-controller="ContMacroMvgr" asp-action="Index">Macro MVGR</a></li>
+                            <li><a class="nav-link" asp-controller="ContSz" asp-action="Index">Size</a></li>
+                            <li><a class="nav-link" asp-controller="ContSeg" asp-action="Index">Segment</a></li>
+                            <li><a class="nav-link" asp-controller="ContVnd" asp-action="Index">Vendor</a></li>
+                            <li class="border-top border-white border-opacity-10 mt-1 pt-1 small text-white-50 px-3">Sub Store Stock</li>
+                            <li><a class="nav-link" asp-controller="SubStStkMvgr" asp-action="Index">St Stk MVGR</a></li>
+                            <li><a class="nav-link" asp-controller="SubStStkSz" asp-action="Index">St Stk Size</a></li>
+                            <li><a class="nav-link" asp-controller="SubStStkSeg" asp-action="Index">St Stk Segment</a></li>
+                            <li><a class="nav-link" asp-controller="SubStStkVnd" asp-action="Index">St Stk Vendor</a></li>
+                            <li class="small text-white-50 px-3">Sub DC Stock</li>
+                            <li><a class="nav-link" asp-controller="SubDcStkMvgr" asp-action="Index">DC Stk MVGR</a></li>
+                            <li><a class="nav-link" asp-controller="SubDcStkSz" asp-action="Index">DC Stk Size</a></li>
+                            <li><a class="nav-link" asp-controller="SubDcStkSeg" asp-action="Index">DC Stk Segment</a></li>
+                            <li><a class="nav-link" asp-controller="SubDcStkVnd" asp-action="Index">DC Stk Vendor</a></li>
+                        </ul>
+                    </li>
+                    <li><a class="nav-link" asp-controller="BulkUpload" asp-action="Index"><i class="bi bi-upload me-1"></i>Bulk Upload</a></li>
+                    <li>
+                        <a class="nav-link dropdown-toggle" href="#planMgmtMenu" data-bs-toggle="collapse" role="button">
+                            <i class="bi bi-lightning me-1"></i>Plan Management
+                        </a>
+                        <ul class="collapse list-unstyled ms-3" id="planMgmtMenu">
+                            <li><a class="nav-link" asp-controller="Plan" asp-action="Execute">Execute Plan</a></li>
+                            <li><a class="nav-link" asp-controller="Plan" asp-action="Output">View Output</a></li>
+                            <li><a class="nav-link" asp-controller="PurchasePlan" asp-action="Execute">Purchase Plan</a></li>
+                            <li><a class="nav-link" asp-controller="PurchasePlan" asp-action="Output">Purchase Output</a></li>
+                            <li class="border-top border-white border-opacity-10 mt-1 pt-1"><a class="nav-link" asp-controller="SubLevel" asp-action="Execute">Sub-Level Plans</a></li>
+                        </ul>
+                    </li>
                 </ul>
             </li>
-            <li class="nav-item">
-                <a class="nav-link dropdown-toggle" href="#contMenu" data-bs-toggle="collapse" role="button">
-                    <i class="bi bi-pie-chart"></i> Contribution
-                </a>
-                <ul class="collapse list-unstyled ms-3" id="contMenu">
-                    <li><a class="nav-link" asp-controller="ContMacroMvgr" asp-action="Index">Macro MVGR</a></li>
-                    <li><a class="nav-link" asp-controller="ContSz" asp-action="Index">Size</a></li>
-                    <li><a class="nav-link" asp-controller="ContSeg" asp-action="Index">Segment</a></li>
-                    <li><a class="nav-link" asp-controller="ContVnd" asp-action="Index">Vendor</a></li>
-                    <li class="border-top border-white border-opacity-10 mt-1 pt-1 small text-white-50 px-3">Sub Store Stock</li>
-                    <li><a class="nav-link" asp-controller="SubStStkMvgr" asp-action="Index">St Stk MVGR</a></li>
-                    <li><a class="nav-link" asp-controller="SubStStkSz" asp-action="Index">St Stk Size</a></li>
-                    <li><a class="nav-link" asp-controller="SubStStkSeg" asp-action="Index">St Stk Segment</a></li>
-                    <li><a class="nav-link" asp-controller="SubStStkVnd" asp-action="Index">St Stk Vendor</a></li>
-                    <li class="small text-white-50 px-3">Sub DC Stock</li>
-                    <li><a class="nav-link" asp-controller="SubDcStkMvgr" asp-action="Index">DC Stk MVGR</a></li>
-                    <li><a class="nav-link" asp-controller="SubDcStkSz" asp-action="Index">DC Stk Size</a></li>
-                    <li><a class="nav-link" asp-controller="SubDcStkSeg" asp-action="Index">DC Stk Segment</a></li>
-                    <li><a class="nav-link" asp-controller="SubDcStkVnd" asp-action="Index">DC Stk Vendor</a></li>
-                </ul>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link" asp-controller="BulkUpload" asp-action="Index">
-                    <i class="bi bi-upload"></i> Bulk Upload
-                </a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link dropdown-toggle" href="#budgetMenu" data-bs-toggle="collapse" role="button">
-                    <i class="bi bi-coin" style="color:#8B5CF6;"></i> Sale Budget Plan
-                </a>
-                <ul class="collapse list-unstyled ms-3" id="budgetMenu">
-                    <li><a class="nav-link" asp-controller="SaleBudget" asp-action="Execute">Execute Budget</a></li>
-                    <li><a class="nav-link" asp-controller="SaleBudget" asp-action="Output">Budget Output</a></li>
-                    <li class="border-top border-white border-opacity-10 mt-1 pt-1"><a class="nav-link" asp-controller="FixtureDensity" asp-action="Execute"><i class="bi bi-grid-3x3-gap me-1" style="color:#E67E22;"></i>Fixture & Density</a></li>
-                    <li><a class="nav-link" asp-controller="FixtureDensity" asp-action="Output">Fixture Output</a></li>
-                    <li class="border-top border-white border-opacity-10 mt-1 pt-1"><a class="nav-link" asp-controller="WeeklyDisagg" asp-action="Execute"><i class="bi bi-calendar3 me-1 text-info"></i>Weekly Disagg</a></li>
-                </ul>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link dropdown-toggle" href="#allocMenu" data-bs-toggle="collapse" role="button">
+            <!-- ═══ ALLOCATION ═══ -->
+            <li class="nav-item border-top border-white border-opacity-10 mt-1 pt-1">
+                <a class="nav-link dropdown-toggle fw-bold" href="#allocMenu" data-bs-toggle="collapse" role="button">
                     <i class="bi bi-boxes" style="color:#E67E22;"></i> Allocation
                 </a>
-                <ul class="collapse list-unstyled ms-3" id="allocMenu">
+                <ul class="collapse list-unstyled ms-2" id="allocMenu">
                     <li><a class="nav-link" asp-controller="ArsAllocation" asp-action="Execute"><i class="bi bi-play-circle me-1 text-success"></i>Execute Allocation</a></li>
                     <li><a class="nav-link" asp-controller="ArsAllocation" asp-action="Output"><i class="bi bi-table me-1"></i>Allocation Output</a></li>
                     <li><a class="nav-link" asp-controller="ArsBulkUpload" asp-action="Index"><i class="bi bi-upload me-1"></i>Bulk Upload</a></li>
@@ -244,20 +233,21 @@
                     <li><a class="nav-link" asp-controller="ArsMsaStock" asp-action="Index"><i class="bi bi-box-seam me-1"></i>MSA Stock (SAP)</a></li>
                 </ul>
             </li>
-            <li class="nav-item">
-                <a class="nav-link dropdown-toggle" href="#planMenu" data-bs-toggle="collapse" role="button">
-                    <i class="bi bi-lightning"></i> Plan Management
+            <!-- ═══ SALE BUDGET ═══ -->
+            <li class="nav-item border-top border-white border-opacity-10 mt-1 pt-1">
+                <a class="nav-link dropdown-toggle" href="#budgetMenu" data-bs-toggle="collapse" role="button">
+                    <i class="bi bi-coin" style="color:#8B5CF6;"></i> Sale Budget Plan
                 </a>
-                <ul class="collapse list-unstyled ms-3" id="planMenu">
-                    <li><a class="nav-link" asp-controller="Plan" asp-action="Execute">Execute Plan</a></li>
-                    <li><a class="nav-link" asp-controller="Plan" asp-action="Output">View Output</a></li>
-                    <li><a class="nav-link" asp-controller="PurchasePlan" asp-action="Execute">Purchase Plan</a></li>
-                    <li><a class="nav-link" asp-controller="PurchasePlan" asp-action="Output">Purchase Output</a></li>
-                    <li class="border-top border-white border-opacity-10 mt-1 pt-1"><a class="nav-link" asp-controller="SubLevel" asp-action="Execute">Sub-Level Plans</a></li>
-                    <li class="border-top border-white border-opacity-10 mt-1 pt-1"><a class="nav-link" asp-controller="ArsStatus" asp-action="Index"><i class="bi bi-robot me-1"></i>ARS Allocation</a></li>
+                <ul class="collapse list-unstyled ms-3" id="budgetMenu">
+                    <li><a class="nav-link" asp-controller="SaleBudget" asp-action="Execute">Execute Budget</a></li>
+                    <li><a class="nav-link" asp-controller="SaleBudget" asp-action="Output">Budget Output</a></li>
+                    <li class="border-top border-white border-opacity-10 mt-1 pt-1"><a class="nav-link" asp-controller="FixtureDensity" asp-action="Execute"><i class="bi bi-grid-3x3-gap me-1" style="color:#E67E22;"></i>Fixture & Density</a></li>
+                    <li><a class="nav-link" asp-controller="FixtureDensity" asp-action="Output">Fixture Output</a></li>
+                    <li class="border-top border-white border-opacity-10 mt-1 pt-1"><a class="nav-link" asp-controller="WeeklyDisagg" asp-action="Execute"><i class="bi bi-calendar3 me-1 text-info"></i>Weekly Disagg</a></li>
                 </ul>
             </li>
-            <li class="nav-item">
+            <!-- ═══ INFO & ADMIN ═══ -->
+            <li class="nav-item border-top border-white border-opacity-10 mt-1 pt-1">
                 <a class="nav-link" asp-controller="Info" asp-action="Index">
                     <i class="bi bi-info-circle"></i> App Info & Formulas
                 </a>

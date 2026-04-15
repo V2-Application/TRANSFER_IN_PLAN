@@ -1,69 +1,169 @@
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
+using Snowflake.Data.Client;
+using System.Data;
 using System.Text;
-using TRANSFER_IN_PLAN.Data;
+using TRANSFER_IN_PLAN.Helpers;
 using TRANSFER_IN_PLAN.Models;
 
-namespace TRANSFER_IN_PLAN.Controllers
+namespace TRANSFER_IN_PLAN.Controllers;
+
+public class SaleQtyController : Controller
 {
-    public class SaleQtyController : Controller
+    private readonly string _sfConnStr;
+    public SaleQtyController(IConfiguration config) =>
+        _sfConnStr = config.GetConnectionString("Snowflake")!;
+
+    private const string TABLE = "QTY_SALE_QTY";
+
+    // Week column names for Snowflake (WK_1 .. WK_48)
+    private static readonly string[] WkCols = Enumerable.Range(1, 48).Select(i => $"WK_{i}").ToArray();
+
+    // All columns: ID, ST_CD, MAJ_CAT, WK_1..WK_48, COL_2  (51 total)
+    private static readonly string COLS = "ID, ST_CD, MAJ_CAT, " + string.Join(", ", WkCols) + ", COL_2";
+
+    // Insert columns (no ID)
+    private static readonly string[] InsertCols = new[] { "ST_CD", "MAJ_CAT" }.Concat(WkCols).Append("COL_2").ToArray();
+
+    private static SaleQty ReadRow(IDataReader r)
     {
-        private readonly PlanningDbContext _context;
-        private readonly ILogger<SaleQtyController> _logger;
-        public SaleQtyController(PlanningDbContext context, ILogger<SaleQtyController> logger) { _context = context; _logger = logger; }
-
-        [HttpGet]
-        public async Task<IActionResult> Index(string? stCd, string? majCat, int page = 1, int pageSize = 100)
+        var m = new SaleQty
         {
-            var query = _context.SaleQties.AsQueryable();
-            if (!string.IsNullOrEmpty(stCd)) query = query.Where(x => x.StCd == stCd);
-            if (!string.IsNullOrEmpty(majCat)) query = query.Where(x => x.MajCat == majCat);
-            ViewBag.TotalCount = await query.CountAsync();
-            ViewBag.Page = page; ViewBag.PageSize = pageSize;
-            ViewBag.Categories = await _context.SaleQties.Select(x => x.MajCat).Distinct().OrderBy(x => x).ToListAsync();
-            ViewBag.StoreCodes = await _context.SaleQties.Select(x => x.StCd).Distinct().OrderBy(x => x).ToListAsync();
-            ViewBag.StCd = stCd; ViewBag.MajCat = majCat;
-            // Analytics (counts only - no full data load)
-            ViewBag.TotalRows = await _context.SaleQties.CountAsync();
-            ViewBag.TotalStores = await _context.SaleQties.Select(x => x.StCd).Distinct().CountAsync();
-            ViewBag.TotalCats = await _context.SaleQties.Select(x => x.MajCat).Distinct().CountAsync();
-            var data = await query.OrderBy(x => x.StCd).ThenBy(x => x.MajCat)
-                .Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();
-            return View(data);
-        }
-
-        [HttpGet]
-        public async Task<IActionResult> ExportCsv(string? stCd, string? majCat)
+            Id    = SnowflakeCrudHelper.Int(r, 0),
+            StCd  = SnowflakeCrudHelper.Str(r, 1),
+            MajCat = SnowflakeCrudHelper.Str(r, 2)
+        };
+        // Weeks 1-48 at ordinals 3..50
+        for (int w = 1; w <= 48; w++)
         {
-            var query = _context.SaleQties.AsQueryable();
-            if (!string.IsNullOrEmpty(stCd)) query = query.Where(x => x.StCd == stCd);
-            if (!string.IsNullOrEmpty(majCat)) query = query.Where(x => x.MajCat == majCat);
-            var data = await query.OrderBy(x => x.StCd).ThenBy(x => x.MajCat).ToListAsync();
-            _logger.LogInformation("SaleQty ExportCsv: {Count} rows", data.Count);
-            var sb = new StringBuilder();
-            sb.AppendLine("StCd,MajCat,Wk1,Wk2,Wk3,Wk4,Wk5,Wk6,Wk7,Wk8,Wk9,Wk10,Wk11,Wk12,Wk13,Wk14,Wk15,Wk16,Wk17,Wk18,Wk19,Wk20,Wk21,Wk22,Wk23,Wk24,Wk25,Wk26,Wk27,Wk28,Wk29,Wk30,Wk31,Wk32,Wk33,Wk34,Wk35,Wk36,Wk37,Wk38,Wk39,Wk40,Wk41,Wk42,Wk43,Wk44,Wk45,Wk46,Wk47,Wk48,Col2");
-            foreach (var r in data)
-            {
-                var v = new decimal?[] { r.Wk1,r.Wk2,r.Wk3,r.Wk4,r.Wk5,r.Wk6,r.Wk7,r.Wk8,r.Wk9,r.Wk10,r.Wk11,r.Wk12,r.Wk13,r.Wk14,r.Wk15,r.Wk16,r.Wk17,r.Wk18,r.Wk19,r.Wk20,r.Wk21,r.Wk22,r.Wk23,r.Wk24,r.Wk25,r.Wk26,r.Wk27,r.Wk28,r.Wk29,r.Wk30,r.Wk31,r.Wk32,r.Wk33,r.Wk34,r.Wk35,r.Wk36,r.Wk37,r.Wk38,r.Wk39,r.Wk40,r.Wk41,r.Wk42,r.Wk43,r.Wk44,r.Wk45,r.Wk46,r.Wk47,r.Wk48 };
-                sb.AppendLine(Q(r.StCd) + "," + Q(r.MajCat) + "," + string.Join(",", v.Select(x => x?.ToString() ?? "")) + "," + r.Col2);
-            }
-            return File(Encoding.UTF8.GetBytes(sb.ToString()), "text/csv", "SaleQty.csv");
+            var prop = typeof(SaleQty).GetProperty($"Wk{w}");
+            if (prop != null) prop.SetValue(m, SnowflakeCrudHelper.DecNull(r, 2 + w));
         }
-
-        [HttpGet] public async Task<IActionResult> Create() { await LoadDropdowns(); return View(); }
-        [HttpPost][ValidateAntiForgeryToken]
-        public async Task<IActionResult> Create(SaleQty model) { if (!ModelState.IsValid) { await LoadDropdowns(); return View(model); } _context.SaleQties.Add(model); await _context.SaveChangesAsync(); _logger.LogInformation("SaleQty created: StCd={StCd}", model.StCd); TempData["SuccessMessage"] = "Created."; return RedirectToAction(nameof(Index)); }
-        [HttpGet] public async Task<IActionResult> Edit(string stCd, string majCat) { var m = await _context.SaleQties.FirstOrDefaultAsync(x => x.StCd == stCd && x.MajCat == majCat); if (m == null) return NotFound(); await LoadDropdowns(); return View(m); }
-        [HttpPost][ValidateAntiForgeryToken]
-        public async Task<IActionResult> Edit(SaleQty model) { if (!ModelState.IsValid) return View(model); try { _context.Update(model); await _context.SaveChangesAsync(); TempData["SuccessMessage"] = "Updated."; } catch (DbUpdateConcurrencyException) { if (!await _context.SaleQties.AnyAsync(x => x.StCd == model.StCd && x.MajCat == model.MajCat)) return NotFound(); throw; } return RedirectToAction(nameof(Index)); }
-        [HttpGet] public async Task<IActionResult> Delete(string stCd, string majCat) { var m = await _context.SaleQties.FirstOrDefaultAsync(x => x.StCd == stCd && x.MajCat == majCat); return m == null ? NotFound() : View(m); }
-        [HttpPost, ActionName("Delete")][ValidateAntiForgeryToken]
-        public async Task<IActionResult> DeleteConfirmed(string stCd, string majCat) { var m = await _context.SaleQties.FirstOrDefaultAsync(x => x.StCd == stCd && x.MajCat == majCat); if (m != null) { _context.SaleQties.Remove(m); await _context.SaveChangesAsync(); TempData["SuccessMessage"] = "Deleted."; } return RedirectToAction(nameof(Index)); }
-        private async Task LoadDropdowns()
-        {
-            ViewBag.StoreCodes = await _context.StoreMasters.Select(x => x.StCd).Where(x => x != null).Distinct().OrderBy(x => x).ToListAsync();
-            ViewBag.MajCats = await _context.BinCapacities.Select(x => x.MajCat).Where(x => x != null).Distinct().OrderBy(x => x).ToListAsync();
-        }
-        private static string Q(string? s) { if (string.IsNullOrEmpty(s)) return ""; return "\"" + s.Replace("\"", "\"\"") + "\""; }
+        m.Col2 = SnowflakeCrudHelper.DecNull(r, 51);
+        return m;
     }
+
+    private static object?[] BuildValues(SaleQty model)
+    {
+        var vals = new List<object?> { model.StCd, model.MajCat };
+        for (int w = 1; w <= 48; w++)
+        {
+            var prop = typeof(SaleQty).GetProperty($"Wk{w}");
+            vals.Add(prop?.GetValue(model));
+        }
+        vals.Add(model.Col2);
+        return vals.ToArray();
+    }
+
+    // ── Index ────────────────────────────────────────────────
+    public async Task<IActionResult> Index(string? stCd, string? majCat, int page = 1, int pageSize = 100)
+    {
+        await using var conn = await SnowflakeCrudHelper.OpenAsync(_sfConnStr);
+
+        var (where, parms) = SnowflakeCrudHelper.BuildFilter(new Dictionary<string, string?>
+        {
+            { "ST_CD", stCd }, { "MAJ_CAT", majCat }
+        });
+
+        ViewBag.TotalCount = await SnowflakeCrudHelper.CountAsync(conn, TABLE, where, parms);
+        ViewBag.TotalRows  = await SnowflakeCrudHelper.CountAsync(conn, TABLE);
+        ViewBag.StoreCodes = await SnowflakeCrudHelper.DistinctAsync(conn, TABLE, "ST_CD");
+        ViewBag.Categories = await SnowflakeCrudHelper.DistinctAsync(conn, TABLE, "MAJ_CAT");
+        ViewBag.TotalStores = ((List<string>)ViewBag.StoreCodes).Count;
+        ViewBag.TotalCats   = ((List<string>)ViewBag.Categories).Count;
+        ViewBag.Page = page; ViewBag.PageSize = pageSize;
+        ViewBag.StCd = stCd; ViewBag.MajCat = majCat;
+
+        var data = await SnowflakeCrudHelper.PagedQueryAsync(conn, TABLE, COLS, where, parms,
+            "ST_CD, MAJ_CAT", page, pageSize, ReadRow);
+        return View(data);
+    }
+
+    // ── Create GET ───────────────────────────────────────────
+    public IActionResult Create() => View(new SaleQty());
+
+    // ── Create POST ──────────────────────────────────────────
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> Create(SaleQty model)
+    {
+        if (!ModelState.IsValid) return View(model);
+        await using var conn = await SnowflakeCrudHelper.OpenAsync(_sfConnStr);
+        await SnowflakeCrudHelper.InsertAsync(conn, TABLE, InsertCols, BuildValues(model));
+        TempData["SuccessMessage"] = "Record added.";
+        return RedirectToAction(nameof(Index));
+    }
+
+    // ── Edit GET ─────────────────────────────────────────────
+    public async Task<IActionResult> Edit(int id)
+    {
+        await using var conn = await SnowflakeCrudHelper.OpenAsync(_sfConnStr);
+        var item = await SnowflakeCrudHelper.FindByIdAsync(conn, TABLE, COLS, id, ReadRow);
+        return item == null ? NotFound() : View(item);
+    }
+
+    // ── Edit POST ────────────────────────────────────────────
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> Edit(SaleQty model)
+    {
+        if (!ModelState.IsValid) return View(model);
+        await using var conn = await SnowflakeCrudHelper.OpenAsync(_sfConnStr);
+        await SnowflakeCrudHelper.UpdateAsync(conn, TABLE, InsertCols, BuildValues(model), model.Id);
+        TempData["SuccessMessage"] = "Record updated.";
+        return RedirectToAction(nameof(Index));
+    }
+
+    // ── Delete GET ───────────────────────────────────────────
+    public async Task<IActionResult> Delete(int id)
+    {
+        await using var conn = await SnowflakeCrudHelper.OpenAsync(_sfConnStr);
+        var item = await SnowflakeCrudHelper.FindByIdAsync(conn, TABLE, COLS, id, ReadRow);
+        return item == null ? NotFound() : View(item);
+    }
+
+    // ── Delete POST ──────────────────────────────────────────
+    [HttpPost, ActionName("Delete"), ValidateAntiForgeryToken]
+    public async Task<IActionResult> DeleteConfirmed(int id)
+    {
+        await using var conn = await SnowflakeCrudHelper.OpenAsync(_sfConnStr);
+        await SnowflakeCrudHelper.DeleteAsync(conn, TABLE, id);
+        TempData["SuccessMessage"] = "Record deleted.";
+        return RedirectToAction(nameof(Index));
+    }
+
+    // ── CSV Export ───────────────────────────────────────────
+    public async Task<IActionResult> ExportCsv(string? stCd, string? majCat)
+    {
+        await using var conn = await SnowflakeCrudHelper.OpenAsync(_sfConnStr);
+        var (where, parms) = SnowflakeCrudHelper.BuildFilter(new Dictionary<string, string?>
+        {
+            { "ST_CD", stCd }, { "MAJ_CAT", majCat }
+        });
+
+        var dataCols = "ST_CD, MAJ_CAT, " + string.Join(", ", WkCols) + ", COL_2";
+        var sql = $"SELECT {dataCols} FROM {TABLE}{(string.IsNullOrEmpty(where) ? "" : " WHERE " + where)} ORDER BY ST_CD, MAJ_CAT";
+
+        await using var cmd = conn.CreateCommand();
+        cmd.CommandText = sql;
+        if (parms != null) foreach (var p in parms) cmd.Parameters.Add(SnowflakeCrudHelper.CloneParam(p));
+
+        var sb = new StringBuilder();
+        sb.AppendLine("StCd,MajCat," + string.Join(",", Enumerable.Range(1, 48).Select(w => $"Wk{w}")) + ",Col2");
+        await using var r = await cmd.ExecuteReaderAsync();
+        while (await r.ReadAsync())
+        {
+            sb.Append(Q(SnowflakeCrudHelper.Str(r, 0)));
+            sb.Append(',');
+            sb.Append(Q(SnowflakeCrudHelper.Str(r, 1)));
+            for (int w = 0; w < 48; w++)
+            {
+                sb.Append(',');
+                sb.Append(SnowflakeCrudHelper.DecNull(r, 2 + w)?.ToString() ?? "");
+            }
+            sb.Append(',');
+            sb.Append(SnowflakeCrudHelper.DecNull(r, 50)?.ToString() ?? "");
+            sb.AppendLine();
+        }
+        return File(Encoding.UTF8.GetBytes(sb.ToString()), "text/csv", "SaleQty.csv");
+    }
+
+    private static string Q(string? s) => string.IsNullOrEmpty(s) ? "" : "\"" + s.Replace("\"", "\"\"") + "\"";
 }

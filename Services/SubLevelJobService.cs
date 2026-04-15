@@ -1,14 +1,14 @@
-using Microsoft.Data.SqlClient;
+using Snowflake.Data.Client;
 
 namespace TRANSFER_IN_PLAN.Services;
 
 /// <summary>
-/// Singleton service that manages background execution of sub-level plan generation.
-/// Runs SP_GENERATE_SUB_LEVEL_TRF + SP_GENERATE_SUB_LEVEL_PP per level.
+/// Singleton service that manages background execution of sub-level plan generation on Snowflake.
+/// Runs SF_SP_GENERATE_SUB_LEVEL_TRF + SF_SP_GENERATE_SUB_LEVEL_PP per level.
 /// </summary>
 public class SubLevelJobService
 {
-    private readonly IServiceScopeFactory _scopeFactory;
+    private readonly IConfiguration _config;
     private readonly ILogger<SubLevelJobService> _logger;
     private readonly object _lock = new();
 
@@ -25,9 +25,9 @@ public class SubLevelJobService
     public int TotalPpRows { get; private set; }
     public string? ErrorMessage { get; private set; }
 
-    public SubLevelJobService(IServiceScopeFactory scopeFactory, ILogger<SubLevelJobService> logger)
+    public SubLevelJobService(IConfiguration config, ILogger<SubLevelJobService> logger)
     {
-        _scopeFactory = scopeFactory;
+        _config = config;
         _logger = logger;
     }
 
@@ -49,57 +49,47 @@ public class SubLevelJobService
             ErrorMessage = null;
         }
 
-        _ = Task.Run(() => RunSubLevelAsync(levels, startWeekId, endWeekId, storeCode, majCat));
+        Task.Run(() => RunSubLevelAsync(levels, startWeekId, endWeekId, storeCode, majCat));
         return true;
     }
 
     private async Task RunSubLevelAsync(string[] levels, int startWeekId, int endWeekId, string? storeCode, string? majCat)
     {
+        var sfConnStr = _config.GetConnectionString("Snowflake")!;
+
         try
         {
-            using var scope = _scopeFactory.CreateScope();
-            var config = scope.ServiceProvider.GetRequiredService<IConfiguration>();
-            var connStr = config.GetConnectionString("PlanningDatabase")!;
+            _logger.LogInformation("SubLevelJob: Starting levels [{Levels}] weeks {Start}-{End} on Snowflake", string.Join(",", levels), startWeekId, endWeekId);
 
-            _logger.LogInformation("SubLevelJob: Starting levels [{Levels}] weeks {Start}-{End}", string.Join(",", levels), startWeekId, endWeekId);
+            await using var conn = new SnowflakeDbConnection { ConnectionString = sfConnStr };
+            await conn.OpenAsync();
+
+            var scParam = string.IsNullOrEmpty(storeCode) ? "NULL" : $"'{storeCode}'";
+            var mcParam = string.IsNullOrEmpty(majCat) ? "NULL" : $"'{majCat}'";
 
             for (int idx = 0; idx < levels.Length; idx++)
             {
                 var levelKey = levels[idx].ToUpper();
-                CurrentLevel = levelKey;
+                lock (_lock) { CurrentLevel = levelKey; }
 
                 // ── TRF Phase ──
-                Phase = "TRF";
-                Status = $"Running TRF for {levelKey} ({idx + 1}/{levels.Length})...";
+                lock (_lock) { Phase = "TRF"; Status = $"Running TRF for {levelKey} ({idx + 1}/{levels.Length})..."; }
                 _logger.LogInformation("SubLevelJob: TRF [{Level}]", levelKey);
 
-                await using (var conn = new SqlConnection(connStr))
+                await using (var cmd = conn.CreateCommand())
                 {
-                    await conn.OpenAsync();
-                    await using var cmd = conn.CreateCommand();
-                    cmd.CommandText = "EXEC dbo.SP_GENERATE_SUB_LEVEL_TRF @Level=@lv, @StartWeekID=@s, @EndWeekID=@e, @StoreCode=@sc, @MajCat=@mc";
-                    cmd.Parameters.AddWithValue("@lv", levelKey);
-                    cmd.Parameters.AddWithValue("@s", startWeekId);
-                    cmd.Parameters.AddWithValue("@e", endWeekId);
-                    cmd.Parameters.AddWithValue("@sc", string.IsNullOrEmpty(storeCode) ? DBNull.Value : storeCode);
-                    cmd.Parameters.AddWithValue("@mc", string.IsNullOrEmpty(majCat) ? DBNull.Value : majCat);
-                    cmd.CommandTimeout = 3600; // 1 hour
+                    cmd.CommandText = $"CALL SF_SP_GENERATE_SUB_LEVEL_TRF('{levelKey}', {startWeekId}, {endWeekId}, {scParam}, {mcParam})";
+                    cmd.CommandTimeout = 3600;
                     await cmd.ExecuteNonQueryAsync();
                 }
 
                 // ── PP Phase ──
-                Phase = "PP";
-                Status = $"Running PP for {levelKey} ({idx + 1}/{levels.Length})...";
+                lock (_lock) { Phase = "PP"; Status = $"Running PP for {levelKey} ({idx + 1}/{levels.Length})..."; }
                 _logger.LogInformation("SubLevelJob: PP [{Level}]", levelKey);
 
-                await using (var conn = new SqlConnection(connStr))
+                await using (var cmd = conn.CreateCommand())
                 {
-                    await conn.OpenAsync();
-                    await using var cmd = conn.CreateCommand();
-                    cmd.CommandText = "EXEC dbo.SP_GENERATE_SUB_LEVEL_PP @Level=@lv, @StartWeekID=@s, @EndWeekID=@e";
-                    cmd.Parameters.AddWithValue("@lv", levelKey);
-                    cmd.Parameters.AddWithValue("@s", startWeekId);
-                    cmd.Parameters.AddWithValue("@e", endWeekId);
+                    cmd.CommandText = $"CALL SF_SP_GENERATE_SUB_LEVEL_PP('{levelKey}', {startWeekId}, {endWeekId}, NULL, {mcParam})";
                     cmd.CommandTimeout = 3600;
                     await cmd.ExecuteNonQueryAsync();
                 }
@@ -109,19 +99,17 @@ public class SubLevelJobService
             }
 
             // ── Final counts ──
-            Phase = "Counting";
-            Status = "Getting final row counts...";
-            await using (var conn = new SqlConnection(connStr))
+            lock (_lock) { Phase = "Counting"; Status = "Getting final row counts..."; }
+
+            await using (var cmd = conn.CreateCommand())
             {
-                await conn.OpenAsync();
-                await using var cmd = conn.CreateCommand();
-                cmd.CommandText = @"SELECT COUNT(*) FROM dbo.SUB_LEVEL_TRF_PLAN WITH (NOLOCK);
-                                    SELECT COUNT(*) FROM dbo.SUB_LEVEL_PP_PLAN WITH (NOLOCK);";
-                cmd.CommandTimeout = 60;
-                await using var reader = await cmd.ExecuteReaderAsync();
-                if (await reader.ReadAsync()) TotalTrfRows = reader.GetInt32(0);
-                await reader.NextResultAsync();
-                if (await reader.ReadAsync()) TotalPpRows = reader.GetInt32(0);
+                cmd.CommandText = "SELECT COUNT(*) FROM SUB_LEVEL_TRF_PLAN";
+                TotalTrfRows = Convert.ToInt32(await cmd.ExecuteScalarAsync() ?? 0);
+            }
+            await using (var cmd = conn.CreateCommand())
+            {
+                cmd.CommandText = "SELECT COUNT(*) FROM SUB_LEVEL_PP_PLAN";
+                TotalPpRows = Convert.ToInt32(await cmd.ExecuteScalarAsync() ?? 0);
             }
 
             lock (_lock)

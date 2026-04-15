@@ -7,7 +7,8 @@ namespace TRANSFER_IN_PLAN.Models;
 [Table("MASTER_GRT_CONTRIBUTION")]
 public class GrtContribution
 {
-    [Key]
+    [Key] [Column("ID")] public int Id { get; set; }
+
     [Column("SSN")]
     [StringLength(100)]
     public string Ssn { get; set; } = "NA";
