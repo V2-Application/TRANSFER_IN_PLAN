@@ -165,6 +165,15 @@ public static class PlanningTableConfig
             new[] { typeof(string),typeof(string),typeof(string),typeof(decimal),typeof(decimal),typeof(decimal),typeof(DateTime) },
             new[] { "RdcCd","MajCat","SubValue","DcStkQ","GrtStkQ","WGrtStkQ","Date(yyyy-MM-dd)" },
             new[] { "DW01","IB_ROMPER_SU","200854","300","120","80","2026-04-01" }),
+
+        // ── Store Calendar ──
+        ["StoreCalendar"] = new(
+            "Store Calendar (ST x Date → FY, Week, LY Same Date)",
+            "STORE_CALENDAR",
+            new[] { "ST_CD","BGT_MNTH_DATE","YEAR","FY","MONTH","YEAR_WEEK","FY_WEEK","FY_WEEK_ST_DT","FY_WEEK_END_DT","DAY","LY_SAME_DATE" },
+            new[] { typeof(string),typeof(DateTime),typeof(string),typeof(string),typeof(string),typeof(string),typeof(string),typeof(DateTime),typeof(DateTime),typeof(string),typeof(DateTime) },
+            new[] { "StCd","BgtMnthDate","Year","FY","Month","YearWeek","FyWeek","FyWeekStDt","FyWeekEndDt","Day","LySameDate" },
+            new[] { "HA10","2025-01-01","2025","2024-25","JAN-25","WK-1","WK-40","2025-01-01","2025-01-05","WED","2024-01-03" }),
     };
 
     public static TableDef? Get(string key) => Tables.GetValueOrDefault(key);

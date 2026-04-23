@@ -1,0 +1,296 @@
+@{ ViewData["Title"] = "Sale Plan — Algorithm Reference"; }
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+        <h3 class="mb-0"><i class="bi bi-info-circle me-2" style="color:#7c3aed;"></i>Sale Plan — Algorithm Reference</h3>
+        <small class="text-muted">Complete logic for every metric and reference column</small>
+    </div>
+    <a asp-action="Index" class="btn btn-outline-primary btn-sm"><i class="bi bi-arrow-left me-1"></i>Back to Output</a>
+</div>
+
+<!-- Nav Tabs -->
+<ul class="nav nav-tabs mb-3" role="tablist" style="font-size:0.82rem;">
+    <li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#tabOverview">Overview</a></li>
+    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tabBase">Base Metrics</a></li>
+    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tabAvg">Averages</a></li>
+    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tabGrowth">Growth %</a></li>
+    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tabRef">References (REF 1-6)</a></li>
+    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tabData">Data Sources</a></li>
+</ul>
+
+<div class="tab-content">
+
+<!-- ═══ OVERVIEW ═══ -->
+<div class="tab-pane fade show active" id="tabOverview">
+<div class="card shadow-sm border-0 mb-3" style="border-left:4px solid #7c3aed !important;">
+    <div class="card-body">
+        <h5 class="fw-bold" style="color:#7c3aed;">What is the Sale Plan?</h5>
+        <p>The Sale Plan generates <strong>weekly sales forecasts</strong> per Store + Major Category by combining current year sales, last-year comparisons, stock positions, and 6 reference algorithms. Each algorithm applies a different forecasting strategy so planners can compare and pick the best fit.</p>
+
+        <h6 class="fw-bold mt-4">How It Works (Flow)</h6>
+        <div class="bg-light rounded p-3" style="font-family:monospace;font-size:0.78rem;line-height:1.8;">
+            <strong>STORE_CALENDAR</strong> (maps dates to FY weeks)<br/>
+            &nbsp;&nbsp;&nbsp;&nbsp;|<br/>
+            &nbsp;&nbsp;&nbsp;&nbsp;+-- <span style="color:#059669;">Current Sale</span> = ET_SALES_DATA joined on BGT_MNTH_DATE<br/>
+            &nbsp;&nbsp;&nbsp;&nbsp;+-- <span style="color:#0d4f3c;">LYSM (Last Year Same Month)</span> = sales from BGT_MNTH_DATE - 1 year<br/>
+            &nbsp;&nbsp;&nbsp;&nbsp;+-- <span style="color:#7c4a00;">LYSP (Last Year Same Period)</span> = sales on LY_SAME_DATE (same weekday last year)<br/>
+            &nbsp;&nbsp;&nbsp;&nbsp;+-- <span style="color:#1a3a5c;">Stock</span> = latest snapshot from ET_STOCK_DATA (0001 + 0006)<br/>
+            &nbsp;&nbsp;&nbsp;&nbsp;|<br/>
+            &nbsp;&nbsp;&nbsp;&nbsp;v<br/>
+            <strong>vw_data</strong> (all rows at Store x Article x Week level, joined with DIM_PRODUCT)<br/>
+            &nbsp;&nbsp;&nbsp;&nbsp;|<br/>
+            &nbsp;&nbsp;&nbsp;&nbsp;+-- <span style="color:#d97706;">ref_avg</span> = average of reference weeks (configurable: last 1/3/custom weeks)<br/>
+            &nbsp;&nbsp;&nbsp;&nbsp;+-- <span style="color:#7c3aed;">ref_l3m, ref_l5m_base, ref_l3m_base, ref_lysp_maj, ref_str</span> = reference CTEs<br/>
+            &nbsp;&nbsp;&nbsp;&nbsp;|<br/>
+            &nbsp;&nbsp;&nbsp;&nbsp;v<br/>
+            <strong>vw_plan</strong> (final table: base metrics + averages + reference data)<br/>
+            &nbsp;&nbsp;&nbsp;&nbsp;|<br/>
+            &nbsp;&nbsp;&nbsp;&nbsp;v<br/>
+            <strong>GROUP BY</strong> user-selected dimensions -> aggregated output + REF-1 to REF-6
+        </div>
+    </div>
+</div>
+</div>
+
+<!-- ═══ BASE METRICS ═══ -->
+<div class="tab-pane fade" id="tabBase">
+<div class="card shadow-sm border-0 mb-3" style="border-left:4px solid #059669 !important;">
+    <div class="card-body">
+        <h5 class="fw-bold" style="color:#059669;">Base Metrics (13 columns)</h5>
+        <p>These are computed per <strong>Store x Article x FY Week</strong> from raw sales and stock data.</p>
+        <table class="table table-bordered table-sm" style="font-size:0.78rem;">
+            <thead class="table-dark"><tr><th>Group</th><th>Column</th><th>Formula</th><th>Source</th></tr></thead>
+            <tbody>
+                <tr><td rowspan="3" class="fw-bold" style="color:#059669;">Current Sale</td><td>SALE_QTY</td><td>SUM(FKIMG)</td><td>ET_SALES_DATA where SALES_DATE = BGT_MNTH_DATE</td></tr>
+                <tr><td>SALE_VAL</td><td>SUM(NETWR)</td><td>Same join</td></tr>
+                <tr><td>SALE_GM</td><td>SUM(NET_VAL - KWERT_VPRS)</td><td>Gross Margin = Net Value - Cost</td></tr>
+                <tr><td rowspan="3" class="fw-bold" style="color:#0d4f3c;">LYSM</td><td>LYSM_QTY</td><td>SUM(FKIMG)</td><td>SALES_DATE = BGT_MNTH_DATE - 1 year</td></tr>
+                <tr><td>LYSM_VAL</td><td>SUM(NETWR)</td><td>Same join, 1 year back</td></tr>
+                <tr><td>LYSM_GM</td><td>SUM(NET_VAL - KWERT_VPRS)</td><td>Same join, 1 year back</td></tr>
+                <tr><td rowspan="3" class="fw-bold" style="color:#7c4a00;">LYSP</td><td>LYSP_QTY</td><td>SUM(FKIMG)</td><td>SALES_DATE = LY_SAME_DATE (same weekday last year)</td></tr>
+                <tr><td>LYSP_VAL</td><td>SUM(NETWR)</td><td>Same join</td></tr>
+                <tr><td>LYSP_GM</td><td>SUM(NET_VAL - KWERT_VPRS)</td><td>Same join</td></tr>
+                <tr><td rowspan="4" class="fw-bold" style="color:#1a3a5c;">Stock</td><td>STK_0001_QTY</td><td>SUM(LABST)</td><td>ET_STOCK_DATA LGORT=0001, latest date</td></tr>
+                <tr><td>STK_0001_VAL</td><td>SUM(LABST_DMBTR)</td><td>Same</td></tr>
+                <tr><td>STK_0006_QTY</td><td>SUM(LABST)</td><td>ET_STOCK_DATA LGORT=0006, latest date</td></tr>
+                <tr><td>STK_0006_VAL</td><td>SUM(LABST_DMBTR)</td><td>Same</td></tr>
+            </tbody>
+        </table>
+        <div class="alert alert-info py-2 small mb-0">
+            <i class="bi bi-info-circle me-1"></i><strong>LYSM vs LYSP:</strong> LYSM = exactly 1 calendar year back (same date). LYSP = same weekday last year (from LY_SAME_DATE in STORE_CALENDAR), so the day-of-week matches for better comparison.
+        </div>
+    </div>
+</div>
+</div>
+
+<!-- ═══ AVERAGES ═══ -->
+<div class="tab-pane fade" id="tabAvg">
+<div class="card shadow-sm border-0 mb-3" style="border-left:4px solid #d97706 !important;">
+    <div class="card-body">
+        <h5 class="fw-bold" style="color:#d97706;">Reference Period Averages (9 columns)</h5>
+        <p>These appear only when a <strong>Reference Period</strong> is selected (Last Week, Last 3 Weeks, or Custom).</p>
+
+        <h6 class="fw-bold mt-3">How Reference Weeks Are Resolved</h6>
+        <table class="table table-bordered table-sm mb-3" style="font-size:0.78rem;">
+            <thead class="table-dark"><tr><th>Mode</th><th>Logic</th><th>Example (Base = WK-5)</th></tr></thead>
+            <tbody>
+                <tr><td>Last Week</td><td>1 week before Base Week (by date order, cross-FY)</td><td>WK-4</td></tr>
+                <tr><td>Last 3 Weeks</td><td>3 weeks before Base Week (by date order, cross-FY)</td><td>WK-2, WK-3, WK-4</td></tr>
+                <tr><td>Custom</td><td>User picks specific weeks</td><td>Any selection</td></tr>
+            </tbody>
+        </table>
+
+        <h6 class="fw-bold">Formula</h6>
+        <div class="bg-light rounded p-3 mb-3" style="font-family:monospace;font-size:0.82rem;">
+            AVG_LYSP_QTY = SUM(LYSP_QTY across N ref weeks) / N<br/>
+            AVG_LYSP_VAL = SUM(LYSP_VAL across N ref weeks) / N<br/>
+            AVG_LYSP_GM &nbsp;= SUM(LYSP_GM across N ref weeks) / N<br/>
+            <span class="text-muted">Same pattern for AVG_SALE_* and AVG_LYSM_*</span>
+        </div>
+        <p class="small text-muted mb-0">Averages are grouped by the user's non-time dimensions (e.g., STORE_CODE + MAJ_CAT). Cross-FY lookback is supported (e.g., base WK-1 of 2026-27 can reference WK-51,52,53 of 2025-26).</p>
+    </div>
+</div>
+</div>
+
+<!-- ═══ GROWTH % ═══ -->
+<div class="tab-pane fade" id="tabGrowth">
+<div class="card shadow-sm border-0 mb-3" style="border-left:4px solid #dc2626 !important;">
+    <div class="card-body">
+        <h5 class="fw-bold" style="color:#dc2626;">Week-wise Growth % &amp; Final Growth</h5>
+        <p>These measure how each week's LYSP compares to the reference average.</p>
+
+        <table class="table table-bordered table-sm" style="font-size:0.78rem;">
+            <thead class="table-dark"><tr><th>Column</th><th>Formula</th><th>Meaning</th></tr></thead>
+            <tbody>
+                <tr>
+                    <td class="fw-bold">WK_GROWTH_VAL</td>
+                    <td style="font-family:monospace;">(LYSP_VAL / AVG_LYSP_VAL - 1) &times; 100</td>
+                    <td>How much this week's LYSP is above/below the reference average. +20% = 20% above avg, -10% = 10% below.</td>
+                </tr>
+                <tr>
+                    <td class="fw-bold" style="color:#7c3aed;">REF-0 Final Growth</td>
+                    <td style="font-family:monospace;">AVG_LYSP_QTY &times; (1 + WK_GROWTH / 100)</td>
+                    <td>The average LYSP quantity adjusted by the week's seasonal pattern. Projects what the week "should" sell based on the reference average and week-specific growth. Part of the References column group.</td>
+                </tr>
+            </tbody>
+        </table>
+        <div class="alert alert-warning py-2 small mb-0">
+            <i class="bi bi-lightbulb me-1"></i><strong>Note:</strong> WK_GROWTH is hidden from the table but computed internally. It drives REF-0 (Final Growth). The Excel equivalent is <code>=WK_LYSP/AVG_LYSP - 1</code>.
+        </div>
+    </div>
+</div>
+</div>
+
+<!-- ═══ REFERENCES (REF-1 to REF-6) ═══ -->
+<div class="tab-pane fade" id="tabRef">
+<div class="card shadow-sm border-0 mb-3" style="border-left:4px solid #7c3aed !important;">
+    <div class="card-body">
+        <h5 class="fw-bold" style="color:#7c3aed;">Reference Algorithms (REF-1 to REF-6)</h5>
+        <p>Six forecasting approaches — each uses a different strategy. All parameters are configurable via the <strong>Reference Period</strong> inputs. Compare columns side-by-side to choose the best forecast.</p>
+
+        <!-- REF-1 -->
+        <div class="border rounded p-3 mb-3" style="background:#f5f3ff;">
+            <div class="d-flex justify-content-between align-items-start">
+                <h6 class="fw-bold mb-1" style="color:#7c3aed;">REF-1: Minimum RXL Growth</h6>
+                <span class="badge bg-secondary">Placeholder</span>
+            </div>
+            <table class="table table-sm table-borderless mb-2" style="font-size:0.78rem;">
+                <tr><td class="fw-bold" style="width:120px;">Formula</td><td style="font-family:monospace;">AVG_LYSP_QTY &times; RXL_GROWTH_QTY</td></tr>
+                <tr><td class="fw-bold">Current</td><td><strong>Always 0</strong> — RXL growth data is not yet available in the system</td></tr>
+                <tr><td class="fw-bold">Input</td><td><strong>R1 RXL%</strong> (default: 50) — reserved for future use when RXL data is connected</td></tr>
+                <tr><td class="fw-bold">Purpose</td><td>Will use RXL (Retail Cross Level) growth for a conservative forecast. Currently a placeholder column.</td></tr>
+            </table>
+        </div>
+
+        <!-- REF-2 -->
+        <div class="border rounded p-3 mb-3" style="background:#f5f3ff;">
+            <div class="d-flex justify-content-between align-items-start">
+                <h6 class="fw-bold mb-1" style="color:#7c3aed;">REF-2: Minimum LYSP Quantity</h6>
+                <span class="badge" style="background:#059669;">Baseline</span>
+            </div>
+            <table class="table table-sm table-borderless mb-2" style="font-size:0.78rem;">
+                <tr><td class="fw-bold" style="width:120px;">Formula</td><td style="font-family:monospace;">LYSP_QTY &times; R2% / 100</td></tr>
+                <tr><td class="fw-bold">Input</td><td><strong>R2 Mult%</strong> (default: 110) — growth multiplier applied to LYSP</td></tr>
+                <tr><td class="fw-bold">Purpose</td><td>Ensures baseline sales growth over last year. At 110%, forecasts 10% more than LYSP.</td></tr>
+                <tr><td class="fw-bold">Needs Ref</td><td>No — uses LYSP directly</td></tr>
+            </table>
+            <div class="small text-muted" style="font-family:monospace;">Excel: = LYSP_SALE_QTY * 110%</div>
+        </div>
+
+        <!-- REF-3 -->
+        <div class="border rounded p-3 mb-3" style="background:#f5f3ff;">
+            <div class="d-flex justify-content-between align-items-start">
+                <h6 class="fw-bold mb-1" style="color:#7c3aed;">REF-3: Growth Adjusted Quantity</h6>
+                <span class="badge" style="background:#d97706;">BW1 Trend</span>
+            </div>
+            <table class="table table-sm table-borderless mb-2" style="font-size:0.78rem;">
+                <tr><td class="fw-bold" style="width:120px;">Formula</td><td style="font-family:monospace;">LYSP_QTY &times; (1 + capped(GR%))</td></tr>
+                <tr><td class="fw-bold">Where</td><td>GR% = <strong>AVG_SALE_VAL (from Ref 1)</strong> / LYSP_SALE_VAL - 1</td></tr>
+                <tr><td class="fw-bold">Capping</td><td>LEAST(R3Cap%, GREATEST(-R3Cap%, GR%))</td></tr>
+                <tr><td class="fw-bold">Input</td><td><strong>R3 Cap%</strong> (default: 50) — caps the growth at &plusmn;this %</td></tr>
+                <tr><td class="fw-bold">Purpose</td><td>Adjusts LYSP quantity by the growth rate derived from <strong>Base Week 1</strong> averages vs LYSP, with guard rails.</td></tr>
+                <tr><td class="fw-bold">Uses</td><td><strong>Ref 1 (BW1)</strong> — AVG_SALE_VAL from Base Week 1</td></tr>
+            </table>
+            <div class="small text-muted" style="font-family:monospace;">Excel: = LYSP_QTY * (1 + MIN(R3Cap%, MAX(-R3Cap%, AVG_SALE_VAL / LYSP_VAL - 1)))</div>
+        </div>
+
+        <!-- REF-4 -->
+        <div class="border rounded p-3 mb-3" style="background:#f5f3ff;">
+            <div class="d-flex justify-content-between align-items-start">
+                <h6 class="fw-bold mb-1" style="color:#7c3aed;">REF-4: Old Store Forecast (L5M)</h6>
+                <span class="badge" style="background:#0ea5e9;">BW2 Growth</span>
+            </div>
+            <table class="table table-sm table-borderless mb-2" style="font-size:0.78rem;">
+                <tr><td class="fw-bold" style="width:120px;">Formula</td><td style="font-family:monospace;">BASE_L5M_QTY &times; (1 + capped(GR%))</td></tr>
+                <tr><td class="fw-bold">Where</td><td>BASE_L5M_QTY = avg monthly sales Jun-Oct (last 1 year) per Store + Category<br/>
+                    GR% = <strong>AVG_SALE_VAL_R2 (from Ref 2)</strong> / LYSP_SALE_VAL - 1</td></tr>
+                <tr><td class="fw-bold">Capping</td><td>LEAST(R4+%, GREATEST(-R4-%, GR%))</td></tr>
+                <tr><td class="fw-bold">Inputs</td><td><strong>R4 +%</strong> (default: 35) upper cap, <strong>R4 -%</strong> (default: 20) lower cap</td></tr>
+                <tr><td class="fw-bold">Purpose</td><td>Uses the Jun-Oct historical base adjusted by <strong>Base Week 2</strong> growth rate. Good for stores with longer history.</td></tr>
+                <tr><td class="fw-bold">Uses</td><td><strong>Ref 2 (BW2)</strong> — AVG_SALE_VAL_R2 from Base Week 2</td></tr>
+            </table>
+            <div class="small text-muted" style="font-family:monospace;">Excel: = BASE_L5M * (1 + MIN(R4+%, MAX(-R4-%, AVG_SALE_VAL_R2 / LYSP_VAL - 1)))</div>
+        </div>
+
+        <!-- REF-5 -->
+        <div class="border rounded p-3 mb-3" style="background:#f5f3ff;">
+            <div class="d-flex justify-content-between align-items-start">
+                <h6 class="fw-bold mb-1" style="color:#7c3aed;">REF-5: Old Store Forecast (L3M)</h6>
+                <span class="badge" style="background:#d97706;">BW1 Growth</span>
+            </div>
+            <table class="table table-sm table-borderless mb-2" style="font-size:0.78rem;">
+                <tr><td class="fw-bold" style="width:120px;">Formula</td><td style="font-family:monospace;">BASE_L3M_QTY &times; (1 + capped(GR%))</td></tr>
+                <tr><td class="fw-bold">Where</td><td>BASE_L3M_QTY = avg monthly sales Oct-Dec (last 1 year) per Store + Category<br/>
+                    GR% = <strong>AVG_SALE_VAL (from Ref 1)</strong> / LYSP_SALE_VAL - 1</td></tr>
+                <tr><td class="fw-bold">Capping</td><td>LEAST(R5+%, GREATEST(-R5-%, GR%))</td></tr>
+                <tr><td class="fw-bold">Inputs</td><td><strong>R5 +%</strong> (default: 35) upper cap, <strong>R5 -%</strong> (default: 20) lower cap</td></tr>
+                <tr><td class="fw-bold">Purpose</td><td>Uses Oct-Dec base adjusted by <strong>Base Week 1</strong> growth rate. Better when recent months differ significantly from the 5-month base.</td></tr>
+                <tr><td class="fw-bold">Uses</td><td><strong>Ref 1 (BW1)</strong> — AVG_SALE_VAL from Base Week 1</td></tr>
+            </table>
+            <div class="small text-muted" style="font-family:monospace;">Excel: = BASE_L3M * (1 + MIN(R5+%, MAX(-R5-%, AVG_SALE_VAL / LYSP_VAL - 1)))</div>
+        </div>
+
+        <!-- REF-6 -->
+        <div class="border rounded p-3 mb-3" style="background:#f5f3ff;">
+            <div class="d-flex justify-content-between align-items-start">
+                <h6 class="fw-bold mb-1" style="color:#7c3aed;">REF-6: STR Protection</h6>
+                <span class="badge bg-danger">Floor / Safety Net</span>
+            </div>
+            <table class="table table-sm table-borderless mb-2" style="font-size:0.78rem;">
+                <tr><td class="fw-bold" style="width:120px;">Formula</td><td style="font-family:monospace;">SUM(sales in last N days) per Store + Category</td></tr>
+                <tr><td class="fw-bold">Input</td><td><strong>R6 Days</strong> (default: 120) — lookback window in days</td></tr>
+                <tr><td class="fw-bold">Purpose</td><td>Ensures a <strong>minimum forecast floor</strong> based on actual sell-through in the last N days. If other REFs forecast lower than this, the store is likely being under-planned.</td></tr>
+                <tr><td class="fw-bold">Needs Ref</td><td>No — computed directly from ET_SALES_DATA</td></tr>
+            </table>
+            <div class="small text-muted" style="font-family:monospace;">Excel: = 120 DAY STR SALE (sum of FKIMG in last 120 days)</div>
+        </div>
+
+        <!-- Quick Comparison -->
+        <h6 class="fw-bold mt-4">Quick Comparison</h6>
+        <table class="table table-bordered table-sm" style="font-size:0.78rem;">
+            <thead class="table-dark"><tr><th>REF</th><th>Strategy</th><th>Growth Source</th><th>Best When</th><th>Depends On</th></tr></thead>
+            <tbody>
+                <tr><td>REF-1</td><td>Placeholder (RXL)</td><td>—</td><td>Future use when RXL data available</td><td>Currently returns 0</td></tr>
+                <tr><td>REF-2</td><td>LYSP + flat growth</td><td>—</td><td>Stable categories with predictable YoY growth</td><td>LYSP only</td></tr>
+                <tr><td>REF-3</td><td>Growth adjusted LYSP</td><td class="fw-bold" style="color:#7c3aed;">BW1</td><td>Categories with shifting demand patterns</td><td>AVG_SALE_VAL (Ref 1) / LYSP_VAL</td></tr>
+                <tr><td>REF-4</td><td>Jun-Oct base + growth</td><td class="fw-bold" style="color:#0ea5e9;">BW2</td><td>Established stores with 5+ months of data</td><td>AVG_SALE_VAL_R2 (Ref 2) / LYSP_VAL</td></tr>
+                <tr><td>REF-5</td><td>Oct-Dec base + growth</td><td class="fw-bold" style="color:#7c3aed;">BW1</td><td>When recent months tell a different story</td><td>AVG_SALE_VAL (Ref 1) / LYSP_VAL</td></tr>
+                <tr><td>REF-6</td><td>Sell-through floor</td><td>—</td><td>Safety net — use as a minimum threshold</td><td>Last N days of actual sales</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+</div>
+
+<!-- ═══ DATA SOURCES ═══ -->
+<div class="tab-pane fade" id="tabData">
+<div class="card shadow-sm border-0 mb-3" style="border-left:4px solid #0ea5e9 !important;">
+    <div class="card-body">
+        <h5 class="fw-bold" style="color:#0ea5e9;">Data Sources (Snowflake)</h5>
+        <table class="table table-bordered table-sm" style="font-size:0.78rem;">
+            <thead class="table-dark"><tr><th>Table</th><th>Purpose</th><th>Key Columns</th></tr></thead>
+            <tbody>
+                <tr><td class="fw-bold">STORE_CALENDAR</td><td>Maps each store + date to FY, FY_WEEK, LY_SAME_DATE</td><td>ST_CD, BGT_MNTH_DATE, FY, FY_WEEK, LY_SAME_DATE</td></tr>
+                <tr><td class="fw-bold">ET_SALES_DATA</td><td>Actual sales transactions</td><td>WERKS (store), MATNR (article), SALES_DATE, FKIMG (qty), NETWR (value), NET_VAL, KWERT_VPRS</td></tr>
+                <tr><td class="fw-bold">ET_STOCK_DATA</td><td>Stock positions by location</td><td>WERKS, MATNR, LGORT (0001/0006), LABST (qty), LABST_DMBTR (value), STOCK_DATE</td></tr>
+                <tr><td class="fw-bold">DIM_PRODUCT</td><td>Product master / attributes</td><td>MATNR, MAJ_CAT, SUB_DIV, DIV, SEG, COLOR, SIZE_1, VENDOR_NAME, MACRO_MVGR, SSN, etc.</td></tr>
+                <tr><td class="fw-bold">STORE_PLANT_MASTER</td><td>Store names for dropdowns</td><td>ST_CD, ST_NM</td></tr>
+            </tbody>
+        </table>
+
+        <h6 class="fw-bold mt-3">Reference CTEs (computed at Store + Category level)</h6>
+        <table class="table table-bordered table-sm" style="font-size:0.78rem;">
+            <thead class="table-dark"><tr><th>CTE</th><th>Output Column</th><th>Logic</th></tr></thead>
+            <tbody>
+                <tr><td>ref_l3m</td><td>L3M_GR_PCT</td><td>Sales last 3 months / Sales 3-6 months ago - 1 (from ET_SALES_DATA)</td></tr>
+                <tr><td>ref_l5m_base</td><td>BASE_L5M_QTY</td><td>Avg monthly sales in Jun-Oct (last 1 year)</td></tr>
+                <tr><td>ref_l3m_base</td><td>BASE_L3M_QTY</td><td>Avg monthly sales in Oct-Dec (last 1 year)</td></tr>
+                <tr><td>ref_lysp_maj</td><td>LYSP_MAJ_GR_PCT</td><td>Category growth: (SALE / LYSP - 1) &times; 100 from base weeks</td></tr>
+                <tr><td>ref_str</td><td>STR_NDAY_QTY</td><td>Total sales in last N days (default 120)</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+</div>
+
+</div> <!-- /tab-content -->

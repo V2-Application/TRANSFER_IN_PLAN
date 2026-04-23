@@ -1,0 +1,24 @@
+@{ ViewData["Title"] = "Add Store Calendar"; }
+@model TRANSFER_IN_PLAN.Models.StoreCalendar
+<h4 class="mb-3"><i class="bi bi-plus-circle me-2"></i>Add Store Calendar Record</h4>
+<div class="card shadow-sm border-0" style="max-width:700px;"><div class="card-body">
+<form asp-action="Create" method="post">
+    <div class="row g-3">
+        <div class="col-md-4"><label class="form-label fw-semibold">Store Code</label><input asp-for="StCd" class="form-control" required /></div>
+        <div class="col-md-4"><label class="form-label fw-semibold">Bgt Month Date</label><input asp-for="BgtMnthDate" class="form-control" type="date" required /></div>
+        <div class="col-md-4"><label class="form-label fw-semibold">Year</label><input asp-for="Year" class="form-control" /></div>
+        <div class="col-md-4"><label class="form-label fw-semibold">FY</label><input asp-for="Fy" class="form-control" placeholder="2024-25" /></div>
+        <div class="col-md-4"><label class="form-label fw-semibold">Month</label><input asp-for="Month" class="form-control" placeholder="JAN-25" /></div>
+        <div class="col-md-4"><label class="form-label fw-semibold">Year Week</label><input asp-for="YearWeek" class="form-control" placeholder="WK-1" /></div>
+        <div class="col-md-4"><label class="form-label fw-semibold">FY Week</label><input asp-for="FyWeek" class="form-control" placeholder="WK-40" /></div>
+        <div class="col-md-4"><label class="form-label fw-semibold">FY Week Start</label><input asp-for="FyWeekStDt" class="form-control" type="date" /></div>
+        <div class="col-md-4"><label class="form-label fw-semibold">FY Week End</label><input asp-for="FyWeekEndDt" class="form-control" type="date" /></div>
+        <div class="col-md-4"><label class="form-label fw-semibold">Day</label><input asp-for="Day" class="form-control" placeholder="MON" /></div>
+        <div class="col-md-4"><label class="form-label fw-semibold">LY Same Date</label><input asp-for="LySameDate" class="form-control" type="date" required /></div>
+    </div>
+    <div class="mt-3">
+        <button type="submit" class="btn btn-primary"><i class="bi bi-check-circle me-1"></i>Save</button>
+        <a asp-action="Index" class="btn btn-secondary ms-2">Cancel</a>
+    </div>
+</form>
+</div></div>

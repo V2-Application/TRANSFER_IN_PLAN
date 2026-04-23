@@ -1,0 +1,463 @@
+@{
+    ViewData["Title"] = "Sale Plan Weekly Output";
+    var rows = ViewBag.Rows as List<Dictionary<string, object?>> ?? new();
+    var displayCols = ViewBag.DisplayCols as string[] ?? Array.Empty<string>();
+    var selectedGroups = ViewBag.SelectedGroups as List<string> ?? new();
+    var groupableCols = ViewBag.GroupableColumns as (string Col, string Label, string Group)[] ?? Array.Empty<(string, string, string)>();
+    var metricDefs = ViewBag.MetricDefs as (string Alias, string Label)[] ?? Array.Empty<(string, string)>();
+    var metricAliases = new HashSet<string>(metricDefs.Select(m => m.Alias));
+    string sc = ViewBag.SortCol ?? "SALE_QTY"; string sd = ViewBag.SortDir ?? "DESC";
+    string gb = ViewBag.GroupBy ?? "STORE_CODE,MAJ_CAT";
+    int pg = (int)(ViewBag.Page ?? 1); int ps = (int)(ViewBag.PageSize ?? 100); int total = (int)(ViewBag.TotalCount ?? 0);
+    string NextDir(string c) => c == sc && sd == "ASC" ? "DESC" : "ASC";
+    string Arrow(string c) => c == sc ? (sd == "ASC" ? " ▲" : " ▼") : "";
+    var grouped = groupableCols.GroupBy(c => c.Group).ToList();
+    var selWeeks = ViewBag.SelectedWeeks as HashSet<string> ?? new();
+    var selStores = ViewBag.SelectedStores as HashSet<string> ?? new();
+    var selMajCats = ViewBag.SelectedMajCats as HashSet<string> ?? new();
+    var allStores = ViewBag.AllStores as List<(string Code, string Name)> ?? new();
+    var allMajCats = ViewBag.AllMajCats as List<string> ?? new();
+    var mGroups = ViewBag.MetricGroups as (string Key, string Label, string[] Metrics)[]
+                  ?? Array.Empty<(string, string, string[])>();
+    var tableHeaders = ViewBag.TableHeaders as (int Span, string Label, string Color)[]
+                       ?? new (int,string,string)[] { (3,"Current Sale","#059669"),(3,"LYSM","#0d4f3c"),(3,"LYSP","#7c4a00"),(4,"Stock","#1a3a5c") };
+    // Ref period state
+    string refMode = ViewBag.RefMode ?? "off";
+    string baseWeekVal = ViewBag.BaseWeek ?? "";
+    string refWeeksParam = ViewBag.RefWeeksParam ?? "";
+    var selRefWeeks = ViewBag.SelectedRefWeeks as HashSet<string> ?? new();
+    var resolvedRefWeeks = ViewBag.ResolvedRefWeeks as List<string> ?? new();
+    bool hasRef = (bool)(ViewBag.HasRef ?? false);
+    decimal r1 = (decimal)(ViewBag.R1 ?? 50m); decimal r2 = (decimal)(ViewBag.R2 ?? 110m); decimal r3 = (decimal)(ViewBag.R3 ?? 50m);
+    decimal r4u = (decimal)(ViewBag.R4u ?? 35m); decimal r4d = (decimal)(ViewBag.R4d ?? 20m);
+    decimal r5u = (decimal)(ViewBag.R5u ?? 35m); decimal r5d = (decimal)(ViewBag.R5d ?? 20m); int r6d = (int)(ViewBag.R6d ?? 120);
+    // R2 state
+    string refMode2 = ViewBag.RefMode2 ?? "off";
+    string baseWeekVal2 = ViewBag.BaseWeek2 ?? "";
+    string refWeeksParam2 = ViewBag.RefWeeksParam2 ?? "";
+    var selRefWeeks2 = ViewBag.SelectedRefWeeks2 as HashSet<string> ?? new();
+    var resolvedRefWeeks2 = ViewBag.ResolvedRefWeeks2 as List<string> ?? new();
+    bool hasRef2 = (bool)(ViewBag.HasRef2 ?? false);
+}
+
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+    <div>
+        <h3 class="mb-0"><i class="bi bi-bar-chart-line me-2" style="color:#059669;"></i>Sale Plan Weekly Output</h3>
+        <small class="text-muted">Select Year + Week, choose grouping dimensions, view aggregated results</small>
+    </div>
+    <div class="d-flex gap-2">
+        @if (ViewBag.Fy != null && ViewBag.FyWeek != null)
+        {
+            <a asp-action="ExportCsv" asp-route-fy="@ViewBag.Fy" asp-route-fyWeek="@ViewBag.FyWeek" asp-route-st="@ViewBag.St" asp-route-majCat="@ViewBag.MajCat" asp-route-groupBy="@gb"
+               asp-route-refMode="@refMode" asp-route-baseWeek="@baseWeekVal" asp-route-refWeeks="@refWeeksParam"
+               asp-route-ref1Pct="@r1" asp-route-ref2Pct="@r2" asp-route-ref3Cap="@r3" asp-route-ref4Up="@r4u" asp-route-ref4Dn="@r4d" asp-route-ref5Up="@r5u" asp-route-ref5Dn="@r5d" asp-route-ref6Days="@r6d"
+               asp-route-refMode2="@refMode2" asp-route-baseWeek2="@baseWeekVal2" asp-route-refWeeks2="@refWeeksParam2"
+               class="btn btn-success btn-sm"><i class="bi bi-download me-1"></i>Export CSV</a>
+        }
+        <a href="#" class="btn btn-primary btn-sm" onclick="downloadPivotCsv(); return false;"><i class="bi bi-grid-3x3 me-1"></i>Download Pivot</a>
+    </div>
+</div>
+
+<!-- Filters + Ref Period (single form) -->
+<div class="card shadow-sm border-0 mb-2"><div class="card-body py-2">
+    <form method="get" id="mainForm">
+        <input type="hidden" name="groupBy" id="groupByInput" value="@gb" />
+        <div class="row g-2 align-items-end">
+            <div class="col-md-2"><label class="form-label small fw-semibold mb-0">FY</label>
+                <select name="fy" class="form-select form-select-sm search-select">
+                    <option value="">-- FY --</option>
+                    @foreach (var y in (ViewBag.FyList as List<string> ?? new())) { <option value="@y" selected="@(y == ViewBag.Fy?.ToString())">@y</option> }
+                </select></div>
+            <div class="col-md-2"><label class="form-label small fw-semibold mb-0">FY Week</label>
+                <select name="fyWeek" class="multi-select" multiple>
+                    @foreach (var wk in (ViewBag.FyWeeks as List<string> ?? new())) { <option value="@wk" selected="@(selWeeks.Contains(wk))">@wk</option> }
+                </select></div>
+            <div class="col-md-2"><label class="form-label small fw-semibold mb-0">Store</label>
+                <select name="st" class="multi-select" multiple>
+                    @foreach (var s in allStores) { <option value="@s.Code" selected="@(selStores.Contains(s.Code))">@s.Code - @s.Name</option> }
+                </select></div>
+            <div class="col-md-2"><label class="form-label small fw-semibold mb-0">Major Cat</label>
+                <select name="majCat" class="multi-select" multiple>
+                    @foreach (var m in allMajCats) { <option value="@m" selected="@(selMajCats.Contains(m))">@m</option> }
+                </select></div>
+            <div class="col-md-1"><label class="form-label small fw-semibold mb-0">Size</label>
+                <select name="pageSize" class="form-select form-select-sm">
+                    @foreach (var p in new[] { 50, 100, 250, 500 }) { <option value="@p" selected="@(ps == p)">@p</option> }
+                </select></div>
+            <div class="col-md-3 d-flex gap-2">
+                <button type="submit" class="btn btn-primary btn-sm px-3"><i class="bi bi-play-fill me-1"></i>Run</button>
+                <a href="@Url.Action("Index")" class="btn btn-outline-secondary btn-sm">Clear</a>
+            </div>
+        </div>
+
+        <!-- ═══ Ref 1 ═══ -->
+        <div class="row g-2 align-items-end mt-2 pt-2 border-top">
+            <div class="col-md-4">
+                <label class="form-label small fw-semibold mb-0" style="color:#7c3aed;"><i class="bi bi-calculator me-1"></i>Ref 1</label>
+                <div class="d-flex gap-2 mt-1 flex-wrap">
+                    @foreach (var opt in new[] { ("off","Off"), ("last1","Last Week"), ("last3","Last 3 Weeks"), ("custom","Custom") })
+                    { <div class="form-check form-check-inline mb-0">
+                        <input class="form-check-input" type="radio" name="refMode" value="@opt.Item1" id="ref_@opt.Item1" @(refMode==opt.Item1?"checked":"") onchange="toggleRefWeeks()">
+                        <label class="form-check-label small" for="ref_@opt.Item1">@opt.Item2</label>
+                    </div> }
+                </div>
+            </div>
+            <div class="col-md-2" id="baseWeekDiv" style="display:@(refMode=="last1"||refMode=="last3"?"block":"none");">
+                <label class="form-label small fw-semibold mb-0">Base Week 1</label>
+                <select name="baseWeek" class="form-select form-select-sm search-select">
+                    <option value="">-- Base Week --</option>
+                    @foreach (var wk in (ViewBag.FyWeeks as List<string> ?? new())) { <option value="@wk" selected="@(wk == baseWeekVal)">@wk</option> }
+                </select>
+            </div>
+            <div class="col-md-3" id="customRefDiv" style="display:@(refMode=="custom"?"block":"none");">
+                <label class="form-label small fw-semibold mb-0">Custom Ref Weeks</label>
+                <select name="refWeeks" class="multi-select" multiple>
+                    @foreach (var wk in (ViewBag.FyWeeks as List<string> ?? new())) { <option value="@wk" selected="@(selRefWeeks.Contains(wk))">@wk</option> }
+                </select>
+            </div>
+            @if (refMode != "off")
+            {
+                <div class="col-12 mt-1">
+                    @if (resolvedRefWeeks.Count > 0)
+                    { <span class="badge text-white" style="font-size:0.7rem;background:#7c3aed;"><i class="bi bi-check-circle me-1"></i>R1: @string.Join(", ", resolvedRefWeeks)</span>
+                      <span class="text-muted ms-2" style="font-size:0.65rem;">Averaging @resolvedRefWeeks.Count week(s)</span> }
+                    else if ((refMode == "last1" || refMode == "last3") && string.IsNullOrEmpty(baseWeekVal))
+                    { <span class="badge bg-danger text-white" style="font-size:0.7rem;"><i class="bi bi-exclamation-triangle me-1"></i>Select a Base Week</span> }
+                    else
+                    { var needN = refMode == "last3" ? 4 : 2;
+                      <span class="badge bg-danger text-white" style="font-size:0.7rem;"><i class="bi bi-exclamation-triangle me-1"></i>Base Week @baseWeekVal — pick WK-@needN or higher</span> }
+                </div>
+            }
+        </div>
+
+        <!-- ═══ Ref 2 ═══ -->
+        <div class="row g-2 align-items-end mt-2 pt-2 border-top">
+            <div class="col-md-4">
+                <label class="form-label small fw-semibold mb-0" style="color:#0ea5e9;"><i class="bi bi-calculator me-1"></i>Ref 2</label>
+                <div class="d-flex gap-2 mt-1 flex-wrap">
+                    @foreach (var opt in new[] { ("off","Off"), ("last1","Last Week"), ("last3","Last 3 Weeks"), ("custom","Custom") })
+                    { <div class="form-check form-check-inline mb-0">
+                        <input class="form-check-input" type="radio" name="refMode2" value="@opt.Item1" id="ref2_@opt.Item1" @(refMode2==opt.Item1?"checked":"") onchange="toggleRefWeeks2()">
+                        <label class="form-check-label small" for="ref2_@opt.Item1">@opt.Item2</label>
+                    </div> }
+                </div>
+            </div>
+            <div class="col-md-2" id="baseWeekDiv2" style="display:@(refMode2=="last1"||refMode2=="last3"?"block":"none");">
+                <label class="form-label small fw-semibold mb-0">Base Week 2</label>
+                <select name="baseWeek2" class="form-select form-select-sm search-select">
+                    <option value="">-- Base Week --</option>
+                    @foreach (var wk in (ViewBag.FyWeeks as List<string> ?? new())) { <option value="@wk" selected="@(wk == baseWeekVal2)">@wk</option> }
+                </select>
+            </div>
+            <div class="col-md-3" id="customRefDiv2" style="display:@(refMode2=="custom"?"block":"none");">
+                <label class="form-label small fw-semibold mb-0">Custom Ref Weeks</label>
+                <select name="refWeeks2" class="multi-select" multiple>
+                    @foreach (var wk in (ViewBag.FyWeeks as List<string> ?? new())) { <option value="@wk" selected="@(selRefWeeks2.Contains(wk))">@wk</option> }
+                </select>
+            </div>
+            @if (refMode2 != "off")
+            {
+                <div class="col-12 mt-1">
+                    @if (resolvedRefWeeks2.Count > 0)
+                    { <span class="badge text-white" style="font-size:0.7rem;background:#0ea5e9;"><i class="bi bi-check-circle me-1"></i>R2: @string.Join(", ", resolvedRefWeeks2)</span>
+                      <span class="text-muted ms-2" style="font-size:0.65rem;">Averaging @resolvedRefWeeks2.Count week(s)</span> }
+                    else if ((refMode2 == "last1" || refMode2 == "last3") && string.IsNullOrEmpty(baseWeekVal2))
+                    { <span class="badge bg-danger text-white" style="font-size:0.7rem;"><i class="bi bi-exclamation-triangle me-1"></i>Select a Base Week</span> }
+                    else
+                    { var needN2 = refMode2 == "last3" ? 4 : 2;
+                      <span class="badge bg-danger text-white" style="font-size:0.7rem;"><i class="bi bi-exclamation-triangle me-1"></i>Base Week @baseWeekVal2 — pick WK-@needN2 or higher</span> }
+                </div>
+            }
+        </div>
+
+        <!-- ═══ Shared Ref Params ═══ -->
+        <div class="row g-2 align-items-end mt-2 pt-2 border-top">
+            <div class="col-12">
+                <label class="form-label small fw-semibold mb-1" style="color:#7c3aed;"><i class="bi bi-sliders me-1"></i>Reference Algorithm Inputs (shared)</label>
+                <div class="d-flex flex-wrap gap-2 align-items-end">
+                    <div><label class="form-label mb-0" style="font-size:0.6rem;color:#7c3aed;">R1 RXL%</label>
+                        <input type="number" name="ref1Pct" class="form-control form-control-sm" value="@r1" min="1" max="999" step="1" style="width:70px;" /></div>
+                    <div><label class="form-label mb-0" style="font-size:0.6rem;color:#7c3aed;">R2 Mult%</label>
+                        <input type="number" name="ref2Pct" class="form-control form-control-sm" value="@r2" min="1" max="999" step="1" style="width:70px;" /></div>
+                    <div><label class="form-label mb-0" style="font-size:0.6rem;color:#7c3aed;">R3 Cap%</label>
+                        <input type="number" name="ref3Cap" class="form-control form-control-sm" value="@r3" min="1" max="999" step="1" style="width:70px;" /></div>
+                    <div><label class="form-label mb-0" style="font-size:0.6rem;color:#7c3aed;">R4 +%</label>
+                        <input type="number" name="ref4Up" class="form-control form-control-sm" value="@r4u" min="0" max="999" step="1" style="width:60px;" /></div>
+                    <div><label class="form-label mb-0" style="font-size:0.6rem;color:#7c3aed;">R4 -%</label>
+                        <input type="number" name="ref4Dn" class="form-control form-control-sm" value="@r4d" min="0" max="999" step="1" style="width:60px;" /></div>
+                    <div><label class="form-label mb-0" style="font-size:0.6rem;color:#7c3aed;">R5 +%</label>
+                        <input type="number" name="ref5Up" class="form-control form-control-sm" value="@r5u" min="0" max="999" step="1" style="width:60px;" /></div>
+                    <div><label class="form-label mb-0" style="font-size:0.6rem;color:#7c3aed;">R5 -%</label>
+                        <input type="number" name="ref5Dn" class="form-control form-control-sm" value="@r5d" min="0" max="999" step="1" style="width:60px;" /></div>
+                    <div><label class="form-label mb-0" style="font-size:0.6rem;color:#7c3aed;">R6 Days</label>
+                        <input type="number" name="ref6Days" class="form-control form-control-sm" value="@r6d" min="1" max="365" step="1" style="width:70px;" /></div>
+                </div>
+            </div>
+        </div>
+    </form>
+</div></div>
+
+<!-- Reference Table Latest Dates -->
+@{
+    var latestDates = ViewBag.LatestDates as Dictionary<string, string> ?? new();
+}
+@if (latestDates.Count > 0)
+{
+<div class="card shadow-sm border-0 mb-2" style="border-left:4px solid #6366f1 !important;">
+    <div class="card-body py-2">
+        <div class="d-flex align-items-center flex-wrap gap-3" style="font-size:0.7rem;">
+            <span class="fw-bold text-muted text-uppercase" style="font-size:0.6rem;"><i class="bi bi-database me-1"></i>Data Freshness</span>
+            @foreach (var d in latestDates)
+            {
+                var isCount = d.Key == "DIM_PRODUCT";
+                <span class="badge bg-light text-dark border px-2 py-1">
+                    @d.Key: <strong style="color:#4F46E5;">@(isCount ? d.Value + " rows" : d.Value)</strong>
+                </span>
+            }
+        </div>
+    </div>
+</div>
+}
+
+<!-- Group By selector -->
+<div class="card shadow-sm border-0 mb-3" style="border-left:4px solid #059669 !important;">
+    <div class="card-header py-1 d-flex justify-content-between align-items-center">
+        <span class="small fw-bold"><i class="bi bi-columns-gap me-1"></i>Group By</span>
+        <div class="d-flex gap-1">
+            <button type="button" class="btn btn-outline-success btn-sm py-0 px-2" style="font-size:0.7rem;" onclick="selectAllInGroup('all')">All</button>
+            <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2" style="font-size:0.7rem;" onclick="clearAll()">Clear</button>
+        </div>
+    </div>
+    <div class="card-body py-2">
+        <div class="row g-2">
+            @foreach (var grp in grouped)
+            {
+                <div class="col-6 col-md-4 col-lg-2">
+                    <div class="border rounded p-2 h-100" style="background:#f8fafb;">
+                        <div class="d-flex justify-content-between mb-1">
+                            <strong style="font-size:0.65rem;color:#059669;">@grp.Key</strong>
+                            <a href="javascript:void(0)" style="font-size:0.6rem;" onclick="selectAllInGroup('@grp.Key')">all</a>
+                        </div>
+                        @foreach (var col in grp)
+                        {
+                            var isChecked = selectedGroups.Contains(col.Col);
+                            <div class="form-check" style="min-height:1.2rem;">
+                                <input class="form-check-input group-check" type="checkbox" value="@col.Col" data-group="@col.Group"
+                                       id="grp_@col.Col" @(isChecked ? "checked" : "") onchange="updateGroupBy()" style="width:0.85em;height:0.85em;">
+                                <label class="form-check-label" for="grp_@col.Col" style="font-size:0.72rem;">@col.Label</label>
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+        </div>
+        <div class="mt-2 pt-1 border-top small">
+            <span class="text-muted">Selected: </span>
+            <span id="selectedSummary" class="fw-bold" style="color:#059669;">@(selectedGroups.Count > 0 ? string.Join(" → ", selectedGroups.Select(g => g.Replace("_"," "))) : "STORE_CODE → MAJ_CAT")</span>
+        </div>
+    </div>
+</div>
+
+<!-- Pivot Metric Groups -->
+<div class="card shadow-sm border-0 mb-3" style="border-left:4px solid #7c3aed !important;">
+    <div class="card-header py-1">
+        <span class="small fw-bold"><i class="bi bi-bar-chart-steps me-1"></i>Pivot Metric Groups</span>
+        <span class="text-muted" style="font-size:0.6rem;"> — select which groups to include in Pivot CSV</span>
+    </div>
+    <div class="card-body py-2">
+        <div class="d-flex flex-wrap gap-4">
+            @foreach (var mg in mGroups)
+            {
+                var isRefGroup = mg.Key.StartsWith("AVG_");
+                <div class="form-check">
+                    <input class="form-check-input metric-group-check" type="checkbox" value="@mg.Key" id="mg_@mg.Key" checked onchange="updateMetricGroups()">
+                    <label class="form-check-label" for="mg_@mg.Key" style="font-size:0.75rem;">
+                        <strong @(isRefGroup ? "style=color:#d97706;" : "")>@mg.Label</strong>
+                        <span class="text-muted">(@mg.Metrics.Length)</span>
+                    </label>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+@if (ViewBag.Fy != null && ViewBag.FyWeek != null)
+{
+    <!-- KPIs -->
+    <div class="row g-2 mb-3">
+        <div class="col-6 col-sm-4 col-lg"><div class="card border-0 shadow-sm text-center py-2" style="border-top:3px solid #2980b9 !important;"><div class="fw-bold fs-5" style="color:#2980b9;">@total.ToString("N0")</div><div class="text-muted" style="font-size:0.6rem;text-transform:uppercase;font-weight:700;">Groups</div></div></div>
+        <div class="col-6 col-sm-4 col-lg"><div class="card border-0 shadow-sm text-center py-2" style="border-top:3px solid #27ae60 !important;"><div class="fw-bold fs-5" style="color:#27ae60;">@ViewBag.TotalStores</div><div class="text-muted" style="font-size:0.6rem;text-transform:uppercase;font-weight:700;">Stores</div></div></div>
+        <div class="col-6 col-sm-4 col-lg"><div class="card border-0 shadow-sm text-center py-2" style="border-top:3px solid #8e44ad !important;"><div class="fw-bold fs-5" style="color:#8e44ad;">@ViewBag.TotalCats</div><div class="text-muted" style="font-size:0.6rem;text-transform:uppercase;font-weight:700;">Categories</div></div></div>
+        <div class="col-6 col-sm-4 col-lg"><div class="card border-0 shadow-sm text-center py-2" style="border-top:3px solid #059669 !important;"><div class="fw-bold fs-6" style="color:#059669;">@(((decimal)(ViewBag.TotalSaleQty ?? 0m)).ToString("N0"))</div><div class="text-muted" style="font-size:0.6rem;text-transform:uppercase;font-weight:700;">Sale Qty</div></div></div>
+        <div class="col-6 col-sm-4 col-lg"><div class="card border-0 shadow-sm text-center py-2" style="border-top:3px solid #E67E22 !important;"><div class="fw-bold fs-6" style="color:#E67E22;">@(((decimal)(ViewBag.TotalLyspQty ?? 0m)).ToString("N0"))</div><div class="text-muted" style="font-size:0.6rem;text-transform:uppercase;font-weight:700;">LYSP Qty</div></div></div>
+    </div>
+
+    <div class="alert alert-info py-1 small mb-2">
+        <i class="bi bi-info-circle me-1"></i>Showing <strong>@rows.Count</strong> of <strong>@total.ToString("N0")</strong> groups (Page @pg)
+        — Grouped by: <strong>@string.Join(" → ", selectedGroups.Select(g => g.Replace("_"," ")))</strong>
+        @if (hasRef) { <span class="ms-2 badge text-white" style="background:#7c3aed !important;">R1: @string.Join(", ", resolvedRefWeeks)</span> }
+        @if (hasRef2) { <span class="ms-2 badge text-white" style="background:#0ea5e9 !important;">R2: @string.Join(", ", resolvedRefWeeks2)</span> }
+    </div>
+
+    <!-- Data Table -->
+    <div class="card shadow-sm border-0"><div class="card-body p-0"><div class="table-responsive">
+        <table class="table table-hover table-bordered table-sm mb-0" style="font-size:0.72rem;">
+            <thead>
+                <tr style="font-size:0.6rem;text-transform:uppercase;">
+                    <th colspan="@selectedGroups.Count" class="text-center text-white" style="background:#334155;">Dimensions</th>
+                    @foreach (var hdr in tableHeaders)
+                    {
+                        <th colspan="@hdr.Span" class="text-center text-white" style="background:@hdr.Color;">@hdr.Label</th>
+                    }
+                </tr>
+                <tr class="table-dark">
+                @{
+                    // Build sort link helper
+                    object SortRoute(string col) => new {
+                        fy = ViewBag.Fy, fyWeek = ViewBag.FyWeek, st = ViewBag.St, majCat = ViewBag.MajCat,
+                        groupBy = gb, sortCol = col, sortDir = NextDir(col), page = 1, pageSize = ps,
+                        refMode = refMode, baseWeek = baseWeekVal, refWeeks = refWeeksParam,
+                        ref1Pct = r1, ref2Pct = r2, ref3Cap = r3, ref4Up = r4u, ref4Dn = r4d, ref5Up = r5u, ref5Dn = r5d, ref6Days = r6d,
+                        refMode2 = refMode2, baseWeek2 = baseWeekVal2, refWeeks2 = refWeeksParam2
+                    };
+                }
+                @foreach (var c in displayCols)
+                {
+                    var isMetric = metricAliases.Contains(c);
+                    var label = isMetric ? metricDefs.First(m => m.Alias == c).Label
+                        : groupableCols.FirstOrDefault(g => g.Col == c).Label ?? c.Replace("_"," ");
+                    var cls = isMetric ? "text-end" : "";
+                    <th class="@cls text-nowrap"><a href="@Url.Action("Index", SortRoute(c))" class="text-white text-decoration-none">@label@Arrow(c)</a></th>
+                }
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var row in rows)
+                {
+                    <tr>
+                    @foreach (var c in displayCols)
+                    {
+                        var v = row.GetValueOrDefault(c);
+                        var isRef = c.StartsWith("AVG_") && !c.EndsWith("_R2");
+                        var isRefR2 = c.StartsWith("AVG_") && c.EndsWith("_R2");
+                        var isGrowth = c.StartsWith("WK_GROWTH_");
+                        var isFinal = c == "FINAL_GROWTH_QTY" || (c.StartsWith("REF") && c.EndsWith("_QTY"));
+                        if (metricAliases.Contains(c))
+                        {
+                            if (isGrowth)
+                            {
+                                var gVal = v is decimal gd ? gd : 0m;
+                                var gColor = gVal > 0 ? "#059669" : gVal < 0 ? "#dc2626" : "#94a3b8";
+                                <td class="text-end fw-semibold" style="background:#fef2f2;color:@gColor;">@(gVal.ToString("N1"))%</td>
+                            }
+                            else if (isFinal)
+                            {
+                                <td class="text-end fw-semibold" style="background:#f5f3ff;color:#7c3aed;">@(v is decimal fd ? fd.ToString("N2") : v)</td>
+                            }
+                            else
+                            {
+                                var bg = isRefR2 ? "background:#f0f9ff;" : isRef ? "background:#fffbeb;" : "";
+                                <td class="text-end" style="@bg">@(v is decimal d ? d.ToString("N2") : v)</td>
+                            }
+                        }
+                        else { <td class="text-nowrap @(c == "STORE_CODE" ? "fw-semibold text-primary" : "")">@v</td> }
+                    }
+                    </tr>
+                }
+                @if (!rows.Any()) { <tr><td colspan="@displayCols.Length" class="text-center text-muted py-3">Select FY Year + Week, then click Run.</td></tr> }
+            </tbody>
+        </table>
+    </div></div></div>
+
+    var totalPg = total > 0 ? (int)Math.Ceiling((double)total / ps) : 1;
+    if (totalPg > 1) {
+    <nav class="mt-2"><ul class="pagination pagination-sm justify-content-center flex-wrap">
+        @for (int p = Math.Max(1, pg - 4); p <= Math.Min(totalPg, pg + 4); p++)
+        {
+            <li class="page-item @(p == pg ? "active" : "")">
+                <a class="page-link" href="@Url.Action("Index", new { fy = ViewBag.Fy, fyWeek = ViewBag.FyWeek, st = ViewBag.St, majCat = ViewBag.MajCat, groupBy = gb, sortCol = sc, sortDir = sd, page = p, pageSize = ps, refMode = refMode, baseWeek = baseWeekVal, refWeeks = refWeeksParam, ref1Pct = r1, ref2Pct = r2, ref3Cap = r3, ref4Up = r4u, ref4Dn = r4d, ref5Up = r5u, ref5Dn = r5d, ref6Days = r6d, refMode2 = refMode2, baseWeek2 = baseWeekVal2, refWeeks2 = refWeeksParam2 })">@p</a>
+            </li>
+        }
+    </ul></nav> }
+}
+
+@section Scripts {
+<script>
+function updateGroupBy() {
+    var checked = Array.from(document.querySelectorAll('.group-check:checked')).map(c => c.value);
+    if (checked.length === 0) { checked = ['STORE_CODE']; document.getElementById('grp_STORE_CODE').checked = true; }
+    document.getElementById('groupByInput').value = checked.join(',');
+    document.getElementById('selectedSummary').textContent = checked.map(c => c.replace(/_/g, ' ')).join(' \u2192 ');
+}
+function selectAllInGroup(group) {
+    if (group === 'all') { document.querySelectorAll('.group-check').forEach(c => c.checked = true); }
+    else { document.querySelectorAll('.group-check[data-group="' + group + '"]').forEach(c => c.checked = true); }
+    updateGroupBy();
+}
+function clearAll() {
+    document.querySelectorAll('.group-check').forEach(c => c.checked = false);
+    document.getElementById('grp_STORE_CODE').checked = true;
+    updateGroupBy();
+}
+updateGroupBy();
+
+function toggleRefWeeks() {
+    var mode = document.querySelector('input[name="refMode"]:checked')?.value || 'off';
+    document.getElementById('baseWeekDiv').style.display = (mode === 'last1' || mode === 'last3') ? 'block' : 'none';
+    document.getElementById('customRefDiv').style.display = mode === 'custom' ? 'block' : 'none';
+}
+function toggleRefWeeks2() {
+    var mode = document.querySelector('input[name="refMode2"]:checked')?.value || 'off';
+    document.getElementById('baseWeekDiv2').style.display = (mode === 'last1' || mode === 'last3') ? 'block' : 'none';
+    document.getElementById('customRefDiv2').style.display = mode === 'custom' ? 'block' : 'none';
+}
+
+function downloadPivotCsv() {
+    var form = document.getElementById('mainForm');
+    var fy = form.querySelector('[name="fy"]');
+    var fyVal = (fy && fy.type === 'hidden') ? fy.value : (fy ? fy.value : '');
+    var fwHidden = form.querySelector('input[type="hidden"][name="fyWeek"]');
+    var fwVal = fwHidden ? fwHidden.value : '';
+    var stHidden = form.querySelector('input[type="hidden"][name="st"]');
+    var stVal = stHidden ? stHidden.value : '';
+    var mcHidden = form.querySelector('input[type="hidden"][name="majCat"]');
+    var mcVal = mcHidden ? mcHidden.value : '';
+
+    if (!fyVal) { alert('Select FY first.'); return; }
+    if (!fwVal) { alert('Select at least one FY Week.'); return; }
+
+    var groups = Array.from(document.querySelectorAll('.metric-group-check:checked')).map(c => c.value).join(',');
+    if (!groups) { alert('Select at least one metric group.'); return; }
+
+    // Ref params
+    var rm = document.querySelector('input[name="refMode"]:checked')?.value || 'off';
+    var bwEl = form.querySelector('[name="baseWeek"]');
+    var bwVal = bwEl ? bwEl.value : '';
+    var rwHidden = form.querySelector('input[type="hidden"][name="refWeeks"]');
+    var rwVal = rwHidden ? rwHidden.value : '';
+    // fallback: if multi-select JS converted refWeeks select, try hidden
+    if (!rwVal) { var rwSel = form.querySelector('select[name="refWeeks"]'); rwVal = rwSel ? Array.from(rwSel.selectedOptions).map(o=>o.value).join(',') : ''; }
+    var gv = function(n, d) { var el = form.querySelector('[name="'+n+'"]'); return el ? el.value : d; };
+
+    var url = '@Url.Action("ExportPivotCsv")' +
+        '?fy=' + encodeURIComponent(fyVal) +
+        '&fyWeek=' + encodeURIComponent(fwVal) +
+        '&st=' + encodeURIComponent(stVal) +
+        '&majCat=' + encodeURIComponent(mcVal) +
+        '&groupBy=STORE_CODE,MAJ_CAT,FY' +
+        '&metricGroups=' + encodeURIComponent(groups) +
+        '&refMode=' + encodeURIComponent(rm) +
+        '&baseWeek=' + encodeURIComponent(bwVal) +
+        '&refWeeks=' + encodeURIComponent(rwVal) +
+        '&ref1Pct=' + gv('ref1Pct','50') + '&ref2Pct=' + gv('ref2Pct','110') +
+        '&ref3Cap=' + gv('ref3Cap','50') + '&ref4Up=' + gv('ref4Up','35') +
+        '&ref4Dn=' + gv('ref4Dn','20') + '&ref5Up=' + gv('ref5Up','35') +
+        '&ref5Dn=' + gv('ref5Dn','20') + '&ref6Days=' + gv('ref6Days','120') +
+        '&refMode2=' + encodeURIComponent(document.querySelector('input[name="refMode2"]:checked')?.value || 'off') +
+        '&baseWeek2=' + encodeURIComponent(gv('baseWeek2','')) +
+        '&refWeeks2=' + encodeURIComponent((function(){ var h=form.querySelector('input[type="hidden"][name="refWeeks2"]'); if(h) return h.value; var s=form.querySelector('select[name="refWeeks2"]'); return s?Array.from(s.selectedOptions).map(o=>o.value).join(','):''; })());
+    console.log('Pivot URL:', url);
+    window.location.href = url;
+}
+</script>
+}

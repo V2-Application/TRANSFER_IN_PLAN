@@ -72,6 +72,9 @@
                                 <option value="SubDcStkSeg">DC Stock Segment</option>
                                 <option value="SubDcStkVnd">DC Stock Vendor</option>
                             </optgroup>
+                            <optgroup label="Store Calendar">
+                                <option value="StoreCalendar">Store Calendar</option>
+                            </optgroup>
                         </select>
                     </div>
 
@@ -193,7 +196,8 @@
                                 ("SubDcStkMvgr","DC Stk MVGR","bi-building"),
                                 ("SubDcStkSz","DC Stk Size","bi-building"),
                                 ("SubDcStkSeg","DC Stk Seg","bi-building"),
-                                ("SubDcStkVnd","DC Stk Vnd","bi-building")
+                                ("SubDcStkVnd","DC Stk Vnd","bi-building"),
+                                ("StoreCalendar","Store Calendar","bi-calendar-check")
                             };
                             foreach (var (key, label, icon) in tables)
                             {
@@ -247,7 +251,8 @@
                                 ("SubDcStkMvgr","DC Stk MVGR","bi-building","7 columns"),
                                 ("SubDcStkSz","DC Stk Size","bi-building","7 columns"),
                                 ("SubDcStkSeg","DC Stk Seg","bi-building","7 columns"),
-                                ("SubDcStkVnd","DC Stk Vnd","bi-building","7 columns")
+                                ("SubDcStkVnd","DC Stk Vnd","bi-building","7 columns"),
+                                ("StoreCalendar","Store Calendar","bi-calendar-check","11 columns")
                             };
                             foreach (var (key, label, icon, cols) in sampleTables)
                             {
@@ -392,7 +397,8 @@
         'SubDcStkMvgr': { title: 'DC Stock MVGR (7 cols)', cols: 'RdcCd | MajCat | SubValue | DcStkQ | GrtStkQ | WGrtStkQ | Date' },
         'SubDcStkSz': { title: 'DC Stock Size (7 cols)', cols: 'RdcCd | MajCat | SubValue | DcStkQ | GrtStkQ | WGrtStkQ | Date' },
         'SubDcStkSeg': { title: 'DC Stock Segment (7 cols)', cols: 'RdcCd | MajCat | SubValue | DcStkQ | GrtStkQ | WGrtStkQ | Date' },
-        'SubDcStkVnd': { title: 'DC Stock Vendor (7 cols)', cols: 'RdcCd | MajCat | SubValue | DcStkQ | GrtStkQ | WGrtStkQ | Date' }
+        'SubDcStkVnd': { title: 'DC Stock Vendor (7 cols)', cols: 'RdcCd | MajCat | SubValue | DcStkQ | GrtStkQ | WGrtStkQ | Date' },
+        'StoreCalendar': { title: 'Store Calendar (11 columns)', cols: 'StCd | BgtMnthDate | Year | FY | Month | YearWeek | FyWeek | FyWeekStDt | FyWeekEndDt | Day | LySameDate' }
     };
 
     function updateTableInfo(val) {

@@ -1,0 +1,18 @@
+@{ ViewData["Title"] = "Delete Store Calendar"; }
+@model TRANSFER_IN_PLAN.Models.StoreCalendar
+<h4 class="mb-3 text-danger"><i class="bi bi-trash me-2"></i>Delete Store Calendar Record</h4>
+<div class="card shadow-sm border-0" style="max-width:600px;"><div class="card-body">
+    <dl class="row mb-0 small">
+        <dt class="col-4">Store Code</dt><dd class="col-8 fw-bold">@Model.StCd</dd>
+        <dt class="col-4">Bgt Month Date</dt><dd class="col-8">@Model.BgtMnthDate?.ToString("yyyy-MM-dd")</dd>
+        <dt class="col-4">FY</dt><dd class="col-8">@Model.Fy</dd>
+        <dt class="col-4">FY Week</dt><dd class="col-8">@Model.FyWeek</dd>
+        <dt class="col-4">Day</dt><dd class="col-8">@Model.Day</dd>
+        <dt class="col-4">LY Same Date</dt><dd class="col-8">@Model.LySameDate?.ToString("yyyy-MM-dd")</dd>
+    </dl>
+    <form asp-action="Delete" method="post" class="mt-3">
+        <input type="hidden" asp-for="Id" />
+        <button type="submit" class="btn btn-danger"><i class="bi bi-trash me-1"></i>Confirm Delete</button>
+        <a asp-action="Index" class="btn btn-secondary ms-2">Cancel</a>
+    </form>
+</div></div>

@@ -1,0 +1,824 @@
+@{ ViewData["Title"] = "Allocation — Algorithm Reference"; }
+
+<style>
+    .info-card { border-left: 4px solid #E67E22; }
+    .info-card.algo { border-left-color: #8e44ad; }
+    .info-card.ref { border-left-color: #3498db; }
+    .info-card.cls { border-left-color: #27ae60; }
+    .info-card.out { border-left-color: #e74c3c; }
+    .formula-table th { white-space: nowrap; background: #f8f9fa; width: 220px; color: #1a3a5c; }
+    .formula-table td { font-family: 'Consolas', 'Courier New', monospace; font-size: 0.82rem; color: #1a3a5c; }
+    .formula-table tr.key-formula td { background: #d4edda; }
+    .formula-table tr.key-formula th { background: #c3e6cb; font-weight: 700; }
+    .badge-alloc { background: #27ae60; color: #fff !important; }
+    .badge-noalloc { background: #e74c3c; color: #fff !important; }
+    .badge-tag { background: #3498db; color: #fff !important; }
+    .badge-step { background: #8e44ad; color: #fff !important; }
+    .badge-col-id { background: #6c757d; color: #fff !important; }
+    .badge-col-stk { background: #2980b9; color: #fff !important; }
+    .badge-col-param { background: #8e44ad; color: #fff !important; }
+    .badge-col-disp { background: #E67E22; color: #fff !important; }
+    .badge-col-req { background: #e74c3c; color: #fff !important; }
+    .badge-col-cls { background: #16a085; color: #fff !important; }
+    .badge-col-res { background: #27ae60; color: #fff !important; }
+    .nav-pills .nav-link { color: #1a3a5c; font-weight: 500; border-radius: 8px; }
+    .nav-pills .nav-link.active { background: #E67E22; color: #fff; }
+    .flow-step { border-left: 3px solid #E67E22; padding-left: 16px; margin-bottom: 16px; }
+    .flow-step h6 { margin-bottom: 4px; color: #1a3a5c; }
+    .flow-step .step-num { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 50%; background: #E67E22; color: #fff; font-weight: 700; font-size: 0.85rem; margin-right: 8px; }
+    .algo-block { background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 8px; padding: 16px; margin-bottom: 12px; font-family: 'Consolas', 'Courier New', monospace; font-size: 0.82rem; line-height: 1.7; color: #1a3a5c; }
+    .algo-block .comment { color: #6c757d; font-style: italic; }
+    .algo-block .keyword { color: #8e44ad; font-weight: 600; }
+    .algo-block .formula { color: #c0392b; font-weight: 600; }
+    .rule-card { border-radius: 8px; padding: 12px 16px; margin-bottom: 8px; }
+    .rule-card.mix { background: #fdecea; border-left: 4px solid #e74c3c; }
+    .rule-card.lart { background: #d4edda; border-left: 4px solid #27ae60; }
+    .rule-card.old { background: #fff3cd; border-left: 4px solid #f39c12; }
+    .rule-card.newl { background: #d6eaf8; border-left: 4px solid #3498db; }
+    .card-header h5, .card-body h6, .card-body p, .card-body li, .card-body td, .card-body th { color: #1a3a5c; }
+    .card-body .text-muted { color: #64748B !important; }
+    .card-body code { color: #c0392b; }
+    .table td, .table th { color: #1a3a5c; }
+</style>
+
+<div class="mb-4 d-flex justify-content-between align-items-start flex-wrap gap-2">
+    <div>
+        <h3 class="mb-1"><i class="bi bi-boxes me-2" style="color:#E67E22;"></i>ARS Allocation — Algorithm Reference</h3>
+        <small class="text-muted">Complete technical reference for the Article Replenishment & Allocation System</small>
+    </div>
+    <a href="@Url.Action("Execute")" class="btn btn-outline-primary btn-sm"><i class="bi bi-arrow-left me-1"></i>Back to Execute</a>
+</div>
+
+<!-- Tab Navigation -->
+<ul class="nav nav-pills mb-3 flex-wrap" id="arsInfoTabs" role="tablist">
+    <li class="nav-item"><a class="nav-link active" data-bs-toggle="pill" href="#tabOverview"><i class="bi bi-bullseye me-1"></i>Overview</a></li>
+    <li class="nav-item"><a class="nav-link" data-bs-toggle="pill" href="#tabClassification"><i class="bi bi-funnel me-1"></i>7-Rule Classification</a></li>
+    <li class="nav-item"><a class="nav-link" data-bs-toggle="pill" href="#tabAlgorithm"><i class="bi bi-cpu me-1"></i>10-Step Algorithm</a></li>
+    <li class="nav-item"><a class="nav-link" data-bs-toggle="pill" href="#tabInputTables"><i class="bi bi-database me-1"></i>Input Tables</a></li>
+    <li class="nav-item"><a class="nav-link" data-bs-toggle="pill" href="#tabOutputCols"><i class="bi bi-table me-1"></i>Output Columns (42)</a></li>
+    <li class="nav-item"><a class="nav-link" data-bs-toggle="pill" href="#tabFormulas"><i class="bi bi-calculator me-1"></i>Key Formulas</a></li>
+    <li class="nav-item"><a class="nav-link" data-bs-toggle="pill" href="#tabParams"><i class="bi bi-sliders me-1"></i>Parameters & Thresholds</a></li>
+</ul>
+
+<div class="tab-content">
+
+<!-- ══════════════════════════════════════════════════════════════ -->
+<!--  TAB 1: OVERVIEW                                              -->
+<!-- ══════════════════════════════════════════════════════════════ -->
+<div class="tab-pane fade show active" id="tabOverview">
+
+    <div class="card shadow-sm mb-3">
+        <div class="card-header"><h5 class="card-title mb-0"><i class="bi bi-bullseye me-2"></i>What ARS Allocation Does</h5></div>
+        <div class="card-body small">
+            <p>The <strong>Article Replenishment System (ARS)</strong> determines which articles (OLD-L scope) to allocate to which stores, in what quantities, from the MSA warehouse.</p>
+            <div class="row g-3 mb-3">
+                <div class="col-md-4">
+                    <div class="card info-card h-100"><div class="card-body">
+                        <h6 class="fw-bold" style="color:#E67E22;"><i class="bi bi-question-circle me-2"></i>Core Question</h6>
+                        <p class="mb-0">"For each store + article combination, <strong>how much stock should we allocate from MSA</strong> to maintain display and cover upcoming sales?"</p>
+                    </div></div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card info-card algo h-100"><div class="card-body">
+                        <h6 class="fw-bold" style="color:#8e44ad;"><i class="bi bi-diagram-3 me-2"></i>Scope</h6>
+                        <ul class="mb-0">
+                            <li><strong>Granularity:</strong> Store x Generic Article x Color</li>
+                            <li><strong>Category:</strong> Major Category (MJ)</li>
+                            <li><strong>Source:</strong> MSA Warehouse Stock</li>
+                            <li><strong>Target:</strong> 600+ Stores</li>
+                        </ul>
+                    </div></div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card info-card ref h-100"><div class="card-body">
+                        <h6 class="fw-bold" style="color:#3498db;"><i class="bi bi-gear me-2"></i>Engine</h6>
+                        <ul class="mb-0">
+                            <li><strong>SP:</strong> <code>SP_ARS_ALLOCATION_RUN</code></li>
+                            <li><strong>Database:</strong> Snowflake (V2RETAIL.GOLD)</li>
+                            <li><strong>Runtime:</strong> ~10 seconds</li>
+                            <li><strong>Steps:</strong> 10 sequential stages</li>
+                        </ul>
+                    </div></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- End-to-End Data Flow -->
+    <div class="card shadow-sm mb-3">
+        <div class="card-header"><h5 class="card-title mb-0"><i class="bi bi-arrow-right me-2"></i>End-to-End Flow</h5></div>
+        <div class="card-body small">
+            <div class="row text-center align-items-center g-2">
+                <div class="col"><div class="card border-primary p-2"><i class="bi bi-cloud-download text-primary fs-5"></i><br><strong>SAP Stock</strong><br><small class="text-muted">ET_STOCK_DATA<br>ET_MSA_STOCK</small></div></div>
+                <div class="col-auto"><i class="bi bi-arrow-right fs-4 text-muted"></i></div>
+                <div class="col"><div class="card border-warning p-2"><i class="bi bi-table fs-5" style="color:#E67E22;"></i><br><strong>Reference Data</strong><br><small class="text-muted">Display, Sale, Hold,<br>Store Master, Aging</small></div></div>
+                <div class="col-auto"><i class="bi bi-arrow-right fs-4 text-muted"></i></div>
+                <div class="col"><div class="card border-secondary p-2"><i class="bi bi-funnel fs-5" style="color:#8e44ad;"></i><br><strong>Classification</strong><br><small class="text-muted">7-Rule Engine<br>MIX / L / OLD / NEW-L</small></div></div>
+                <div class="col-auto"><i class="bi bi-arrow-right fs-4 text-muted"></i></div>
+                <div class="col"><div class="card border-success p-2"><i class="bi bi-calculator fs-5 text-success"></i><br><strong>Allocation</strong><br><small class="text-muted">Window-function<br>MJ-budget safe</small></div></div>
+                <div class="col-auto"><i class="bi bi-arrow-right fs-4 text-muted"></i></div>
+                <div class="col"><div class="card border-danger p-2"><i class="bi bi-file-earmark-spreadsheet fs-5 text-danger"></i><br><strong>Output</strong><br><small class="text-muted">ARS_ALLOCATION_OUTPUT<br>42 columns</small></div></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Classification Summary -->
+    <div class="card shadow-sm mb-3">
+        <div class="card-header"><h5 class="card-title mb-0"><i class="bi bi-tags me-2"></i>Article Classifications at a Glance</h5></div>
+        <div class="card-body small">
+            <div class="row g-3">
+                <div class="col-md-3"><div class="card rule-card mix"><strong class="text-danger">MIX-ART (X-ART)</strong><br>Aged, clearance, low-variant, or low-stock articles.<br><span class="badge badge-noalloc">Not Allocated</span></div></div>
+                <div class="col-md-3"><div class="card rule-card lart"><strong class="text-success">L-ART</strong><br>Well-stocked articles (stock &ge; 60% density).<br><span class="badge badge-alloc">Allocated if REQ > 0</span></div></div>
+                <div class="col-md-3"><div class="card rule-card old"><strong style="color:#f39c12;">OLD-ART</strong><br>Understocked but in-store articles.<br><span class="badge badge-alloc">Priority Allocation</span></div></div>
+                <div class="col-md-3"><div class="card rule-card newl"><strong class="text-primary">NEW-L</strong><br>Not in store stock, or re-tagged MIX with remaining MSA.<br><span class="badge badge-tag">Tagged for future</span></div></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════ -->
+<!--  TAB 2: 7-RULE CLASSIFICATION                                 -->
+<!-- ══════════════════════════════════════════════════════════════ -->
+<div class="tab-pane fade" id="tabClassification">
+
+    <div class="card shadow-sm mb-3">
+        <div class="card-header"><h5 class="card-title mb-0"><i class="bi bi-funnel me-2"></i>7-Rule Classification Engine</h5></div>
+        <div class="card-body small">
+            <p>Rules are evaluated <strong>top-to-bottom</strong>. <strong>First match wins</strong> &mdash; once an article matches a rule, it is classified and no further rules are checked.</p>
+
+            <div class="rule-card mix">
+                <div class="d-flex align-items-center mb-1">
+                    <span class="badge badge-step me-2">Rule 1</span>
+                    <strong>AGING &gt; 360 days &rarr; MIX-ART (X-ART)</strong>
+                    <span class="badge badge-noalloc ms-auto">No Allocation</span>
+                </div>
+                <div class="algo-block mb-0 mt-2">
+                    <span class="keyword">IF</span> ARS_ART_AGING.AGING_DAYS <span class="formula">&gt; 360</span><br>
+                    <span class="keyword">THEN</span> ART_CLASS = <span class="formula">'MIX-ART'</span><br>
+                    <span class="comment">// Article has been in stock too long &mdash; clearance candidate</span>
+                </div>
+            </div>
+
+            <div class="rule-card mix">
+                <div class="d-flex align-items-center mb-1">
+                    <span class="badge badge-step me-2">Rule 2</span>
+                    <strong>ART_TAG = 'C-ART' &rarr; MIX-ART (X-ART)</strong>
+                    <span class="badge badge-noalloc ms-auto">No Allocation</span>
+                </div>
+                <div class="algo-block mb-0 mt-2">
+                    <span class="keyword">IF</span> ARS_ST_ART_AUTO_SALE.ART_TAG = <span class="formula">'C-ART'</span><br>
+                    <span class="keyword">THEN</span> ART_CLASS = <span class="formula">'MIX-ART'</span><br>
+                    <span class="comment">// Explicitly tagged as clearance article</span>
+                </div>
+            </div>
+
+            <div class="rule-card mix">
+                <div class="d-flex align-items-center mb-1">
+                    <span class="badge badge-step me-2">Rule 3</span>
+                    <strong>MSA &ge; 50 AND SZ_COUNT &le; 2 &rarr; MIX-ART (X-ART)</strong>
+                    <span class="badge badge-noalloc ms-auto">No Allocation</span>
+                </div>
+                <div class="algo-block mb-0 mt-2">
+                    <span class="keyword">IF</span> MSA_QTY <span class="formula">&ge; 50</span> AND SZ_COUNT <span class="formula">&le; 2</span><br>
+                    <span class="keyword">THEN</span> ART_CLASS = <span class="formula">'MIX-ART'</span><br>
+                    <span class="comment">// High MSA quantity but too few color variants &mdash; likely dead stock</span><br>
+                    <span class="comment">// SZ_COUNT = COUNT(DISTINCT CLR) WHERE (store_stock + msa_stock) &gt; 0</span>
+                </div>
+            </div>
+
+            <div class="rule-card mix">
+                <div class="d-flex align-items-center mb-1">
+                    <span class="badge badge-step me-2">Rule 4</span>
+                    <strong>Stock &lt; 60% Density AND MSA &lt; 50 &rarr; MIX-ART</strong>
+                    <span class="badge badge-noalloc ms-auto">No Allocation</span>
+                </div>
+                <div class="algo-block mb-0 mt-2">
+                    <span class="keyword">IF</span> TTL_ST_STK_Q <span class="formula">&lt; 0.6 &times; ACC_DENSITY</span> AND MSA_QTY <span class="formula">&lt; 50</span><br>
+                    <span class="keyword">THEN</span> ART_CLASS = <span class="formula">'MIX-ART'</span><br>
+                    <span class="comment">// Low store stock AND low MSA &mdash; insufficient to justify allocation</span>
+                </div>
+            </div>
+
+            <div class="rule-card lart">
+                <div class="d-flex align-items-center mb-1">
+                    <span class="badge badge-step me-2">Rule 5</span>
+                    <strong>Stock &ge; 60% Density &rarr; L-ART</strong>
+                    <span class="badge badge-alloc ms-auto">Allocated if REQ &gt; 0</span>
+                </div>
+                <div class="algo-block mb-0 mt-2">
+                    <span class="keyword">IF</span> TTL_ST_STK_Q <span class="formula">&ge; 0.6 &times; ACC_DENSITY</span><br>
+                    <span class="keyword">THEN</span> ART_CLASS = <span class="formula">'L-ART'</span><br>
+                    <span class="comment">// Well-stocked article &mdash; eligible for allocation if demand exists</span>
+                </div>
+            </div>
+
+            <div class="rule-card old">
+                <div class="d-flex align-items-center mb-1">
+                    <span class="badge badge-step me-2">Rule 6</span>
+                    <strong>Store Stock &gt; 0 &rarr; OLD-ART</strong>
+                    <span class="badge badge-alloc ms-auto">Priority Allocation</span>
+                </div>
+                <div class="algo-block mb-0 mt-2">
+                    <span class="keyword">IF</span> TTL_ST_STK_Q <span class="formula">&gt; 0</span><br>
+                    <span class="keyword">THEN</span> ART_CLASS = <span class="formula">'OLD-ART'</span><br>
+                    <span class="comment">// In store but understocked &mdash; priority replenishment candidate</span>
+                </div>
+            </div>
+
+            <div class="rule-card newl">
+                <div class="d-flex align-items-center mb-1">
+                    <span class="badge badge-step me-2">Rule 7</span>
+                    <strong>ELSE &rarr; NEW-L</strong>
+                    <span class="badge badge-tag ms-auto">Tagged Only</span>
+                </div>
+                <div class="algo-block mb-0 mt-2">
+                    <span class="keyword">ELSE</span><br>
+                    <span class="keyword">THEN</span> ART_CLASS = <span class="formula">'NEW-L'</span><br>
+                    <span class="comment">// Not in store stock at all &mdash; first-time allocation candidate</span>
+                </div>
+            </div>
+
+            <div class="card border-info mt-3">
+                <div class="card-body py-2">
+                    <h6 class="fw-bold text-primary"><i class="bi bi-arrow-repeat me-2"></i>Post-Allocation Re-Tagging (Step 9)</h6>
+                    <p class="mb-0">After the allocation step, MIX-ART articles with <code>REM_MSA &gt; 0</code> where the category (ST+MJ) still has unmet demand (<code>ST_MJ_MBQ &gt; total allocated</code>) are <strong>re-tagged as NEW-L</strong>. This identifies high-potential articles for future allocation waves.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════ -->
+<!--  TAB 3: 10-STEP ALGORITHM                                     -->
+<!-- ══════════════════════════════════════════════════════════════ -->
+<div class="tab-pane fade" id="tabAlgorithm">
+
+    <div class="card shadow-sm mb-3">
+        <div class="card-header"><h5 class="card-title mb-0"><i class="bi bi-cpu me-2"></i>10-Step Allocation Algorithm</h5></div>
+        <div class="card-body small">
+            <p>Executed by <code>SP_ARS_ALLOCATION_RUN(RUN_ID)</code> &mdash; a Snowflake JavaScript stored procedure running sequentially through 10 stages.</p>
+
+            <!-- Step 1 -->
+            <div class="flow-step">
+                <h6><span class="step-num">1</span>Pivot Store Stock by LGORT</h6>
+                <div class="algo-block">
+                    <span class="comment">// Source: ET_STOCK_DATA (latest STOCK_DATE)</span><br>
+                    <span class="comment">// Aggregate MATNR to 10-digit generic article: LEFT(LTRIM(MATNR,'0'), 10)</span><br>
+                    <span class="keyword">PIVOT</span> LABST by LGORT &rarr; STK_0001, STK_0002, STK_0004, STK_0006,<br>
+                    &nbsp;&nbsp;&nbsp;&nbsp;STK_HUB_INTRA, STK_HUB_PRD, STK_INTRA, STK_PRD<br>
+                    <span class="formula">TTL_ST_STK_Q</span> = SUM(all LGORT stock columns)
+                </div>
+            </div>
+
+            <!-- Step 2 -->
+            <div class="flow-step">
+                <h6><span class="step-num">2</span>Load MSA Stock</h6>
+                <div class="algo-block">
+                    <span class="comment">// Source: ET_MSA_STOCK (latest MSA_STOCK_DATE)</span><br>
+                    <span class="comment">// Aggregate to 10-digit: LEFT(LTRIM(MATNR,'0'), 10)</span><br>
+                    <span class="formula">MSA_QTY</span> = SUM(VEMNG) per KUNNR (store) + GEN_ART<br>
+                    <span class="comment">// MSA &gt; 0 required for any allocation consideration</span>
+                </div>
+            </div>
+
+            <!-- Step 3 -->
+            <div class="flow-step">
+                <h6><span class="step-num">3</span>Compute SZ_COUNT (Color Variant Count)</h6>
+                <div class="algo-block">
+                    <span class="formula">SZ_COUNT</span> = COUNT(DISTINCT CLR) <span class="keyword">WHERE</span> (store_stock + msa_stock) &gt; 0<br>
+                    <span class="comment">// Per GEN_ART &mdash; used in Rule 3 to reject low-diversity articles</span>
+                </div>
+            </div>
+
+            <!-- Step 4 -->
+            <div class="flow-step">
+                <h6><span class="step-num">4</span>Calculate TTL_ALC_DAYS (Total Allocation Days)</h6>
+                <div class="algo-block">
+                    INTRA_DAYS = <span class="keyword">CASE WHEN</span> TAGGED_RDC = 'DW01'<br>
+                    &nbsp;&nbsp;<span class="keyword">THEN</span> DW01_DC_TO_HUB_INTRA + DW01_HUB_TO_ST_INTRA<br>
+                    &nbsp;&nbsp;<span class="keyword">ELSE</span> DH24_DC_TO_HUB_INTRA + DH24_HUB_TO_ST_INTRA<br>
+                    <br>
+                    <span class="formula">TTL_ALC_DAYS</span> = SALE_COVER_DAYS + PRD_DAYS + INTRA_DAYS<br>
+                    <span class="comment">// Total days to cover: sales buffer + product hold + transit time</span>
+                </div>
+            </div>
+
+            <!-- Step 5 -->
+            <div class="flow-step">
+                <h6><span class="step-num">5</span>Calculate MJ-Level Per-Day Sales</h6>
+                <div class="algo-block">
+                    CM_PD_SALE_Q = CM_AUTO_SALE_Q / CM_REM_DAYS <span class="comment">// Current Month per-day rate</span><br>
+                    NM_PD_SALE_Q = NM_AUTO_SALE_Q / NM_DAYS <span class="comment">// New Month per-day rate</span><br>
+                    <br>
+                    <span class="comment">// CM/NM Sales Crossover Formula:</span><br>
+                    <span class="formula">ST_MJ_ALC_SALE_Q_PD</span> =<br>
+                    &nbsp;&nbsp;MIN(TTL_ALC_DAYS + HOLD_DAYS, CM_REM_DAYS) &times; CM_PD_SALE_Q<br>
+                    &nbsp;&nbsp;+ MAX(TTL_ALC_DAYS + HOLD_DAYS - CM_REM_DAYS, 0) &times; NM_PD_SALE_Q<br>
+                    <br>
+                    <span class="formula">ST_MJ_MBQ</span> = ST_MJ_DISP_Q + ST_MJ_ALC_SALE_Q_PD<br>
+                    <span class="comment">// Category MBQ = Display + Expected Sales over allocation period</span>
+                </div>
+            </div>
+
+            <!-- Step 6 -->
+            <div class="flow-step">
+                <h6><span class="step-num">6</span>Calculate Article-Level Per-Day Sales</h6>
+                <div class="algo-block">
+                    <span class="formula">ART_AUTO_SALE_PD</span> = <span class="comment">(same crossover formula at article level)</span><br>
+                    <span class="comment">// Uses ARS_ST_ART_AUTO_SALE (CM/NM per GEN_ART + CLR)</span><br>
+                    <span class="comment">// Also carries ART_TAG ('C-ART' = clearance) for Rule 2</span>
+                </div>
+            </div>
+
+            <!-- Step 7 -->
+            <div class="flow-step">
+                <h6><span class="step-num">7</span>Build PREPARED Table + Apply 7-Rule Classification</h6>
+                <div class="algo-block">
+                    <span class="formula">ART_MBQ</span> = ACC_DENSITY + ART_AUTO_SALE_PD &times; TTL_ALC_DAYS<br>
+                    <span class="comment">// Quantity needed for display + sales during allocation period</span><br>
+                    <br>
+                    <span class="formula">ART_HOLD_MBQ</span> = ACC_DENSITY + ART_AUTO_SALE_PD &times; (TTL_ALC_DAYS + HOLD_DAYS)<br>
+                    <span class="comment">// Quantity needed through replenishment hold period</span><br>
+                    <br>
+                    <span class="formula">ST_MJ_REQ</span> = MAX(ST_MJ_MBQ - SUM(TTL_ST_STK_Q per ST+MJ), 0)<br>
+                    <span class="comment">// Category shortage = category demand minus current stock</span><br>
+                    <br>
+                    <span class="formula">ST_ART_REQ</span> = MAX(ART_MBQ - TTL_ST_STK_Q, 0)<br>
+                    <span class="comment">// Article shortage</span><br>
+                    <br>
+                    <span class="formula">ST_ART_HOLD_REQ</span> = MAX(ART_HOLD_MBQ - TTL_ST_STK_Q, 0)<br>
+                    <span class="comment">// Article shortage including hold period</span><br>
+                    <br>
+                    <span class="formula">ART_CLASS</span> = <span class="comment">(Apply 7-rule classification &mdash; see Classification tab)</span>
+                </div>
+            </div>
+
+            <!-- Step 8 -->
+            <div class="flow-step">
+                <h6><span class="step-num">8</span>Allocate with Window-Function (MJ-Budget Safe)</h6>
+                <div class="algo-block">
+                    <span class="comment">// CANDIDATES: L-ART and OLD-ART only, where MSA_QTY &gt; 0 and ST_ART_REQ &gt; 0</span><br>
+                    <span class="comment">// Processing order per store: highest ST_ART_REQ first (priority)</span><br>
+                    <br>
+                    WANT_Q = <span class="keyword">LEAST</span>(MSA_QTY, ST_ART_REQ)<br>
+                    <span class="comment">// How much we ideally want to allocate</span><br>
+                    <br>
+                    PREV_CUM_WANT = SUM of prior articles' WANT_Q <span class="comment">// running total per ST+MJ</span><br>
+                    <br>
+                    MJ_REMAINING = <span class="keyword">MAX</span>(0, ST_MJ_REQ - PREV_CUM_WANT)<br>
+                    <span class="comment">// Category budget left after earlier allocations</span><br>
+                    <br>
+                    <span class="formula">ART_ALC_Q</span> = <span class="keyword">LEAST</span>(WANT_Q, MJ_REMAINING)<br>
+                    <span class="comment">// GUARANTEE: total allocation per ST+MJ &le; ST_MJ_REQ</span><br>
+                    <br>
+                    <span class="formula">ART_HOLD_Q</span> = <span class="keyword">LEAST</span>(MSA_QTY - ART_ALC_Q, ST_ART_HOLD_REQ - ART_ALC_Q)<br>
+                    <span class="comment">// Hold quantity for future replenishment (if both conditions &gt; 0)</span><br>
+                    <br>
+                    <span class="formula">REM_MSA</span> = MSA_QTY - ART_ALC_Q - ART_HOLD_Q<br>
+                    <span class="comment">// MSA remaining after allocation and hold</span>
+                </div>
+            </div>
+
+            <!-- Step 9 -->
+            <div class="flow-step">
+                <h6><span class="step-num">9</span>Post-Allocation NEW-L Re-Tagging</h6>
+                <div class="algo-block">
+                    <span class="keyword">IF</span> ART_CLASS = 'MIX-ART' <span class="keyword">AND</span> REM_MSA &gt; 0<br>
+                    &nbsp;&nbsp;<span class="keyword">AND</span> (ST_MJ_MBQ - SUM(ART_ALC_Q per ST+MJ)) &gt; 0<br>
+                    <span class="keyword">THEN</span> ART_CLASS = <span class="formula">'NEW-L'</span><br>
+                    <span class="comment">// Convert non-allocated MIX articles to NEW-L if MJ still has unmet demand</span>
+                </div>
+            </div>
+
+            <!-- Step 10 -->
+            <div class="flow-step">
+                <h6><span class="step-num">10</span>Write Output + Update Run Log</h6>
+                <div class="algo-block">
+                    <span class="keyword">DELETE FROM</span> ARS_ALLOCATION_OUTPUT <span class="keyword">WHERE</span> RUN_ID = @@RunId<br>
+                    <span class="keyword">INSERT INTO</span> ARS_ALLOCATION_OUTPUT <span class="comment">(all 42 columns from TMP_PREP)</span><br>
+                    <span class="keyword">UPDATE</span> ARS_RUN_LOG <span class="comment">// summary statistics: counts per classification</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════ -->
+<!--  TAB 4: INPUT TABLES                                          -->
+<!-- ══════════════════════════════════════════════════════════════ -->
+<div class="tab-pane fade" id="tabInputTables">
+
+    <div class="card shadow-sm mb-3">
+        <div class="card-header"><h5 class="card-title mb-0"><i class="bi bi-database me-2"></i>Input / Reference Tables (10 Tables)</h5></div>
+        <div class="card-body small">
+
+            <!-- SAP Stock Tables -->
+            <h6 class="fw-bold mt-2 mb-2"><i class="bi bi-cloud-download me-2 text-primary"></i>SAP Stock Data (2 tables)</h6>
+
+            <div class="card info-card ref mb-3">
+                <div class="card-body">
+                    <h6 class="fw-bold"><code>ET_STOCK_DATA</code> &mdash; Store Stock from SAP</h6>
+                    <p class="text-muted mb-2">Real-time stock positions per store, article, and storage location (LGORT). Pivoted into 8 location columns.</p>
+                    <table class="table table-sm table-bordered mb-0">
+                        <thead class="table-light"><tr><th>Column</th><th>Type</th><th>Description</th></tr></thead>
+                        <tbody>
+                            <tr><td><code>WERKS</code></td><td>VARCHAR</td><td>Plant / Store Code</td></tr>
+                            <tr><td><code>MATNR</code></td><td>VARCHAR</td><td>Material Number (trimmed to 10-digit GEN_ART)</td></tr>
+                            <tr><td><code>LGORT</code></td><td>VARCHAR</td><td>Storage Location: 0001, 0002, 0004, 0006, HUB_INTRA, HUB_PRD, INTRA, PRD</td></tr>
+                            <tr><td><code>LABST</code></td><td>DECIMAL</td><td>Unrestricted stock quantity</td></tr>
+                            <tr><td><code>STOCK_DATE</code></td><td>DATE</td><td>Stock snapshot date (latest used)</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="card info-card ref mb-3">
+                <div class="card-body">
+                    <h6 class="fw-bold"><code>ET_MSA_STOCK</code> &mdash; MSA Warehouse Stock</h6>
+                    <p class="text-muted mb-2">Available stock in MSA warehouse, the primary allocation source.</p>
+                    <table class="table table-sm table-bordered mb-0">
+                        <thead class="table-light"><tr><th>Column</th><th>Type</th><th>Description</th></tr></thead>
+                        <tbody>
+                            <tr><td><code>KUNNR</code></td><td>VARCHAR</td><td>Customer Number (mapped to Store Code)</td></tr>
+                            <tr><td><code>MATNR</code></td><td>VARCHAR</td><td>Material Number (trimmed to 10-digit GEN_ART)</td></tr>
+                            <tr><td><code>VEMNG</code></td><td>DECIMAL</td><td>Available MSA quantity</td></tr>
+                            <tr><td><code>MSA_STOCK_DATE</code></td><td>DATE</td><td>MSA stock snapshot date (latest used)</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Reference Tables -->
+            <h6 class="fw-bold mt-3 mb-2"><i class="bi bi-table me-2" style="color:#E67E22;"></i>Reference Tables (6 tables)</h6>
+
+            <div class="card info-card mb-3">
+                <div class="card-body">
+                    <h6 class="fw-bold"><code>ARS_ST_MJ_DISPLAY_MASTER</code> &mdash; Display Qty & Article Density</h6>
+                    <table class="table table-sm table-bordered mb-0">
+                        <thead class="table-light"><tr><th>Column</th><th>Type</th><th>Description</th></tr></thead>
+                        <tbody>
+                            <tr><td><code>ST</code></td><td>VARCHAR(20)</td><td>Store Code</td></tr>
+                            <tr><td><code>MJ</code></td><td>VARCHAR(100)</td><td>Major Category</td></tr>
+                            <tr><td><code>ST_MJ_DISP_Q</code></td><td>DECIMAL</td><td>Display quantity for this store+category</td></tr>
+                            <tr><td><code>ACC_DENSITY</code></td><td>DECIMAL</td><td>Per-article display density (articles per fixture)</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="card info-card mb-3">
+                <div class="card-body">
+                    <h6 class="fw-bold"><code>ARS_ST_MJ_AUTO_SALE</code> &mdash; Category Auto-Sale by Period</h6>
+                    <table class="table table-sm table-bordered mb-0">
+                        <thead class="table-light"><tr><th>Column</th><th>Type</th><th>Description</th></tr></thead>
+                        <tbody>
+                            <tr><td><code>ST</code></td><td>VARCHAR(20)</td><td>Store Code</td></tr>
+                            <tr><td><code>MJ</code></td><td>VARCHAR(100)</td><td>Major Category</td></tr>
+                            <tr><td><code>CM_REM_DAYS</code></td><td>DECIMAL</td><td>Current Month remaining days</td></tr>
+                            <tr><td><code>CM_AUTO_SALE_Q</code></td><td>DECIMAL</td><td>Current Month auto-sale quantity</td></tr>
+                            <tr><td><code>NM_DAYS</code></td><td>DECIMAL</td><td>New Month total days</td></tr>
+                            <tr><td><code>NM_AUTO_SALE_Q</code></td><td>DECIMAL</td><td>New Month auto-sale quantity</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="card info-card mb-3">
+                <div class="card-body">
+                    <h6 class="fw-bold"><code>ARS_ST_ART_AUTO_SALE</code> &mdash; Article-Level Auto-Sale</h6>
+                    <table class="table table-sm table-bordered mb-0">
+                        <thead class="table-light"><tr><th>Column</th><th>Type</th><th>Description</th></tr></thead>
+                        <tbody>
+                            <tr><td><code>ST</code></td><td>VARCHAR(20)</td><td>Store Code</td></tr>
+                            <tr><td><code>GEN_ART</code></td><td>VARCHAR(50)</td><td>Generic Article (10-digit)</td></tr>
+                            <tr><td><code>CLR</code></td><td>VARCHAR(50)</td><td>Color</td></tr>
+                            <tr><td><code>MJ</code></td><td>VARCHAR(100)</td><td>Major Category</td></tr>
+                            <tr><td><code>CM_REM_DAYS / CM_AUTO_SALE_Q</code></td><td>DECIMAL</td><td>Current Month sale data</td></tr>
+                            <tr><td><code>NM_DAYS / NM_AUTO_SALE_Q</code></td><td>DECIMAL</td><td>New Month sale data</td></tr>
+                            <tr><td><code>ART_TAG</code></td><td>VARCHAR(20)</td><td><strong>'C-ART'</strong> = clearance item (used in Rule 2)</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="card info-card mb-3">
+                <div class="card-body">
+                    <h6 class="fw-bold"><code>ARS_ART_AGING</code> &mdash; Article Age</h6>
+                    <table class="table table-sm table-bordered mb-0">
+                        <thead class="table-light"><tr><th>Column</th><th>Type</th><th>Description</th></tr></thead>
+                        <tbody>
+                            <tr><td><code>GEN_ART</code></td><td>VARCHAR(50)</td><td>Generic Article</td></tr>
+                            <tr><td><code>CLR</code></td><td>VARCHAR(50)</td><td>Color</td></tr>
+                            <tr><td><code>AGING_DAYS</code></td><td>DECIMAL</td><td>Days since article first stocked (Rule 1: &gt; 360 = MIX-ART)</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="card info-card mb-3">
+                <div class="card-body">
+                    <h6 class="fw-bold"><code>ARS_HOLD_DAYS_MASTER</code> &mdash; Replenishment Hold Period</h6>
+                    <table class="table table-sm table-bordered mb-0">
+                        <thead class="table-light"><tr><th>Column</th><th>Type</th><th>Description</th></tr></thead>
+                        <tbody>
+                            <tr><td><code>ST</code></td><td>VARCHAR(20)</td><td>Store Code</td></tr>
+                            <tr><td><code>MJ</code></td><td>VARCHAR(100)</td><td>Major Category</td></tr>
+                            <tr><td><code>HOLD_DAYS</code></td><td>DECIMAL</td><td>Days to hold after initial allocation before next replenishment</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="card info-card mb-3">
+                <div class="card-body">
+                    <h6 class="fw-bold"><code>ARS_ST_MASTER</code> &mdash; Store Configuration</h6>
+                    <table class="table table-sm table-bordered mb-0">
+                        <thead class="table-light"><tr><th>Column</th><th>Type</th><th>Description</th></tr></thead>
+                        <tbody>
+                            <tr><td><code>ST_CD</code></td><td>VARCHAR(20)</td><td>Store Code (primary)</td></tr>
+                            <tr><td><code>ST_NM</code></td><td>NVARCHAR(200)</td><td>Store Name</td></tr>
+                            <tr><td><code>TAGGED_RDC</code></td><td>VARCHAR(20)</td><td>Route: DW01 (1-day) or DH24 (24-hour)</td></tr>
+                            <tr><td><code>HUB_CD</code></td><td>VARCHAR(20)</td><td>Hub Code</td></tr>
+                            <tr><td><code>SALE_COVER_DAYS</code></td><td>DECIMAL</td><td>Days of sales coverage to maintain</td></tr>
+                            <tr><td><code>PRD_DAYS</code></td><td>DECIMAL</td><td>Product/category hold days</td></tr>
+                            <tr><td><code>DH24_DC_TO_HUB_INTRA</code></td><td>DECIMAL</td><td>DC&rarr;Hub transit (24-hour route)</td></tr>
+                            <tr><td><code>DH24_HUB_TO_ST_INTRA</code></td><td>DECIMAL</td><td>Hub&rarr;Store transit (24-hour route)</td></tr>
+                            <tr><td><code>DW01_DC_TO_HUB_INTRA</code></td><td>DECIMAL</td><td>DC&rarr;Hub transit (1-day route)</td></tr>
+                            <tr><td><code>DW01_HUB_TO_ST_INTRA</code></td><td>DECIMAL</td><td>Hub&rarr;Store transit (1-day route)</td></tr>
+                        </tbody>
+                    </table>
+                    <div class="algo-block mt-2 mb-0">
+                        <span class="comment">// TTL_ALC_DAYS computation:</span><br>
+                        <span class="keyword">IF</span> TAGGED_RDC = 'DW01':<br>
+                        &nbsp;&nbsp;TTL_ALC_DAYS = SALE_COVER_DAYS + PRD_DAYS + (DW01_DC + DW01_HUB)<br>
+                        <span class="keyword">ELSE</span>:<br>
+                        &nbsp;&nbsp;TTL_ALC_DAYS = SALE_COVER_DAYS + PRD_DAYS + (DH24_DC + DH24_HUB)
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════ -->
+<!--  TAB 5: OUTPUT COLUMNS (42)                                    -->
+<!-- ══════════════════════════════════════════════════════════════ -->
+<div class="tab-pane fade" id="tabOutputCols">
+
+    <div class="card shadow-sm mb-3">
+        <div class="card-header"><h5 class="card-title mb-0"><i class="bi bi-table me-2"></i>ARS_ALLOCATION_OUTPUT &mdash; 42 Columns</h5></div>
+        <div class="card-body small">
+            <p>Output is grouped into <strong>6 column groups</strong> matching the color-coded headers on the Allocation Output page.</p>
+
+            <!-- Identity -->
+            <h6 class="fw-bold mt-3 mb-2"><span class="badge badge-col-id me-1">Identity (10)</span> Store, Article, Category identifiers</h6>
+            <table class="table table-sm table-bordered formula-table">
+                <thead class="table-light"><tr><th style="width:50px">#</th><th>Column</th><th>Description</th></tr></thead>
+                <tbody>
+                    <tr><td>1</td><td><code>ID</code></td><td>Auto-increment</td></tr>
+                    <tr><td>2</td><td><code>RUN_ID</code></td><td>Unique run ID (ARS-yyyyMMdd-HHmmss)</td></tr>
+                    <tr><td>3</td><td><code>ST</code></td><td>Store Code</td></tr>
+                    <tr><td>4</td><td><code>ST_NM</code></td><td>Store Name</td></tr>
+                    <tr><td>5</td><td><code>TAGGED_RDC</code></td><td>Tagged RDC (DW01 or DH24)</td></tr>
+                    <tr><td>6</td><td><code>HUB_CD</code></td><td>Hub Code</td></tr>
+                    <tr><td>7</td><td><code>MJ</code></td><td>Major Category</td></tr>
+                    <tr><td>8</td><td><code>GEN_ART</code></td><td>Generic Article (10-digit)</td></tr>
+                    <tr><td>9</td><td><code>CLR</code></td><td>Color</td></tr>
+                    <tr><td>10</td><td><code>SZ</code></td><td>Size (reserved)</td></tr>
+                </tbody>
+            </table>
+
+            <!-- Stock Reference -->
+            <h6 class="fw-bold mt-3 mb-2"><span class="badge badge-col-stk me-1">Stock Reference (10)</span> Stock by SAP storage location</h6>
+            <table class="table table-sm table-bordered formula-table">
+                <thead class="table-light"><tr><th style="width:50px">#</th><th>Column</th><th>Description</th></tr></thead>
+                <tbody>
+                    <tr class="key-formula"><td>11</td><td><code>TTL_ST_STK_Q</code></td><td>Total store stock = SUM(0001+0002+0004+0006+HUB_INTRA+HUB_PRD+INTRA+PRD)</td></tr>
+                    <tr><td>12</td><td><code>STK_0001</code></td><td>Stock in location 0001</td></tr>
+                    <tr><td>13</td><td><code>STK_0002</code></td><td>Stock in location 0002</td></tr>
+                    <tr><td>14</td><td><code>STK_0004</code></td><td>Stock in location 0004</td></tr>
+                    <tr><td>15</td><td><code>STK_0006</code></td><td>Stock in location 0006</td></tr>
+                    <tr><td>16</td><td><code>STK_HUB_INTRA</code></td><td>Stock in hub (intra/transfer)</td></tr>
+                    <tr><td>17</td><td><code>STK_HUB_PRD</code></td><td>Stock in hub (product)</td></tr>
+                    <tr><td>18</td><td><code>STK_INTRA</code></td><td>Stock in transit</td></tr>
+                    <tr><td>19</td><td><code>STK_PRD</code></td><td>Stock in product location</td></tr>
+                    <tr><td>20</td><td><code>MSA_QTY</code></td><td>MSA warehouse available quantity</td></tr>
+                </tbody>
+            </table>
+
+            <!-- Parameters -->
+            <h6 class="fw-bold mt-3 mb-2"><span class="badge badge-col-param me-1">Parameters (5)</span> Days and sales rates</h6>
+            <table class="table table-sm table-bordered formula-table">
+                <thead class="table-light"><tr><th style="width:50px">#</th><th>Column</th><th>Description</th></tr></thead>
+                <tbody>
+                    <tr class="key-formula"><td>21</td><td><code>TTL_ALC_DAYS</code></td><td>Total allocation days = SALE_COVER + PRD_DAYS + INTRA_DAYS</td></tr>
+                    <tr><td>22</td><td><code>HOLD_DAYS</code></td><td>Replenishment hold days</td></tr>
+                    <tr><td>23</td><td><code>CM_PD_SALE_Q</code></td><td>Current Month per-day sale rate (MJ-level)</td></tr>
+                    <tr><td>24</td><td><code>NM_PD_SALE_Q</code></td><td>New Month per-day sale rate (MJ-level)</td></tr>
+                    <tr><td>25</td><td><code>ART_AUTO_SALE_PD</code></td><td>Article per-day sale (CM/NM crossover)</td></tr>
+                </tbody>
+            </table>
+
+            <!-- Display & MBQ -->
+            <h6 class="fw-bold mt-3 mb-2"><span class="badge badge-col-disp me-1">Display & MBQ (7)</span> Minimum stock targets</h6>
+            <table class="table table-sm table-bordered formula-table">
+                <thead class="table-light"><tr><th style="width:50px">#</th><th>Column</th><th>Description</th></tr></thead>
+                <tbody>
+                    <tr><td>26</td><td><code>ACC_DENSITY</code></td><td>Article display density per MJ</td></tr>
+                    <tr><td>27</td><td><code>ST_MJ_DISP_Q</code></td><td>Category display quantity</td></tr>
+                    <tr class="key-formula"><td>28</td><td><code>ST_MJ_MBQ</code></td><td>Category MBQ = ST_MJ_DISP_Q + MJ_sale_over_allocation_period</td></tr>
+                    <tr class="key-formula"><td>29</td><td><code>ART_MBQ</code></td><td>Article MBQ = ACC_DENSITY + ART_SALE_PD &times; TTL_ALC_DAYS</td></tr>
+                    <tr><td>30</td><td><code>ART_HOLD_MBQ</code></td><td>Article HOLD MBQ = ACC_DENSITY + ART_SALE_PD &times; (TTL_ALC_DAYS + HOLD_DAYS)</td></tr>
+                    <tr><td>31</td><td><code>VAR_ART_MBQ</code></td><td>Variant-level MBQ (reserved)</td></tr>
+                    <tr><td>32</td><td><code>VAR_ART_HOLD_MBQ</code></td><td>Variant-level hold MBQ (reserved)</td></tr>
+                </tbody>
+            </table>
+
+            <!-- Requirement -->
+            <h6 class="fw-bold mt-3 mb-2"><span class="badge badge-col-req me-1">Requirement (5)</span> Computed shortages</h6>
+            <table class="table table-sm table-bordered formula-table">
+                <thead class="table-light"><tr><th style="width:50px">#</th><th>Column</th><th>Description</th></tr></thead>
+                <tbody>
+                    <tr class="key-formula"><td>33</td><td><code>ST_MJ_REQ</code></td><td>Category shortage = MAX(ST_MJ_MBQ - SUM(stock per ST+MJ), 0)</td></tr>
+                    <tr class="key-formula"><td>34</td><td><code>ST_ART_REQ</code></td><td>Article shortage = MAX(ART_MBQ - TTL_ST_STK_Q, 0)</td></tr>
+                    <tr><td>35</td><td><code>ST_ART_HOLD_REQ</code></td><td>Article HOLD shortage = MAX(ART_HOLD_MBQ - TTL_ST_STK_Q, 0)</td></tr>
+                    <tr><td>36</td><td><code>ST_VAR_ART_REQ</code></td><td>Variant-level requirement (reserved)</td></tr>
+                    <tr><td>37</td><td><code>ST_VAR_ART_HOLD_REQ</code></td><td>Variant-level hold requirement (reserved)</td></tr>
+                </tbody>
+            </table>
+
+            <!-- Classification + Result -->
+            <h6 class="fw-bold mt-3 mb-2"><span class="badge badge-col-cls me-1">Classification (1)</span> + <span class="badge badge-col-res ms-1">Result (4)</span></h6>
+            <table class="table table-sm table-bordered formula-table">
+                <thead class="table-light"><tr><th style="width:50px">#</th><th>Column</th><th>Description</th></tr></thead>
+                <tbody>
+                    <tr class="key-formula"><td>38</td><td><code>ART_CLASS</code></td><td>7-rule classification: MIX-ART, L-ART, OLD-ART, NEW-L</td></tr>
+                    <tr class="key-formula"><td>39</td><td><code>ART_ALC_Q</code></td><td><strong>Allocated Quantity</strong> = LEAST(WANT_Q, MJ_REMAINING)</td></tr>
+                    <tr class="key-formula"><td>40</td><td><code>ART_HOLD_Q</code></td><td><strong>Hold Quantity</strong> = LEAST(MSA - ALC_Q, HOLD_REQ - ALC_Q)</td></tr>
+                    <tr class="key-formula"><td>41</td><td><code>REM_MSA</code></td><td><strong>Remaining MSA</strong> = MSA_QTY - ART_ALC_Q - ART_HOLD_Q</td></tr>
+                    <tr><td>42</td><td><code>CREATED_DT</code></td><td>Run timestamp</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════ -->
+<!--  TAB 6: KEY FORMULAS                                           -->
+<!-- ══════════════════════════════════════════════════════════════ -->
+<div class="tab-pane fade" id="tabFormulas">
+
+    <div class="card shadow-sm mb-3">
+        <div class="card-header"><h5 class="card-title mb-0"><i class="bi bi-calculator me-2"></i>Key Formulas Reference</h5></div>
+        <div class="card-body small">
+
+            <table class="table table-sm table-bordered formula-table">
+                <thead class="table-dark"><tr><th>Formula</th><th>Definition</th></tr></thead>
+                <tbody>
+                    <tr class="key-formula">
+                        <th>TTL_ALC_DAYS</th>
+                        <td>SALE_COVER_DAYS + PRD_DAYS + INTRA_DAYS<br><span class="comment">where INTRA_DAYS = route-specific (DW01 or DH24) DC-to-Hub + Hub-to-Store days</span></td>
+                    </tr>
+                    <tr>
+                        <th>CM_PD_SALE_Q</th>
+                        <td>CM_AUTO_SALE_Q / CM_REM_DAYS<br><span class="comment">Current Month per-day sale rate at MJ level</span></td>
+                    </tr>
+                    <tr>
+                        <th>NM_PD_SALE_Q</th>
+                        <td>NM_AUTO_SALE_Q / NM_DAYS<br><span class="comment">New Month per-day sale rate at MJ level</span></td>
+                    </tr>
+                    <tr class="key-formula">
+                        <th>ST_MJ_ALC_SALE_Q_PD<br><small class="text-muted">(CM/NM Crossover)</small></th>
+                        <td>MIN(TTL_ALC_DAYS + HOLD_DAYS, CM_REM_DAYS) &times; CM_PD_SALE_Q<br>+ MAX(TTL_ALC_DAYS + HOLD_DAYS - CM_REM_DAYS, 0) &times; NM_PD_SALE_Q<br><span class="comment">Blends current month and next month sales periods</span></td>
+                    </tr>
+                    <tr class="key-formula">
+                        <th>ST_MJ_MBQ</th>
+                        <td>ST_MJ_DISP_Q + ST_MJ_ALC_SALE_Q_PD<br><span class="comment">Category MBQ = display need + expected sales over allocation period</span></td>
+                    </tr>
+                    <tr class="key-formula">
+                        <th>ART_MBQ</th>
+                        <td>ACC_DENSITY + ART_AUTO_SALE_PD &times; TTL_ALC_DAYS<br><span class="comment">Article-level minimum stock = display density + sales during allocation window</span></td>
+                    </tr>
+                    <tr>
+                        <th>ART_HOLD_MBQ</th>
+                        <td>ACC_DENSITY + ART_AUTO_SALE_PD &times; (TTL_ALC_DAYS + HOLD_DAYS)<br><span class="comment">Extended MBQ including replenishment hold period</span></td>
+                    </tr>
+                    <tr class="key-formula">
+                        <th>ST_MJ_REQ</th>
+                        <td>MAX(ST_MJ_MBQ - SUM(TTL_ST_STK_Q per ST+MJ), 0)<br><span class="comment">Category-level shortage = total demand minus total stock</span></td>
+                    </tr>
+                    <tr class="key-formula">
+                        <th>ST_ART_REQ</th>
+                        <td>MAX(ART_MBQ - TTL_ST_STK_Q, 0)<br><span class="comment">Article-level shortage</span></td>
+                    </tr>
+                    <tr>
+                        <th>ST_ART_HOLD_REQ</th>
+                        <td>MAX(ART_HOLD_MBQ - TTL_ST_STK_Q, 0)</td>
+                    </tr>
+                    <tr class="key-formula">
+                        <th>WANT_Q</th>
+                        <td>LEAST(MSA_QTY, ST_ART_REQ)<br><span class="comment">How much we ideally want to allocate</span></td>
+                    </tr>
+                    <tr class="key-formula">
+                        <th>ART_ALC_Q<br><small class="text-muted">(Final Allocation)</small></th>
+                        <td>LEAST(WANT_Q, MJ_REMAINING)<br><span class="comment">where MJ_REMAINING = MAX(0, ST_MJ_REQ - cumulative_prior_allocations)<br>Window-function ensures total per ST+MJ never exceeds ST_MJ_REQ</span></td>
+                    </tr>
+                    <tr class="key-formula">
+                        <th>ART_HOLD_Q</th>
+                        <td>LEAST(MSA_QTY - ART_ALC_Q, ST_ART_HOLD_REQ - ART_ALC_Q)<br><span class="comment">Hold for future replenishment (only if both terms &gt; 0)</span></td>
+                    </tr>
+                    <tr class="key-formula">
+                        <th>REM_MSA</th>
+                        <td>MSA_QTY - ART_ALC_Q - ART_HOLD_Q<br><span class="comment">Remaining MSA after all dispositions</span></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════ -->
+<!--  TAB 7: PARAMETERS & THRESHOLDS                               -->
+<!-- ══════════════════════════════════════════════════════════════ -->
+<div class="tab-pane fade" id="tabParams">
+
+    <div class="card shadow-sm mb-3">
+        <div class="card-header"><h5 class="card-title mb-0"><i class="bi bi-sliders me-2"></i>Business Parameters & Thresholds</h5></div>
+        <div class="card-body small">
+
+            <h6 class="fw-bold mt-2 mb-2"><i class="bi bi-funnel me-2"></i>Classification Thresholds</h6>
+            <table class="table table-sm table-bordered">
+                <thead class="table-light"><tr><th>Parameter</th><th>Value</th><th>Used In</th><th>Purpose</th></tr></thead>
+                <tbody>
+                    <tr><td><strong>Aging Limit</strong></td><td><code>&gt; 360 days</code></td><td>Rule 1</td><td>Articles older than 360 days are clearance candidates</td></tr>
+                    <tr><td><strong>Clearance Tag</strong></td><td><code>ART_TAG = 'C-ART'</code></td><td>Rule 2</td><td>Explicitly tagged clearance articles</td></tr>
+                    <tr><td><strong>MSA Threshold (Medium)</strong></td><td><code>&ge; 50</code></td><td>Rule 3</td><td>Combined with variant diversity check</td></tr>
+                    <tr><td><strong>Variant Diversity Limit</strong></td><td><code>SZ_COUNT &le; 2</code></td><td>Rule 3</td><td>Too few color variants for meaningful allocation</td></tr>
+                    <tr><td><strong>Stock Threshold</strong></td><td><code>TTL_ST_STK_Q &ge; 60% ACC_DENSITY</code></td><td>Rule 5</td><td>Well-stocked = stock is at least 60% of display density</td></tr>
+                    <tr><td><strong>MSA Threshold (Low)</strong></td><td><code>&lt; 50</code></td><td>Rule 4</td><td>Combined with low stock for rejection</td></tr>
+                </tbody>
+            </table>
+
+            <h6 class="fw-bold mt-3 mb-2"><i class="bi bi-clock me-2"></i>Time-Based Parameters (from ARS_ST_MASTER)</h6>
+            <table class="table table-sm table-bordered">
+                <thead class="table-light"><tr><th>Parameter</th><th>Source</th><th>Purpose</th></tr></thead>
+                <tbody>
+                    <tr><td><strong>SALE_COVER_DAYS</strong></td><td>ARS_ST_MASTER</td><td>Days of sales inventory to maintain in-store</td></tr>
+                    <tr><td><strong>PRD_DAYS</strong></td><td>ARS_ST_MASTER</td><td>Product-specific processing/hold days</td></tr>
+                    <tr><td><strong>INTRA_DAYS</strong></td><td>ARS_ST_MASTER (route-specific)</td><td>Transit time: DC &rarr; Hub &rarr; Store</td></tr>
+                    <tr><td><strong>HOLD_DAYS</strong></td><td>ARS_HOLD_DAYS_MASTER</td><td>Days to hold after initial allocation before next replenishment</td></tr>
+                </tbody>
+            </table>
+
+            <h6 class="fw-bold mt-3 mb-2"><i class="bi bi-gear me-2"></i>Allocation Controls</h6>
+            <table class="table table-sm table-bordered">
+                <thead class="table-light"><tr><th>Control</th><th>Mechanism</th><th>Guarantee</th></tr></thead>
+                <tbody>
+                    <tr><td><strong>MJ Budget Cap</strong></td><td>Window function with running cumulative sum</td><td>Total allocation per ST+MJ &le; ST_MJ_REQ</td></tr>
+                    <tr><td><strong>MSA Cap</strong></td><td>LEAST(MSA_QTY, ST_ART_REQ)</td><td>Cannot allocate more than available MSA</td></tr>
+                    <tr><td><strong>Priority Order</strong></td><td>ORDER BY ST_ART_REQ DESC</td><td>Most-needed articles get allocated first</td></tr>
+                    <tr><td><strong>Hold Safety</strong></td><td>ART_HOLD_Q only if both (MSA - ALC) &gt; 0 AND (HOLD_REQ - ALC) &gt; 0</td><td>Hold quantity never exceeds remaining MSA or remaining need</td></tr>
+                </tbody>
+            </table>
+
+            <h6 class="fw-bold mt-3 mb-2"><i class="bi bi-info-circle me-2"></i>Key Design Decisions</h6>
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <div class="card border-success">
+                        <div class="card-body py-2">
+                            <h6 class="fw-bold text-success"><i class="bi bi-check-circle me-1"></i>Window-Function Allocation</h6>
+                            <p class="mb-0 small">Articles processed in priority order (highest REQ first) with running MJ-budget tracking. Prevents over-allocation per category.</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card border-warning">
+                        <div class="card-body py-2">
+                            <h6 class="fw-bold" style="color:#E67E22;"><i class="bi bi-funnel me-1"></i>Cascading Classification</h6>
+                            <p class="mb-0 small">Rules evaluated top-to-bottom, first match wins. Ensures clear priority: aged &gt; clearance &gt; low-variant &gt; low-stock &gt; well-stocked &gt; understocked &gt; new.</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card border-primary">
+                        <div class="card-body py-2">
+                            <h6 class="fw-bold text-primary"><i class="bi bi-arrow-repeat me-1"></i>CM/NM Sales Crossover</h6>
+                            <p class="mb-0 small">Blends two pricing periods to capture realistic demand during allocation. Covers both current-month discounts and new-month normal pricing.</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card border-info">
+                        <div class="card-body py-2">
+                            <h6 class="fw-bold text-info"><i class="bi bi-tags me-1"></i>Post-Allocation NEW-L Tagging</h6>
+                            <p class="mb-0 small">Identifies high-potential new articles (MIX-ART with available MSA where category demand remains). Enables future allocation waves.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+</div><!-- end tab-content -->

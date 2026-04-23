@@ -32,8 +32,15 @@
         <h3 class="mb-0"><i class="bi bi-table me-2" style="color:#E67E22;"></i>Allocation Output</h3>
         <small class="text-muted">ARS_ALLOCATION_OUTPUT — Store x Article allocation results (all reference columns for validation)</small>
     </div>
-    <div class="d-flex gap-2">
-        <a asp-action="ExportCsv" asp-route-st="@ViewBag.St" asp-route-mj="@ViewBag.Mj" asp-route-artClass="@ViewBag.ArtClass" class="btn btn-success btn-sm"><i class="bi bi-download me-1"></i>CSV</a>
+    <div class="d-flex gap-2 flex-wrap">
+        <a id="csvExportBtn" asp-action="ExportCsv" asp-route-st="@ViewBag.St" asp-route-mj="@ViewBag.Mj" asp-route-artClass="@ViewBag.ArtClass" class="btn btn-success btn-sm">
+            <i class="bi bi-download me-1"></i>CSV
+            @if (!string.IsNullOrEmpty(ViewBag.St as string) || !string.IsNullOrEmpty(ViewBag.Mj as string) || !string.IsNullOrEmpty(ViewBag.ArtClass as string))
+            { <span class="badge bg-light text-success ms-1" style="font-size:0.6rem;">Filtered</span> }
+            else
+            { <span class="badge bg-light text-success ms-1" style="font-size:0.6rem;">All</span> }
+        </a>
+        <a asp-action="Info" class="btn btn-info btn-sm text-white"><i class="bi bi-info-circle me-1"></i>Algorithm Info</a>
         <a asp-action="Execute" class="btn btn-outline-primary btn-sm"><i class="bi bi-arrow-left me-1"></i>Back</a>
     </div>
 </div>
@@ -80,6 +87,7 @@
         <div class="col-md-3 d-flex gap-2">
             <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-search me-1"></i>Filter</button>
             <a href="@Url.Action("Output")" class="btn btn-outline-secondary btn-sm"><i class="bi bi-x-circle me-1"></i>Clear</a>
+            <a asp-action="ExportCsv" asp-route-st="@ViewBag.St" asp-route-mj="@ViewBag.Mj" asp-route-artClass="@ViewBag.ArtClass" class="btn btn-success btn-sm"><i class="bi bi-download me-1"></i>Download CSV</a>
         </div>
     </form>
 </div></div>

@@ -247,6 +247,9 @@ public class ArsAllocationController : Controller
         }
     }
 
+    // ── INFO PAGE ──
+    public IActionResult Info() => View();
+
     private static int ToInt(IDataReader r, int i) => r.IsDBNull(i) ? 0 : Convert.ToInt32(r.GetValue(i));
     private static decimal ToDec(IDataReader r, int i) => r.IsDBNull(i) ? 0m : Convert.ToDecimal(r.GetValue(i));
     private static string Esc(string s) => s.Replace("'", "''");

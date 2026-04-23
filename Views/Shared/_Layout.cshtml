@@ -83,6 +83,14 @@
                     </li>
                     <li><a class="nav-link" asp-controller="BulkUpload" asp-action="Index" data-bs-dismiss="offcanvas"><i class="bi bi-upload me-1"></i>Bulk Upload</a></li>
                     <li>
+                        <a class="nav-link dropdown-toggle" href="#mSalePlanMenu" data-bs-toggle="collapse" role="button"><i class="bi bi-calendar-check me-1" style="color:#059669;"></i>Sale Plan</a>
+                        <ul class="collapse list-unstyled ms-3" id="mSalePlanMenu">
+                            <li><a class="nav-link" asp-controller="SalePlan" asp-action="Index" data-bs-dismiss="offcanvas">Store Calendar</a></li>
+                            <li><a class="nav-link" asp-controller="SalePlanOutput" asp-action="Index" data-bs-dismiss="offcanvas">Weekly Output</a></li>
+                            <li><a class="nav-link" asp-controller="SalePlanOutput" asp-action="Info" data-bs-dismiss="offcanvas"><i class="bi bi-info-circle me-1"></i>Info</a></li>
+                        </ul>
+                    </li>
+                    <li>
                         <a class="nav-link dropdown-toggle" href="#mPlanMgmtMenu" data-bs-toggle="collapse" role="button"><i class="bi bi-lightning me-1"></i>Plan Management</a>
                         <ul class="collapse list-unstyled ms-3" id="mPlanMgmtMenu">
                             <li><a class="nav-link" asp-controller="Plan" asp-action="Execute" data-bs-dismiss="offcanvas">Execute Plan</a></li>
@@ -110,6 +118,7 @@
                     <li><a class="nav-link" asp-controller="ArsStMaster" asp-action="Index" data-bs-dismiss="offcanvas">Store Master</a></li>
                     <li class="border-top border-white border-opacity-10 mt-1 pt-1"><a class="nav-link" asp-controller="ArsStockData" asp-action="Index" data-bs-dismiss="offcanvas"><i class="bi bi-boxes me-1"></i>Store Stock (SAP)</a></li>
                     <li><a class="nav-link" asp-controller="ArsMsaStock" asp-action="Index" data-bs-dismiss="offcanvas"><i class="bi bi-box-seam me-1"></i>MSA Stock (SAP)</a></li>
+                    <li class="border-top border-white border-opacity-10 mt-1 pt-1"><a class="nav-link" asp-controller="ArsAllocation" asp-action="Info" data-bs-dismiss="offcanvas"><i class="bi bi-info-circle me-1" style="color:#3498db;"></i>Info & Algorithm</a></li>
                 </ul>
             </li>
             <!-- ═══ SALE BUDGET ═══ -->
@@ -202,6 +211,16 @@
                     </li>
                     <li><a class="nav-link" asp-controller="BulkUpload" asp-action="Index"><i class="bi bi-upload me-1"></i>Bulk Upload</a></li>
                     <li>
+                        <a class="nav-link dropdown-toggle" href="#salePlanMenu" data-bs-toggle="collapse" role="button">
+                            <i class="bi bi-calendar-check me-1" style="color:#059669;"></i>Sale Plan
+                        </a>
+                        <ul class="collapse list-unstyled ms-3" id="salePlanMenu">
+                            <li><a class="nav-link" asp-controller="SalePlan" asp-action="Index">Store Calendar</a></li>
+                            <li><a class="nav-link" asp-controller="SalePlanOutput" asp-action="Index"><i class="bi bi-bar-chart-line me-1"></i>Weekly Output</a></li>
+                            <li><a class="nav-link" asp-controller="SalePlanOutput" asp-action="Info"><i class="bi bi-info-circle me-1"></i>Info</a></li>
+                        </ul>
+                    </li>
+                    <li>
                         <a class="nav-link dropdown-toggle" href="#planMgmtMenu" data-bs-toggle="collapse" role="button">
                             <i class="bi bi-lightning me-1"></i>Plan Management
                         </a>
@@ -231,6 +250,7 @@
                     <li><a class="nav-link" asp-controller="ArsStMaster" asp-action="Index">Store Master</a></li>
                     <li class="border-top border-white border-opacity-10 mt-1 pt-1"><a class="nav-link" asp-controller="ArsStockData" asp-action="Index"><i class="bi bi-boxes me-1"></i>Store Stock (SAP)</a></li>
                     <li><a class="nav-link" asp-controller="ArsMsaStock" asp-action="Index"><i class="bi bi-box-seam me-1"></i>MSA Stock (SAP)</a></li>
+                    <li class="border-top border-white border-opacity-10 mt-1 pt-1"><a class="nav-link" asp-controller="ArsAllocation" asp-action="Info"><i class="bi bi-info-circle me-1" style="color:#3498db;"></i>Info & Algorithm</a></li>
                 </ul>
             </li>
             <!-- ═══ SALE BUDGET ═══ -->
@@ -314,18 +334,25 @@
     var refTables = ['weekcalendar','storemaster','bincapacity','saleqty','dispqty','storestock','dcstock','delpending','grtcontribution','producthierarchy'];
     var contPages = ['contmacromvgr','contsz','contseg','contvnd','subststkmvgr','subststksz','subststkseg','subststkvnd','subdcstkmvgr','subdcstksz','subdcstkseg','subdcstkvnd'];
     var planPages = ['plan/execute','plan/output','purchaseplan/execute','purchaseplan/output','sublevel/execute','sublevel/trfoutput','sublevel/ppoutput'];
+    var allocPages = ['arsallocation','arsbulkupload','arsdisplaymaster','arsautosale','arsartautosale','arsholddays','arsstmaster','arsstockdata','arsmsastock'];
+    var salePlanPages = ['saleplan','saleplanoutput'];
     var isRef = refTables.some(function(t){ return path.indexOf('/'+t) !== -1; });
     var isCont = contPages.some(function(t){ return path.indexOf('/'+t) !== -1; });
     var isPlan = planPages.some(function(t){ return path.toLowerCase().indexOf('/'+t.toLowerCase()) !== -1; });
-    var isRfc = rfcPages.some(function(t){ return path.toLowerCase().indexOf('/'+t.toLowerCase()) !== -1; });
+    var isAlloc = allocPages.some(function(t){ return path.toLowerCase().indexOf('/'+t.toLowerCase()) !== -1; });
+    var isSalePlan = salePlanPages.some(function(t){ return path.toLowerCase().indexOf('/'+t.toLowerCase()) !== -1; });
     // Desktop sidebar
     if(isRef){ var el=document.getElementById('refTablesMenu'); if(el) el.classList.add('show'); }
     if(isCont){ var el=document.getElementById('contMenu'); if(el) el.classList.add('show'); }
     if(isPlan){ var el=document.getElementById('planMenu'); if(el) el.classList.add('show'); }
+    if(isAlloc){ var el=document.getElementById('allocMenu'); if(el) el.classList.add('show'); }
+    if(isSalePlan){ var el=document.getElementById('salePlanMenu'); if(el) el.classList.add('show'); }
     // Mobile sidebar
     if(isRef){ var el=document.getElementById('mRefTablesMenu'); if(el) el.classList.add('show'); }
     if(isCont){ var el=document.getElementById('mContMenu'); if(el) el.classList.add('show'); }
     if(isPlan){ var el=document.getElementById('mPlanMenu'); if(el) el.classList.add('show'); }
+    if(isAlloc){ var el=document.getElementById('mAllocMenu'); if(el) el.classList.add('show'); }
+    if(isSalePlan){ var el=document.getElementById('mSalePlanMenu'); if(el) el.classList.add('show'); }
     // Mark active link - match current path or any sub-path (e.g. /SaleQty/Create matches /SaleQty)
     document.querySelectorAll('.sidebar .nav-link, .sidebar-offcanvas .nav-link').forEach(function(link){
         var href = link.getAttribute('href');
